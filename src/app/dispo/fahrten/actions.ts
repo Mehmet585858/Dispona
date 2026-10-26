@@ -258,7 +258,7 @@ export async function fahrzeugWaehlen(rideId: string, vehicleId: string) {
 
   await db.ride.update({
     where: { id: rideId },
-    data: { vehicleId, driverId: schicht?.driverId, dispatchMode: "MANUELL" },
+    data: { vehicleId, driverId: schicht?.driverId, dispatchMode: "MANUELL", driverAckAt: null },
   });
   await fahrtStatusAendern(tenantId, rideId, "DISPONIERT", { userId });
 

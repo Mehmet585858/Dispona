@@ -178,6 +178,21 @@ export async function fahrerFaelltAus() {
   revalidatePath("/dispo/fahrten");
 }
 
+/** "Gesehen" für eine neue oder geänderte Fahrt bestätigen (docs/06-oberflaeche.md). */
+export async function gesehenBestaetigen(rideId: string) {
+  const { tenantId, userId } = await requireSession();
+  const db = withTenant(tenantId);
+  const fahrer = await eigenerFahrer(tenantId, userId);
+
+  const fahrt = await db.ride.findUnique({ where: { id: rideId }, select: { driverId: true } });
+  if (!fahrt || fahrt.driverId !== fahrer.id) {
+    throw new Error("Diese Fahrt gehört nicht zu Ihnen.");
+  }
+
+  await db.ride.update({ where: { id: rideId }, data: { driverAckAt: new Date() } });
+  revalidatePath("/fahrer");
+}
+
 /** Einwilligung zur GPS-Ortung während der Schicht (docs/08-datenschutz-sicherheit.md). */
 export async function gpsEinwilligen() {
   const { tenantId, userId } = await requireSession();

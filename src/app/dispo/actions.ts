@@ -3,6 +3,7 @@
 import { withTenant } from "@/lib/db";
 import { requireSession } from "@/lib/session";
 import { berlinerMitternacht, datumIso } from "@/core/shifts/week";
+import { minutenSeitDisponiert } from "@/core/rides/status";
 
 export async function dashboardLaden() {
   const { tenantId } = await requireSession();
@@ -56,7 +57,7 @@ export async function dashboardLaden() {
     orderBy: { pickupAt: "asc" },
   });
 
-  const alarme = await db.ride.findMany({
+  const alarmeRoh = await db.ride.findMany({
     where: {
       pickupAt: { gte: heute, lt: morgen },
       OR: [{ status: { in: ["PROBLEM", "NICHT_ANGETROFFEN"] } }, { problems: { isEmpty: false } }],
@@ -66,6 +67,29 @@ export async function dashboardLaden() {
     },
     orderBy: { pickupAt: "asc" },
   });
+
+  const unbestaetigtRoh = await db.ride.findMany({
+    where: {
+      pickupAt: { gte: heute, lt: morgen },
+      status: "DISPONIERT",
+      driverId: { not: null },
+      driverAckAt: null,
+    },
+    include: {
+      passenger: { select: { firstName: true, lastName: true } },
+    },
+    orderBy: { pickupAt: "asc" },
+  });
+  const driverAckMinutes = settings?.driverAckMinutes ?? 5;
+  const unbestaetigt = [];
+  for (const fahrt of unbestaetigtRoh) {
+    const minuten = await minutenSeitDisponiert(tenantId, fahrt.id);
+    if (minuten !== null && minuten >= driverAckMinutes) {
+      unbestaetigt.push({ ...fahrt, problems: [...fahrt.problems, "Fahrer hat nicht bestätigt"] });
+    }
+  }
+
+  const alarme = [...alarmeRoh, ...unbestaetigt].sort((a, b) => a.pickupAt.getTime() - b.pickupAt.getTime());
 
   return {
     kennzahlen: { fahrtenHeute, wartenAufSie, unterwegs, anrufeAngenommen: 0 },

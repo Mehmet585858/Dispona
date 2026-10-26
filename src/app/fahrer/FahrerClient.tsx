@@ -8,6 +8,7 @@ import { SignOutButton } from "@/components/SignOutButton";
 import { TRANSPORT_TYPE_LABEL } from "@/core/rides/validation";
 import type { RideStatus } from "@/generated/prisma/enums";
 import { fahrerFaelltAus, fahrtStatusSetzenFahrer, problemMelden, schichtAktion, type ProblemArt } from "./actions";
+import { GesehenUeberlagerung } from "./GesehenUeberlagerung";
 import { GpsTracking } from "./GpsTracking";
 import { PushAktivieren } from "./PushAktivieren";
 
@@ -21,6 +22,7 @@ export type FahrerFahrt = {
   transportType: keyof typeof TRANSPORT_TYPE_LABEL;
   companion: boolean;
   assistanceNotes: string | null;
+  driverAckAt: Date | string | null;
   passenger: { firstName: string; lastName: string; phones: string[] };
   pickupPlace: Ort;
   dropoffPlace: Ort;
@@ -95,6 +97,11 @@ export function FahrerClient({
   const naechsteFahrt = aktiveFahrten[0] ?? null;
   const danach = aktiveFahrten.slice(1);
   const erledigtHeute = aktuelleFahrten.filter((f) => f.status === "ERLEDIGT").length;
+  const zeigeGesehenUeberlagerung = naechsteFahrt?.status === "DISPONIERT" && !naechsteFahrt.driverAckAt;
+
+  function gesehen(rideId: string) {
+    setAktuelleFahrten((vorher) => vorher.map((f) => (f.id === rideId ? { ...f, driverAckAt: new Date() } : f)));
+  }
 
   function statusSetzen(rideId: string, status: RideStatus) {
     startTransition(async () => {
@@ -138,6 +145,16 @@ export function FahrerClient({
 
   return (
     <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-4 p-4 pb-28">
+      {zeigeGesehenUeberlagerung && naechsteFahrt ? (
+        <GesehenUeberlagerung
+          rideId={naechsteFahrt.id}
+          uhrzeit={uhrzeit(naechsteFahrt.pickupAt)}
+          vonOrt={kurzOrt(naechsteFahrt.pickupPlace)}
+          nachOrt={kurzOrt(naechsteFahrt.dropoffPlace)}
+          onBestaetigt={() => gesehen(naechsteFahrt.id)}
+        />
+      ) : null}
+
       <Card>
         <div className="flex items-start justify-between gap-2">
           <div>

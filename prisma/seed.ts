@@ -18,11 +18,13 @@ async function main() {
   await prisma.rideStatusEvent.deleteMany();
   await prisma.suggestion.deleteMany();
   await prisma.auditLog.deleteMany();
+  await prisma.notification.deleteMany();
   await prisma.ride.deleteMany();
   await prisma.rideSeries.deleteMany();
   await prisma.shift.deleteMany();
   await prisma.pushSubscription.deleteMany();
   await prisma.driver.deleteMany();
+  await prisma.vehicleLocation.deleteMany();
   await prisma.vehicle.deleteMany();
   await prisma.place.deleteMany();
   await prisma.approval.deleteMany();
