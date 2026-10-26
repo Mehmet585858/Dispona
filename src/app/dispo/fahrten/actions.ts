@@ -9,8 +9,14 @@ import { fahrtStatusAendern } from "@/core/rides/status";
 import { fahrgaesteAehnlicheNamen, telefonNormalisieren } from "@/core/passengers/suche";
 import { berlinerMitternacht, datumIso, mitUhrzeit } from "@/core/shifts/week";
 import { vorschlaegeBerechnen, type GeplanteFahrt } from "@/core/disposition/vorschlagen";
+import { pushAnFahrer } from "@/core/notify/push";
+import { neueFahrtText, stornierteFahrtText } from "@/core/notify/texte";
 import { routingProvider, GEOCODE_SICHER_SCHWELLE } from "@/providers/routing";
 import type { RideStatus } from "@/generated/prisma/enums";
+
+function uhrzeitBerlin(datum: Date): string {
+  return datum.toLocaleTimeString("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", minute: "2-digit" });
+}
 
 export async function fahrtenLaden(datumFilter?: string) {
   const { tenantId } = await requireSession();
@@ -239,7 +245,10 @@ export async function fahrtAnlegen(
 export async function fahrzeugWaehlen(rideId: string, vehicleId: string) {
   const { tenantId, userId } = await requireSession();
   const db = withTenant(tenantId);
-  const fahrt = await db.ride.findUnique({ where: { id: rideId }, select: { pickupAt: true } });
+  const fahrt = await db.ride.findUnique({
+    where: { id: rideId },
+    select: { pickupAt: true, pickupPlace: { select: { label: true } }, dropoffPlace: { select: { label: true } } },
+  });
   if (!fahrt) throw new Error("Fahrt nicht gefunden.");
 
   const schicht = await db.shift.findFirst({
@@ -252,6 +261,14 @@ export async function fahrzeugWaehlen(rideId: string, vehicleId: string) {
     data: { vehicleId, driverId: schicht?.driverId, dispatchMode: "MANUELL" },
   });
   await fahrtStatusAendern(tenantId, rideId, "DISPONIERT", { userId });
+
+  if (schicht?.driverId) {
+    const text = neueFahrtText(uhrzeitBerlin(fahrt.pickupAt), fahrt.pickupPlace.label, fahrt.dropoffPlace.label);
+    await pushAnFahrer(tenantId, schicht.driverId, { title: "Neue Fahrt", body: text, url: "/fahrer" });
+    await db.notification.create({
+      data: { tenantId, channel: "PUSH", toRef: schicht.driverId, rideId, kind: "NEUE_FAHRT" },
+    });
+  }
 
   const vorschlag = await db.suggestion.findFirst({
     where: { rideId, decision: "OFFEN" },
@@ -278,6 +295,26 @@ export async function fahrzeugWaehlen(rideId: string, vehicleId: string) {
 export async function fahrtStatusSetzen(rideId: string, status: RideStatus) {
   const { tenantId, userId } = await requireSession();
   await fahrtStatusAendern(tenantId, rideId, status, { userId });
+  revalidatePath("/dispo/fahrten");
+  revalidatePath("/dispo");
+}
+
+export async function fahrtStornieren(rideId: string) {
+  const { tenantId, userId } = await requireSession();
+  const db = withTenant(tenantId);
+  const fahrt = await db.ride.findUnique({ where: { id: rideId }, select: { pickupAt: true, driverId: true } });
+  if (!fahrt) throw new Error("Fahrt nicht gefunden.");
+
+  await fahrtStatusAendern(tenantId, rideId, "STORNIERT", { userId });
+
+  if (fahrt.driverId) {
+    const text = stornierteFahrtText(uhrzeitBerlin(fahrt.pickupAt));
+    await pushAnFahrer(tenantId, fahrt.driverId, { title: "Fahrt entfällt", body: text, url: "/fahrer" });
+    await db.notification.create({
+      data: { tenantId, channel: "PUSH", toRef: fahrt.driverId, rideId, kind: "STORNO" },
+    });
+  }
+
   revalidatePath("/dispo/fahrten");
   revalidatePath("/dispo");
 }

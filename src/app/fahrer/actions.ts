@@ -1,0 +1,111 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { withTenant } from "@/lib/db";
+import { requireSession } from "@/lib/session";
+import { fahrtStatusAendern } from "@/core/rides/status";
+import { berlinerMitternacht, datumIso, tagVerschieben } from "@/core/shifts/week";
+import { pushAboSpeichern } from "@/core/notify/push";
+import type { RideStatus } from "@/generated/prisma/enums";
+
+async function eigenerFahrer(tenantId: string, userId: string) {
+  const db = withTenant(tenantId);
+  const fahrer = await db.driver.findUnique({ where: { userId } });
+  if (!fahrer) {
+    throw new Error("Zu diesem Konto gehört kein Fahrer-Profil.");
+  }
+  return fahrer;
+}
+
+/** Fahrten und Schichten von heute und morgen für den angemeldeten Fahrer (docs/06-oberflaeche.md). */
+export async function fahrerUebersichtLaden() {
+  const { tenantId, userId, name } = await requireSession();
+  const db = withTenant(tenantId);
+  const fahrer = await eigenerFahrer(tenantId, userId);
+
+  const heuteIso = datumIso(new Date());
+  const heute = berlinerMitternacht(heuteIso);
+  const uebermorgen = berlinerMitternacht(tagVerschieben(heuteIso, 2));
+
+  const [schichten, fahrten] = await Promise.all([
+    db.shift.findMany({
+      where: { driverId: fahrer.id, start: { lt: uebermorgen }, end: { gte: heute } },
+      include: { vehicle: { select: { plate: true } } },
+      orderBy: { start: "asc" },
+    }),
+    db.ride.findMany({
+      where: {
+        driverId: fahrer.id,
+        pickupAt: { gte: heute, lt: uebermorgen },
+        status: { notIn: ["STORNIERT"] },
+      },
+      include: {
+        passenger: { select: { firstName: true, lastName: true, phones: true } },
+        pickupPlace: true,
+        dropoffPlace: true,
+      },
+      orderBy: { pickupAt: "asc" },
+    }),
+  ]);
+
+  const jetzt = new Date();
+  const laufendeSchicht = schichten.find((s) => s.start <= jetzt && jetzt <= s.end) ?? schichten[0] ?? null;
+
+  return { name, schichten, fahrten, laufendeSchichtId: laufendeSchicht?.id ?? null };
+}
+
+/** Statuswechsel durch den Fahrer selbst – nur für seine eigenen Fahrten. */
+export async function fahrtStatusSetzenFahrer(
+  rideId: string,
+  status: RideStatus,
+  position?: { lat: number; lng: number },
+) {
+  const { tenantId, userId } = await requireSession();
+  const db = withTenant(tenantId);
+  const fahrer = await eigenerFahrer(tenantId, userId);
+
+  const fahrt = await db.ride.findUnique({ where: { id: rideId }, select: { driverId: true } });
+  if (!fahrt || fahrt.driverId !== fahrer.id) {
+    throw new Error("Diese Fahrt gehört nicht zu Ihnen.");
+  }
+
+  await fahrtStatusAendern(tenantId, rideId, status, {
+    userId,
+    lat: position?.lat,
+    lng: position?.lng,
+  });
+
+  revalidatePath("/fahrer");
+  revalidatePath("/dispo");
+}
+
+/** Schicht starten, pausieren, fortsetzen oder beenden. */
+export async function schichtAktion(shiftId: string, aktion: "start" | "pause" | "weiter" | "beenden") {
+  const { tenantId, userId } = await requireSession();
+  const db = withTenant(tenantId);
+  const fahrer = await eigenerFahrer(tenantId, userId);
+
+  const schicht = await db.shift.findUnique({ where: { id: shiftId }, select: { driverId: true } });
+  if (!schicht || schicht.driverId !== fahrer.id) {
+    throw new Error("Diese Schicht gehört nicht zu Ihnen.");
+  }
+
+  const daten =
+    aktion === "start"
+      ? { startedAt: new Date(), onBreak: false }
+      : aktion === "pause"
+        ? { onBreak: true }
+        : aktion === "weiter"
+          ? { onBreak: false }
+          : { endedAt: new Date() };
+
+  await db.shift.update({ where: { id: shiftId }, data: daten });
+  revalidatePath("/fahrer");
+}
+
+/** Speichert das Push-Abo des Geräts für den angemeldeten Fahrer. */
+export async function pushAboSpeichernFuerMich(abo: { endpoint: string; keys: { p256dh: string; auth: string } }) {
+  const { tenantId, userId } = await requireSession();
+  const fahrer = await eigenerFahrer(tenantId, userId);
+  await pushAboSpeichern(tenantId, fahrer.id, abo);
+}
