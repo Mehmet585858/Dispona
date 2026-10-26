@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { gesehenBestaetigen } from "./actions";
+import { warteschlangeHinzufuegen } from "./warteschlange";
 
 function toneAbspielen() {
   try {
@@ -34,7 +35,6 @@ export function GesehenUeberlagerung({
   nachOrt: string;
   onBestaetigt: () => void;
 }) {
-  const [laedt, setLaedt] = useState(false);
   const gespieltFuer = useRef<string | null>(null);
 
   useEffect(() => {
@@ -43,14 +43,15 @@ export function GesehenUeberlagerung({
     toneAbspielen();
   }, [rideId]);
 
-  async function bestaetigen() {
-    setLaedt(true);
-    try {
-      await gesehenBestaetigen(rideId);
-      onBestaetigt();
-    } finally {
-      setLaedt(false);
+  function bestaetigen() {
+    onBestaetigt();
+    if (!navigator.onLine) {
+      warteschlangeHinzufuegen({ typ: "GESEHEN", daten: { rideId } });
+      return;
     }
+    gesehenBestaetigen(rideId).catch(() => {
+      warteschlangeHinzufuegen({ typ: "GESEHEN", daten: { rideId } });
+    });
   }
 
   return (
@@ -65,10 +66,9 @@ export function GesehenUeberlagerung({
       <button
         type="button"
         onClick={bestaetigen}
-        disabled={laedt}
-        className="mt-4 flex min-h-16 w-full max-w-xs items-center justify-center rounded-2xl bg-surface px-8 text-lg font-semibold text-accent transition-colors hover:bg-surface/90 disabled:opacity-50"
+        className="mt-4 flex min-h-16 w-full max-w-xs items-center justify-center rounded-2xl bg-surface px-8 text-lg font-semibold text-accent transition-colors hover:bg-surface/90"
       >
-        {laedt ? "…" : "Gesehen"}
+        Gesehen
       </button>
     </div>
   );

@@ -10,7 +10,9 @@ import type { RideStatus } from "@/generated/prisma/enums";
 import { fahrerFaelltAus, fahrtStatusSetzenFahrer, problemMelden, schichtAktion, type ProblemArt } from "./actions";
 import { GesehenUeberlagerung } from "./GesehenUeberlagerung";
 import { GpsTracking } from "./GpsTracking";
+import { OfflineSync } from "./OfflineSync";
 import { PushAktivieren } from "./PushAktivieren";
+import { warteschlangeHinzufuegen } from "./warteschlange";
 
 type Ort = { label: string; street: string; zip: string; city: string; lat: number; lng: number };
 
@@ -128,9 +130,17 @@ export function FahrerClient({
   }
 
   function statusSetzen(rideId: string, status: RideStatus) {
+    setAktuelleFahrten((vorher) => vorher.map((f) => (f.id === rideId ? { ...f, status } : f)));
     startTransition(async () => {
-      await fahrtStatusSetzenFahrer(rideId, status);
-      setAktuelleFahrten((vorher) => vorher.map((f) => (f.id === rideId ? { ...f, status } : f)));
+      if (!navigator.onLine) {
+        warteschlangeHinzufuegen({ typ: "STATUS", daten: { rideId, status } });
+        return;
+      }
+      try {
+        await fahrtStatusSetzenFahrer(rideId, status);
+      } catch {
+        warteschlangeHinzufuegen({ typ: "STATUS", daten: { rideId, status } });
+      }
     });
   }
 
@@ -152,14 +162,22 @@ export function FahrerClient({
   }
 
   function problem(rideId: string, art: ProblemArt) {
+    if (art === "FAHRGAST_NICHT_DA") {
+      setAktuelleFahrten((vorher) => vorher.map((f) => (f.id === rideId ? { ...f, status: "NICHT_ANGETROFFEN" } : f)));
+    } else if (art === "FAHRZEUG_DEFEKT") {
+      setAktuelleFahrten((vorher) => vorher.map((f) => (f.id === rideId ? { ...f, status: "PROBLEM" } : f)));
+    }
+    setProblemOffen(false);
     startTransition(async () => {
-      await problemMelden(rideId, art);
-      if (art === "FAHRGAST_NICHT_DA") {
-        setAktuelleFahrten((vorher) => vorher.map((f) => (f.id === rideId ? { ...f, status: "NICHT_ANGETROFFEN" } : f)));
-      } else if (art === "FAHRZEUG_DEFEKT") {
-        setAktuelleFahrten((vorher) => vorher.map((f) => (f.id === rideId ? { ...f, status: "PROBLEM" } : f)));
+      if (!navigator.onLine) {
+        warteschlangeHinzufuegen({ typ: "PROBLEM", daten: { rideId, art } });
+        return;
       }
-      setProblemOffen(false);
+      try {
+        await problemMelden(rideId, art);
+      } catch {
+        warteschlangeHinzufuegen({ typ: "PROBLEM", daten: { rideId, art } });
+      }
     });
   }
 
@@ -236,6 +254,7 @@ export function FahrerClient({
         </div>
 
         <GpsTracking gpsConsentAt={gpsConsentAt} schichtAktiv={schichtAktiv} />
+        <OfflineSync />
       </Card>
 
       {naechsteFahrt ? (
