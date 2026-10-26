@@ -6,7 +6,14 @@ declare global {
 }
 
 function createClient() {
-  const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+  const adapter = new PrismaPg({
+    connectionString: process.env.DATABASE_URL,
+    // Kleiner, kurzlebiger Pool: die lokale Entwicklungsdatenbank (npx prisma dev)
+    // trennt inaktive Verbindungen von sich aus, lange gehaltene Verbindungen führen
+    // sonst zu "Server has closed the connection"-Fehlern.
+    max: 5,
+    idleTimeoutMillis: 10_000,
+  });
   return new PrismaClient({ adapter });
 }
 

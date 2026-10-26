@@ -1,20 +1,16 @@
 import "dotenv/config";
 import { randomUUID } from "node:crypto";
+import { berlinerMitternacht, datumIso, mitUhrzeit, tagVerschieben } from "../src/core/shifts/week";
 import { prisma } from "../src/lib/prisma";
 
-const heute = new Date();
-heute.setHours(0, 0, 0, 0);
+const heute = berlinerMitternacht(datumIso(new Date()));
 
 function uhrzeit(tag: Date, stunde: number, minute = 0): Date {
-  const datum = new Date(tag);
-  datum.setHours(stunde, minute, 0, 0);
-  return datum;
+  return mitUhrzeit(tag, `${String(stunde).padStart(2, "0")}:${String(minute).padStart(2, "0")}`);
 }
 
 function morgen(): Date {
-  const d = new Date(heute);
-  d.setDate(d.getDate() + 1);
-  return d;
+  return berlinerMitternacht(tagVerschieben(datumIso(heute), 1));
 }
 
 async function main() {

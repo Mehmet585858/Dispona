@@ -76,7 +76,8 @@ tests/
 - Externe Dienste nur über ihre Schnittstelle in `providers/` ansprechen, damit Anbieter austauschbar bleiben.
 - Gesundheitsnahe Daten (Fahrgast, Fahrten, Gesprächsprotokolle) nie in Logs, Push-Texten oder SMS. Logs enthalten nur IDs; Push/SMS an Fahrer nur Uhrzeit und Ort, kein Name.
 - Alle Texte der Oberfläche auf Deutsch, in kurzer, freundlicher Sprache (Sie-Form). Texte in `src/app/**/texte.ts` sammeln, nicht im Code verstreuen.
-- Uhrzeiten intern in UTC speichern, in der Oberfläche in `Europe/Berlin` anzeigen.
+- Uhrzeiten intern in UTC speichern, in der Oberfläche in `Europe/Berlin` anzeigen. Datum/Zeit-Rechnung (Wochenstart, "heute", Uhrzeiten setzen) immer über `src/core/shifts/week.ts` – nie `new Date()` direkt mit `setHours()`/`toISOString()` mischen, das ist je nach Server-Zeitzone falsch (siehe Tests in `tests/shifts-week.test.ts`).
+- Next.js 16 ("Cache Components"): Eine Server-Komponente, die `new Date()`, `Math.random()` o. Ä. direkt verwendet (nicht nur über `headers()`/`cookies()`), braucht davor `await connection()` aus `next/server` – sonst bricht das Prerendering mit "Connection terminated" o. Ä. ab (siehe `src/app/dispo/fahrer/page.tsx`).
 - Kleine Schritte: pro Aufgabe nur das Nötige ändern. Nach jeder Aufgabe `npm run lint`, `npm run typecheck` und `npm test` ausführen; erst bei grün ist die Aufgabe fertig.
 
 ## Befehle
