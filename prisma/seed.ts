@@ -72,6 +72,17 @@ async function main() {
       emailVerified: true,
     },
   });
+  // Echter Zugang für den Auftraggeber zum Ausprobieren.
+  await prisma.user.create({
+    data: {
+      id: randomUUID(),
+      tenantId: tenant.id,
+      email: "mehmet.yurtseven.58@hotmail.com",
+      name: "Mehmet Yurtseven",
+      role: "ADMIN",
+      emailVerified: true,
+    },
+  });
   await prisma.user.createMany({
     data: [
       {
