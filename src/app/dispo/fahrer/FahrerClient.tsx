@@ -12,6 +12,7 @@ import {
   type FahrerEinladenEingabe,
   type SchichtMusterEingabe,
 } from "@/core/drivers/validation";
+import { fahrzeugArtLabel } from "@/core/vehicles/validation";
 import {
   berlinerMitternacht,
   datumIso,
@@ -29,7 +30,13 @@ import {
 } from "./actions";
 
 type Fahrer = { id: string; user: { id: string; name: string; phone: string | null; email: string } };
-type Fahrzeug = { id: string; plate: string };
+type Fahrzeug = {
+  id: string;
+  plate: string;
+  wheelchairSpots: number;
+  carryChair: boolean;
+  stretcher: boolean;
+};
 type Schicht = {
   id: string;
   driverId: string;
@@ -195,7 +202,7 @@ export function FahrerClient({
             >
               {fahrzeuge.map((v) => (
                 <option key={v.id} value={v.id}>
-                  {v.plate}
+                  {v.plate} ({fahrzeugArtLabel(v)})
                 </option>
               ))}
             </select>

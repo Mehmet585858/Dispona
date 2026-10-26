@@ -23,3 +23,16 @@ export function textZuJaNein(wert: string | undefined): boolean {
   const normalisiert = (wert ?? "").trim().toLowerCase();
   return ["ja", "j", "yes", "y", "1", "true", "wahr"].includes(normalisiert);
 }
+
+/** Kurzbeschreibung der Ausstattung für Listen und Auswahlfelder, z. B. "Rollstuhl, Tragestuhl". */
+export function fahrzeugArtLabel(fahrzeug: {
+  wheelchairSpots: number;
+  carryChair: boolean;
+  stretcher: boolean;
+}): string {
+  const arten: string[] = [];
+  if (fahrzeug.wheelchairSpots > 0) arten.push("Rollstuhl");
+  if (fahrzeug.carryChair) arten.push("Tragestuhl");
+  if (fahrzeug.stretcher) arten.push("Liegend");
+  return arten.length > 0 ? arten.join(", ") : "Sitzend";
+}

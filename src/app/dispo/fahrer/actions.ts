@@ -26,7 +26,7 @@ export async function fahrzeugeFuerAuswahl() {
   return withTenant(tenantId).vehicle.findMany({
     where: { active: true },
     orderBy: { plate: "asc" },
-    select: { id: true, plate: true },
+    select: { id: true, plate: true, wheelchairSpots: true, carryChair: true, stretcher: true },
   });
 }
 
