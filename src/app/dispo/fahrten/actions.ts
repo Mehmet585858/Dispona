@@ -8,6 +8,7 @@ import { fahrtSchema, type FahrtEingabe } from "@/core/rides/validation";
 import { fahrtStatusAendern } from "@/core/rides/status";
 import { fahrgaesteAehnlicheNamen, telefonNormalisieren } from "@/core/passengers/suche";
 import { berlinerMitternacht, datumIso, mitUhrzeit } from "@/core/shifts/week";
+import { vorschlaegeBerechnen, type GeplanteFahrt } from "@/core/disposition/vorschlagen";
 import { routingProvider, GEOCODE_SICHER_SCHWELLE } from "@/providers/routing";
 import type { RideStatus } from "@/generated/prisma/enums";
 
@@ -24,6 +25,7 @@ export async function fahrtenLaden(datumFilter?: string) {
       pickupPlace: { select: { label: true } },
       dropoffPlace: { select: { label: true } },
       vehicle: { select: { plate: true } },
+      suggestions: { where: { decision: "OFFEN" }, orderBy: { createdAt: "desc" }, take: 1 },
     },
     orderBy: { pickupAt: "asc" },
   });
@@ -71,6 +73,84 @@ export async function ortAusAdresseAnlegen(eingabe: {
     data: { tenantId, type: "SONSTIGES", usageCount: 0, ...eingabe },
   });
   return ort;
+}
+
+/** Berechnet die Fahrzeugvorschläge für eine erfasste Fahrt und speichert sie (docs/05-disposition.md). */
+async function vorschlagBerechnenUndSpeichern(tenantId: string, rideId: string, userId?: string) {
+  const db = withTenant(tenantId);
+  const fahrt = await db.ride.findUnique({
+    where: { id: rideId },
+    include: { pickupPlace: true, dropoffPlace: true },
+  });
+  if (!fahrt) return;
+
+  const settings = await db.tenantSettings.findUnique({ where: { tenantId } });
+  const depot = settings?.depotAddress as { lat: number; lng: number } | null;
+  if (!depot) return; // Einrichtung noch nicht abgeschlossen – kein Betriebshof hinterlegt
+
+  const tagStart = berlinerMitternacht(datumIso(fahrt.pickupAt));
+  const tagEnde = new Date(tagStart);
+  tagEnde.setDate(tagEnde.getDate() + 1);
+
+  const [fahrzeuge, schichten, tagesplanFahrten] = await Promise.all([
+    db.vehicle.findMany({ where: { active: true } }),
+    db.shift.findMany({ where: { start: { lt: tagEnde }, end: { gte: tagStart } } }),
+    db.ride.findMany({
+      where: {
+        pickupAt: { gte: tagStart, lt: tagEnde },
+        vehicleId: { not: null },
+        id: { not: rideId },
+        status: { notIn: ["STORNIERT"] },
+      },
+      include: { pickupPlace: true, dropoffPlace: true },
+    }),
+  ]);
+
+  const tagesplan: GeplanteFahrt[] = tagesplanFahrten.map((r) => ({
+    vehicleId: r.vehicleId!,
+    pickupAt: r.pickupAt,
+    appointmentAt: r.appointmentAt,
+    pickupOrt: { lat: r.pickupPlace.lat, lng: r.pickupPlace.lng },
+    dropoffOrt: { lat: r.dropoffPlace.lat, lng: r.dropoffPlace.lng },
+    transportType: r.transportType,
+  }));
+
+  const { vorschlaege, keinKandidat } = await vorschlaegeBerechnen({
+    fahrt: {
+      transportType: fahrt.transportType,
+      companion: fahrt.companion,
+      pickupAt: fahrt.pickupAt,
+      appointmentAt: fahrt.appointmentAt,
+      pickupOrt: { lat: fahrt.pickupPlace.lat, lng: fahrt.pickupPlace.lng },
+      dropoffOrt: { lat: fahrt.dropoffPlace.lat, lng: fahrt.dropoffPlace.lng },
+    },
+    fahrzeuge,
+    schichten,
+    tagesplan,
+    depot,
+    routing: routingProvider,
+  });
+
+  if (vorschlaege.length > 0) {
+    await db.suggestion.create({
+      data: {
+        tenantId,
+        rideId,
+        options: vorschlaege.map((v) => ({
+          vehicleId: v.vehicleId,
+          plate: v.plate,
+          etaMin: v.etaMin,
+          onTime: !v.zuSpaet,
+          score: Math.round(v.score * 10) / 10,
+          reason: v.begruendung,
+        })),
+        decision: "OFFEN",
+      },
+    });
+    await fahrtStatusAendern(tenantId, rideId, "VORGESCHLAGEN", { userId });
+  } else if (keinKandidat) {
+    await db.ride.update({ where: { id: rideId }, data: { problems: { push: "KEIN_FAHRZEUG" } } });
+  }
 }
 
 export async function fahrtAnlegen(
@@ -125,6 +205,7 @@ export async function fahrtAnlegen(
     },
   });
   await fahrtStatusAendern(tenantId, entwurf.id, "ERFASST", { userId });
+  await vorschlagBerechnenUndSpeichern(tenantId, entwurf.id, userId);
 
   if (daten.rueckfahrt && daten.rueckfahrtzeit) {
     const rueckfahrtAt = mitUhrzeit(tag, daten.rueckfahrtzeit);
@@ -146,6 +227,7 @@ export async function fahrtAnlegen(
       },
     });
     await fahrtStatusAendern(tenantId, rueckEntwurf.id, "ERFASST", { userId });
+    await vorschlagBerechnenUndSpeichern(tenantId, rueckEntwurf.id, userId);
   }
 
   revalidatePath("/dispo/fahrten");
@@ -153,6 +235,7 @@ export async function fahrtAnlegen(
   return { rideId: entwurf.id, probleme };
 }
 
+/** "Bestätigen" (vorgeschlagenes Fahrzeug) oder "Anderes Fahrzeug" – beides läuft hierüber. */
 export async function fahrzeugWaehlen(rideId: string, vehicleId: string) {
   const { tenantId, userId } = await requireSession();
   const db = withTenant(tenantId);
@@ -169,6 +252,25 @@ export async function fahrzeugWaehlen(rideId: string, vehicleId: string) {
     data: { vehicleId, driverId: schicht?.driverId, dispatchMode: "MANUELL" },
   });
   await fahrtStatusAendern(tenantId, rideId, "DISPONIERT", { userId });
+
+  const vorschlag = await db.suggestion.findFirst({
+    where: { rideId, decision: "OFFEN" },
+    orderBy: { createdAt: "desc" },
+  });
+  if (vorschlag) {
+    const optionen = vorschlag.options as { vehicleId: string }[];
+    const istBesterVorschlag = optionen[0]?.vehicleId === vehicleId;
+    await db.suggestion.update({
+      where: { id: vorschlag.id },
+      data: {
+        decision: istBesterVorschlag ? "ANGENOMMEN" : "GEAENDERT",
+        chosenVehicleId: vehicleId,
+        decidedByUserId: userId,
+        decidedAt: new Date(),
+      },
+    });
+  }
+
   revalidatePath("/dispo/fahrten");
   revalidatePath("/dispo");
 }

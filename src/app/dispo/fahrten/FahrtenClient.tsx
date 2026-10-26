@@ -16,9 +16,10 @@ import {
   type FahrtEingabe,
 } from "@/core/rides/validation";
 import { datumIso } from "@/core/shifts/week";
+import { VorschlagAktion, type VorschlagOption } from "@/components/VorschlagAktion";
 import { FahrgastAuswahl } from "./FahrgastAuswahl";
 import { OrtAuswahl } from "./OrtAuswahl";
-import { fahrtAnlegen, fahrzeugWaehlen } from "./actions";
+import { fahrtAnlegen } from "./actions";
 
 type Fahrt = {
   id: string;
@@ -30,6 +31,7 @@ type Fahrt = {
   pickupPlace: { label: string };
   dropoffPlace: { label: string };
   vehicle: { plate: string } | null;
+  suggestions?: { options: unknown }[];
 };
 type Ort = { id: string; label: string; street: string; city: string };
 type Fahrzeug = { id: string; plate: string };
@@ -122,12 +124,6 @@ export function FahrtenClient({
     } finally {
       setSpeichert(false);
     }
-  }
-
-  async function fahrzeugFuerFahrtWaehlen(rideId: string, vehicleId: string) {
-    if (!vehicleId) return;
-    await fahrzeugWaehlen(rideId, vehicleId);
-    router.refresh();
   }
 
   return (
@@ -332,19 +328,15 @@ export function FahrtenClient({
               <TableCell>
                 {fahrt.vehicle ? (
                   fahrt.vehicle.plate
-                ) : fahrt.status === "ERFASST" ? (
-                  <select
-                    defaultValue=""
-                    onChange={(event) => fahrzeugFuerFahrtWaehlen(fahrt.id, event.target.value)}
-                    className="h-9 rounded-lg border border-line-strong bg-surface px-2 text-sm text-ink"
-                  >
-                    <option value="">Fahrzeug wählen</option>
-                    {fahrzeuge.map((f) => (
-                      <option key={f.id} value={f.id}>
-                        {f.plate}
-                      </option>
-                    ))}
-                  </select>
+                ) : fahrt.status === "ERFASST" || fahrt.status === "VORGESCHLAGEN" ? (
+                  <VorschlagAktion
+                    rideId={fahrt.id}
+                    beste={
+                      (fahrt.suggestions?.[0]?.options as VorschlagOption[] | undefined)?.[0] ?? null
+                    }
+                    fahrzeuge={fahrzeuge}
+                    onErledigt={() => router.refresh()}
+                  />
                 ) : (
                   "—"
                 )}

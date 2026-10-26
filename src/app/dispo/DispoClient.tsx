@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/Card";
 import { Chip } from "@/components/ui/Chip";
 import { TRANSPORT_TYPE_LABEL } from "@/core/rides/validation";
-import { fahrzeugWaehlen } from "./fahrten/actions";
+import { VorschlagAktion, type VorschlagOption } from "@/components/VorschlagAktion";
 
 const Karte = dynamic(() => import("@/components/Karte").then((m) => m.Karte), {
   ssr: false,
@@ -24,6 +24,7 @@ type Fahrt = {
   pickupPlace: { label: string };
   dropoffPlace: { label: string };
   vehicle?: { id: string; plate: string } | null;
+  suggestions?: { options: unknown }[];
 };
 
 function uhrzeit(datum: Date): string {
@@ -48,12 +49,6 @@ export function DispoClient({
   serviceArea: { center: { lat: number; lng: number }; radiusKm: number; depot: { lat: number; lng: number } | null } | null;
 }) {
   const router = useRouter();
-
-  async function bestaetigen(rideId: string, vehicleId: string) {
-    if (!vehicleId) return;
-    await fahrzeugWaehlen(rideId, vehicleId);
-    router.refresh();
-  }
 
   const nachFahrzeug = new Map<string, { plate: string; fahrten: Fahrt[] }>();
   for (const fahrt of tagesplan) {
@@ -94,35 +89,32 @@ export function DispoClient({
               <p className="text-sm text-muted">Nichts zu bestätigen.</p>
             </Card>
           ) : null}
-          {bitteBestaetigen.map((fahrt) => (
-            <Card key={fahrt.id}>
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="font-medium text-ink">
-                    {uhrzeit(fahrt.pickupAt)} · {fahrt.passenger.firstName} {fahrt.passenger.lastName}
-                  </p>
-                  <p className="text-sm text-ink-soft">
-                    {fahrt.pickupPlace.label} → {fahrt.dropoffPlace.label}
-                  </p>
-                  <div className="mt-1">
-                    <Chip ton="accent">{TRANSPORT_TYPE_LABEL[fahrt.transportType]}</Chip>
+          {bitteBestaetigen.map((fahrt) => {
+            const beste = (fahrt.suggestions?.[0]?.options as VorschlagOption[] | undefined)?.[0] ?? null;
+            return (
+              <Card key={fahrt.id}>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-medium text-ink">
+                      {uhrzeit(fahrt.pickupAt)} · {fahrt.passenger.firstName} {fahrt.passenger.lastName}
+                    </p>
+                    <p className="text-sm text-ink-soft">
+                      {fahrt.pickupPlace.label} → {fahrt.dropoffPlace.label}
+                    </p>
+                    <div className="mt-1">
+                      <Chip ton="accent">{TRANSPORT_TYPE_LABEL[fahrt.transportType]}</Chip>
+                    </div>
                   </div>
+                  <VorschlagAktion
+                    rideId={fahrt.id}
+                    beste={beste}
+                    fahrzeuge={fahrzeuge}
+                    onErledigt={() => router.refresh()}
+                  />
                 </div>
-                <select
-                  defaultValue=""
-                  onChange={(event) => bestaetigen(fahrt.id, event.target.value)}
-                  className="h-10 rounded-lg border border-line-strong bg-surface px-2 text-sm text-ink"
-                >
-                  <option value="">Fahrzeug wählen</option>
-                  {fahrzeuge.map((f) => (
-                    <option key={f.id} value={f.id}>
-                      {f.plate}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </Card>
-          ))}
+              </Card>
+            );
+          })}
         </div>
 
         <div className="flex flex-col gap-3">

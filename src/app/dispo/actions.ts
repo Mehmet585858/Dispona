@@ -13,18 +13,21 @@ export async function dashboardLaden() {
 
   const [fahrtenHeute, wartenAufSie, unterwegs, settings, fahrzeuge] = await Promise.all([
     db.ride.count({ where: { pickupAt: { gte: heute, lt: morgen } } }),
-    db.ride.count({ where: { pickupAt: { gte: heute, lt: morgen }, status: "ERFASST" } }),
+    db.ride.count({
+      where: { pickupAt: { gte: heute, lt: morgen }, status: { in: ["ERFASST", "VORGESCHLAGEN"] } },
+    }),
     db.ride.count({ where: { status: "UNTERWEGS" } }),
     db.tenantSettings.findUnique({ where: { tenantId } }),
     db.vehicle.findMany({ where: { active: true }, orderBy: { plate: "asc" } }),
   ]);
 
   const bitteBestaetigen = await db.ride.findMany({
-    where: { pickupAt: { gte: heute, lt: morgen }, status: "ERFASST" },
+    where: { pickupAt: { gte: heute, lt: morgen }, status: { in: ["ERFASST", "VORGESCHLAGEN"] } },
     include: {
       passenger: { select: { firstName: true, lastName: true } },
       pickupPlace: { select: { label: true } },
       dropoffPlace: { select: { label: true } },
+      suggestions: { where: { decision: "OFFEN" }, orderBy: { createdAt: "desc" }, take: 1 },
     },
     orderBy: { pickupAt: "asc" },
     take: 10,
