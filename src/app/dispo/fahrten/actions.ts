@@ -7,7 +7,7 @@ import { fahrtPruefen, type Problem } from "@/core/rides/pruefungen";
 import { fahrtSchema, type FahrtEingabe } from "@/core/rides/validation";
 import { fahrtStatusAendern } from "@/core/rides/status";
 import { fahrgaesteAehnlicheNamen, telefonNormalisieren } from "@/core/passengers/suche";
-import { berlinerMitternacht, datumIso, mitUhrzeit } from "@/core/shifts/week";
+import { berlinerMitternacht, datumIso, mitUhrzeit, wochenStart } from "@/core/shifts/week";
 import { vorschlaegeBerechnen, type GeplanteFahrt } from "@/core/disposition/vorschlagen";
 import { pushAnFahrer } from "@/core/notify/push";
 import { neueFahrtText, stornierteFahrtText } from "@/core/notify/texte";
@@ -18,23 +18,45 @@ function uhrzeitBerlin(datum: Date): string {
   return datum.toLocaleTimeString("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", minute: "2-digit" });
 }
 
+async function fahrtenImZeitraumLaden(tenantId: string, von: Date, bis: Date) {
+  const db = withTenant(tenantId);
+  const [fahrtenRoh, fahrer] = await Promise.all([
+    db.ride.findMany({
+      where: { pickupAt: { gte: von, lt: bis } },
+      include: {
+        passenger: { select: { firstName: true, lastName: true } },
+        pickupPlace: { select: { label: true } },
+        dropoffPlace: { select: { label: true } },
+        vehicle: { select: { plate: true } },
+        suggestions: { where: { decision: "OFFEN" }, orderBy: { createdAt: "desc" }, take: 1 },
+      },
+      orderBy: { pickupAt: "asc" },
+    }),
+    db.driver.findMany({ select: { id: true, user: { select: { name: true } } } }),
+  ]);
+
+  const fahrerNachId = new Map(fahrer.map((f) => [f.id, f.user.name]));
+  return fahrtenRoh.map((fahrt) => ({
+    ...fahrt,
+    fahrerName: fahrt.driverId ? (fahrerNachId.get(fahrt.driverId) ?? null) : null,
+  }));
+}
+
 export async function fahrtenLaden(datumFilter?: string) {
   const { tenantId } = await requireSession();
   const tag = berlinerMitternacht(datumFilter ?? datumIso(new Date()));
   const tagDanach = new Date(tag);
   tagDanach.setDate(tagDanach.getDate() + 1);
+  return fahrtenImZeitraumLaden(tenantId, tag, tagDanach);
+}
 
-  return withTenant(tenantId).ride.findMany({
-    where: { pickupAt: { gte: tag, lt: tagDanach } },
-    include: {
-      passenger: { select: { firstName: true, lastName: true } },
-      pickupPlace: { select: { label: true } },
-      dropoffPlace: { select: { label: true } },
-      vehicle: { select: { plate: true } },
-      suggestions: { where: { decision: "OFFEN" }, orderBy: { createdAt: "desc" }, take: 1 },
-    },
-    orderBy: { pickupAt: "asc" },
-  });
+/** Dieselben Fahrten wie fahrtenLaden, aber für die ganze Woche (Montag–Sonntag) statt für einen Tag. */
+export async function fahrtenFuerWocheLaden(datumInWoche?: string) {
+  const { tenantId } = await requireSession();
+  const montag = wochenStart(berlinerMitternacht(datumInWoche ?? datumIso(new Date())));
+  const sonntagEnde = new Date(montag);
+  sonntagEnde.setDate(sonntagEnde.getDate() + 7);
+  return fahrtenImZeitraumLaden(tenantId, montag, sonntagEnde);
 }
 
 export async function fahrgaesteSuchen(text: string) {

@@ -15,7 +15,7 @@ import {
   TRANSPORT_TYPES,
   type FahrtEingabe,
 } from "@/core/rides/validation";
-import { datumIso } from "@/core/shifts/week";
+import { berlinerMitternacht, datumIso, montagVerschieben, wochenStart } from "@/core/shifts/week";
 import { VorschlagAktion, type VorschlagOption } from "@/components/VorschlagAktion";
 import { FahrgastAuswahl } from "./FahrgastAuswahl";
 import { OrtAuswahl } from "./OrtAuswahl";
@@ -31,6 +31,7 @@ type Fahrt = {
   pickupPlace: { label: string };
   dropoffPlace: { label: string };
   vehicle: { plate: string } | null;
+  fahrerName: string | null;
   suggestions?: { options: unknown }[];
 };
 type Ort = { id: string; label: string; street: string; city: string };
@@ -82,11 +83,13 @@ export function FahrtenClient({
   orte,
   fahrzeuge,
   datum,
+  ansicht,
 }: {
   fahrten: Fahrt[];
   orte: Ort[];
   fahrzeuge: Fahrzeug[];
   datum: string;
+  ansicht: "tag" | "woche";
 }) {
   const router = useRouter();
   const [formularOffen, setFormularOffen] = useState(false);
@@ -99,6 +102,22 @@ export function FahrtenClient({
   function wechselDatum(neuesDatum: string) {
     router.push(`/dispo/fahrten?datum=${neuesDatum}`);
   }
+
+  function ansichtWechseln(neueAnsicht: "tag" | "woche") {
+    router.push(`/dispo/fahrten?datum=${datum}&ansicht=${neueAnsicht}`);
+  }
+
+  function wocheWechseln(richtung: -1 | 1) {
+    const montag = datumIso(wochenStart(berlinerMitternacht(datum)));
+    router.push(`/dispo/fahrten?datum=${montagVerschieben(montag, richtung)}&ansicht=woche`);
+  }
+
+  const wochenStartIso = datumIso(wochenStart(berlinerMitternacht(datum)));
+  const wochenEndeIso = (() => {
+    const ende = new Date(berlinerMitternacht(wochenStartIso));
+    ende.setDate(ende.getDate() + 6);
+    return datumIso(ende);
+  })();
 
   async function speichern() {
     if (!fahrgast) {
@@ -130,14 +149,52 @@ export function FahrtenClient({
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold text-ink">Fahrten</h1>
-        <div className="flex items-center gap-3">
-          <TextField
-            label="Datum"
-            type="date"
-            value={datum}
-            onChange={(event) => wechselDatum(event.target.value)}
-          />
-          <Button type="button" onClick={() => setFormularOffen(!formularOffen)} className="mt-6">
+        <div className="flex items-end gap-3">
+          <div className="flex gap-1.5 rounded-xl border border-line-strong p-1">
+            <button
+              type="button"
+              onClick={() => ansichtWechseln("tag")}
+              className={`rounded-lg px-3 py-1.5 text-sm font-medium ${ansicht === "tag" ? "bg-accent text-surface" : "text-ink-soft"}`}
+            >
+              Tag
+            </button>
+            <button
+              type="button"
+              onClick={() => ansichtWechseln("woche")}
+              className={`rounded-lg px-3 py-1.5 text-sm font-medium ${ansicht === "woche" ? "bg-accent text-surface" : "text-ink-soft"}`}
+            >
+              Woche
+            </button>
+          </div>
+
+          {ansicht === "tag" ? (
+            <TextField
+              label="Datum"
+              type="date"
+              value={datum}
+              onChange={(event) => wechselDatum(event.target.value)}
+            />
+          ) : (
+            <div className="flex items-center gap-2">
+              <Button type="button" variant="secondary" onClick={() => wocheWechseln(-1)}>
+                ‹ Vorherige Woche
+              </Button>
+              <span className="whitespace-nowrap text-sm font-medium text-ink">
+                {berlinerMitternacht(wochenStartIso).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}
+                {" – "}
+                {berlinerMitternacht(wochenEndeIso).toLocaleDateString("de-DE", {
+                  day: "2-digit",
+                  month: "2-digit",
+                  year: "numeric",
+                })}
+              </span>
+              <Button type="button" variant="secondary" onClick={() => wocheWechseln(1)}>
+                Nächste Woche ›
+              </Button>
+            </div>
+          )}
+
+          <Button type="button" onClick={() => setFormularOffen(!formularOffen)}>
             Fahrt manuell anlegen
           </Button>
         </div>
@@ -293,16 +350,27 @@ export function FahrtenClient({
 
       <Table>
         <TableHead>
+          {ansicht === "woche" ? <TableHeaderCell>Datum</TableHeaderCell> : null}
           <TableHeaderCell>Zeit</TableHeaderCell>
           <TableHeaderCell>Fahrgast</TableHeaderCell>
           <TableHeaderCell>Von → Nach</TableHeaderCell>
           <TableHeaderCell>Art</TableHeaderCell>
           <TableHeaderCell>Status</TableHeaderCell>
           <TableHeaderCell>Fahrzeug</TableHeaderCell>
+          <TableHeaderCell>Fahrer</TableHeaderCell>
         </TableHead>
         <tbody>
           {fahrten.map((fahrt) => (
             <TableRow key={fahrt.id}>
+              {ansicht === "woche" ? (
+                <TableCell>
+                  {new Date(fahrt.pickupAt).toLocaleDateString("de-DE", {
+                    timeZone: "Europe/Berlin",
+                    day: "2-digit",
+                    month: "2-digit",
+                  })}
+                </TableCell>
+              ) : null}
               <TableCell nums>
                 {new Date(fahrt.pickupAt).toLocaleTimeString("de-DE", {
                   timeZone: "Europe/Berlin",
@@ -341,12 +409,13 @@ export function FahrtenClient({
                   "—"
                 )}
               </TableCell>
+              <TableCell>{fahrt.fahrerName ?? "—"}</TableCell>
             </TableRow>
           ))}
           {fahrten.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={6}>
-                <span className="text-muted">Keine Fahrten an diesem Tag.</span>
+              <TableCell colSpan={ansicht === "woche" ? 8 : 7}>
+                <span className="text-muted">{ansicht === "woche" ? "Keine Fahrten in dieser Woche." : "Keine Fahrten an diesem Tag."}</span>
               </TableCell>
             </TableRow>
           ) : null}

@@ -26,6 +26,7 @@ export function VorschlagAktion({
   onErledigt: () => void;
 }) {
   const [andereOffen, setAndereOffen] = useState(false);
+  const [zuweisenOffen, setZuweisenOffen] = useState(false);
   const [laedt, setLaedt] = useState(false);
 
   async function waehlen(vehicleId: string) {
@@ -40,6 +41,13 @@ export function VorschlagAktion({
   }
 
   if (!beste) {
+    if (!zuweisenOffen) {
+      return (
+        <Button type="button" variant="secondary" onClick={() => setZuweisenOffen(true)}>
+          Zuweisen
+        </Button>
+      );
+    }
     return (
       <select
         defaultValue=""

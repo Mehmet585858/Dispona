@@ -1,21 +1,22 @@
 import { datumIso } from "@/core/shifts/week";
 import { fahrzeugeFuerAuswahl } from "../fahrer/actions";
-import { fahrtenLaden, orteFuerAuswahl } from "./actions";
+import { fahrtenFuerWocheLaden, fahrtenLaden, orteFuerAuswahl } from "./actions";
 import { FahrtenClient } from "./FahrtenClient";
 
 export default async function FahrtenPage({
   searchParams,
 }: {
-  searchParams: Promise<{ datum?: string }>;
+  searchParams: Promise<{ datum?: string; ansicht?: string }>;
 }) {
-  const { datum: datumParam } = await searchParams;
+  const { datum: datumParam, ansicht: ansichtParam } = await searchParams;
   const datum = datumParam ?? datumIso(new Date());
+  const ansicht = ansichtParam === "woche" ? "woche" : "tag";
 
   const [fahrten, orte, fahrzeuge] = await Promise.all([
-    fahrtenLaden(datum),
+    ansicht === "woche" ? fahrtenFuerWocheLaden(datum) : fahrtenLaden(datum),
     orteFuerAuswahl(),
     fahrzeugeFuerAuswahl(),
   ]);
 
-  return <FahrtenClient fahrten={fahrten} orte={orte} fahrzeuge={fahrzeuge} datum={datum} />;
+  return <FahrtenClient fahrten={fahrten} orte={orte} fahrzeuge={fahrzeuge} datum={datum} ansicht={ansicht} />;
 }
