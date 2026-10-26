@@ -103,6 +103,75 @@ export async function schichtAktion(shiftId: string, aktion: "start" | "pause" |
   revalidatePath("/fahrer");
 }
 
+export type ProblemArt = "VERSPAETUNG_10" | "VERSPAETUNG_20" | "VERSPAETUNG_30" | "FAHRGAST_NICHT_DA" | "FAHRZEUG_DEFEKT";
+
+const PROBLEM_HINWEIS: Record<ProblemArt, string> = {
+  VERSPAETUNG_10: "Verspätung +10 Min",
+  VERSPAETUNG_20: "Verspätung +20 Min",
+  VERSPAETUNG_30: "Verspätung +30 Min",
+  FAHRGAST_NICHT_DA: "Fahrgast nicht da",
+  FAHRZEUG_DEFEKT: "Fahrzeug defekt",
+};
+
+/** Problem bei einer einzelnen Fahrt melden (docs/06-oberflaeche.md: Verspätung, Fahrgast nicht da, Fahrzeug defekt). */
+export async function problemMelden(rideId: string, art: ProblemArt) {
+  const { tenantId, userId } = await requireSession();
+  const db = withTenant(tenantId);
+  const fahrer = await eigenerFahrer(tenantId, userId);
+
+  const fahrt = await db.ride.findUnique({ where: { id: rideId }, select: { driverId: true } });
+  if (!fahrt || fahrt.driverId !== fahrer.id) {
+    throw new Error("Diese Fahrt gehört nicht zu Ihnen.");
+  }
+
+  if (art === "FAHRGAST_NICHT_DA") {
+    await fahrtStatusAendern(tenantId, rideId, "NICHT_ANGETROFFEN", { userId });
+  } else if (art === "FAHRZEUG_DEFEKT") {
+    await fahrtStatusAendern(tenantId, rideId, "PROBLEM", { userId });
+    await db.ride.update({ where: { id: rideId }, data: { problems: { push: PROBLEM_HINWEIS[art] } } });
+  } else {
+    await db.ride.update({ where: { id: rideId }, data: { problems: { push: PROBLEM_HINWEIS[art] } } });
+  }
+
+  revalidatePath("/fahrer");
+  revalidatePath("/dispo");
+  revalidatePath("/dispo/fahrten");
+}
+
+/** "Ich falle aus": Schicht und alle noch offenen Fahrten des Tages als Problem markieren, damit die Disposition neu plant. */
+export async function fahrerFaelltAus() {
+  const { tenantId, userId } = await requireSession();
+  const db = withTenant(tenantId);
+  const fahrer = await eigenerFahrer(tenantId, userId);
+
+  const heuteIso = datumIso(new Date());
+  const heute = berlinerMitternacht(heuteIso);
+  const uebermorgen = berlinerMitternacht(tagVerschieben(heuteIso, 2));
+
+  await db.shift.updateMany({
+    where: { driverId: fahrer.id, start: { lt: uebermorgen }, end: { gte: heute } },
+    data: { unavailable: true },
+  });
+
+  const betroffeneFahrten = await db.ride.findMany({
+    where: {
+      driverId: fahrer.id,
+      pickupAt: { gte: heute, lt: uebermorgen },
+      status: { in: ["DISPONIERT", "UNTERWEGS", "AN_BORD"] },
+    },
+    select: { id: true },
+  });
+
+  for (const fahrt of betroffeneFahrten) {
+    await fahrtStatusAendern(tenantId, fahrt.id, "PROBLEM", { userId });
+    await db.ride.update({ where: { id: fahrt.id }, data: { problems: { push: "Fahrer fällt aus" } } });
+  }
+
+  revalidatePath("/fahrer");
+  revalidatePath("/dispo");
+  revalidatePath("/dispo/fahrten");
+}
+
 /** Speichert das Push-Abo des Geräts für den angemeldeten Fahrer. */
 export async function pushAboSpeichernFuerMich(abo: { endpoint: string; keys: { p256dh: string; auth: string } }) {
   const { tenantId, userId } = await requireSession();

@@ -7,7 +7,7 @@ import { Chip } from "@/components/ui/Chip";
 import { SignOutButton } from "@/components/SignOutButton";
 import { TRANSPORT_TYPE_LABEL } from "@/core/rides/validation";
 import type { RideStatus } from "@/generated/prisma/enums";
-import { fahrtStatusSetzenFahrer, schichtAktion } from "./actions";
+import { fahrerFaelltAus, fahrtStatusSetzenFahrer, problemMelden, schichtAktion, type ProblemArt } from "./actions";
 import { PushAktivieren } from "./PushAktivieren";
 
 type Ort = { label: string; street: string; zip: string; city: string; lat: number; lng: number };
@@ -50,6 +50,8 @@ const NAECHSTER_SCHRITT: Partial<Record<RideStatus, { label: string; next: RideS
   AN_BORD: { label: "Erledigt", next: "ERLEDIGT" },
 };
 
+const ABGESCHLOSSEN: RideStatus[] = ["ERLEDIGT", "NICHT_ANGETROFFEN", "PROBLEM"];
+
 function uhrzeit(datum: Date | string): string {
   return new Date(datum).toLocaleTimeString("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", minute: "2-digit" });
 }
@@ -75,11 +77,15 @@ export function FahrerClient({
 }) {
   const [istLaufend, startTransition] = useTransition();
   const [aktuelleFahrten, setAktuelleFahrten] = useState(fahrten);
+  const [problemOffen, setProblemOffen] = useState(false);
 
   const laufendeSchicht = schichten.find((s) => s.id === laufendeSchichtId) ?? null;
 
   const aktiveFahrten = useMemo(
-    () => aktuelleFahrten.filter((f) => f.status !== "ERLEDIGT").sort((a, b) => new Date(a.pickupAt).getTime() - new Date(b.pickupAt).getTime()),
+    () =>
+      aktuelleFahrten
+        .filter((f) => !ABGESCHLOSSEN.includes(f.status))
+        .sort((a, b) => new Date(a.pickupAt).getTime() - new Date(b.pickupAt).getTime()),
     [aktuelleFahrten],
   );
   const naechsteFahrt = aktiveFahrten[0] ?? null;
@@ -97,6 +103,32 @@ export function FahrerClient({
     if (!laufendeSchicht) return;
     startTransition(async () => {
       await schichtAktion(laufendeSchicht.id, aktion);
+    });
+  }
+
+  function problem(rideId: string, art: ProblemArt) {
+    startTransition(async () => {
+      await problemMelden(rideId, art);
+      if (art === "FAHRGAST_NICHT_DA") {
+        setAktuelleFahrten((vorher) => vorher.map((f) => (f.id === rideId ? { ...f, status: "NICHT_ANGETROFFEN" } : f)));
+      } else if (art === "FAHRZEUG_DEFEKT") {
+        setAktuelleFahrten((vorher) => vorher.map((f) => (f.id === rideId ? { ...f, status: "PROBLEM" } : f)));
+      }
+      setProblemOffen(false);
+    });
+  }
+
+  function ausfall() {
+    startTransition(async () => {
+      await fahrerFaelltAus();
+      setAktuelleFahrten((vorher) =>
+        vorher.map((f) =>
+          f.status === "DISPONIERT" || f.status === "UNTERWEGS" || f.status === "AN_BORD"
+            ? { ...f, status: "PROBLEM" }
+            : f,
+        ),
+      );
+      setProblemOffen(false);
     });
   }
 
@@ -200,6 +232,60 @@ export function FahrerClient({
             >
               {istLaufend ? "…" : NAECHSTER_SCHRITT[naechsteFahrt.status]!.label}
             </button>
+          ) : null}
+
+          <button
+            type="button"
+            onClick={() => setProblemOffen((offen) => !offen)}
+            className="mt-3 w-full text-sm font-medium text-danger-ink underline-offset-2 hover:underline"
+          >
+            Problem melden
+          </button>
+
+          {problemOffen ? (
+            <div className="mt-3 flex flex-col gap-2 rounded-xl border border-line bg-ground p-3">
+              <p className="text-sm font-medium text-ink-soft">Verspätung</p>
+              <div className="flex gap-2">
+                {(["VERSPAETUNG_10", "VERSPAETUNG_20", "VERSPAETUNG_30"] as const).map((art) => (
+                  <Button
+                    key={art}
+                    type="button"
+                    variant="secondary"
+                    disabled={istLaufend}
+                    onClick={() => problem(naechsteFahrt.id, art)}
+                    className="flex-1"
+                  >
+                    +{art.split("_")[1]} Min
+                  </Button>
+                ))}
+              </div>
+              {naechsteFahrt.status === "UNTERWEGS" ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={istLaufend}
+                  onClick={() => problem(naechsteFahrt.id, "FAHRGAST_NICHT_DA")}
+                >
+                  Fahrgast nicht da
+                </Button>
+              ) : null}
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={istLaufend}
+                onClick={() => problem(naechsteFahrt.id, "FAHRZEUG_DEFEKT")}
+              >
+                Fahrzeug defekt
+              </Button>
+              <button
+                type="button"
+                disabled={istLaufend}
+                onClick={ausfall}
+                className="inline-flex min-h-11 items-center justify-center rounded-xl bg-danger-bg px-5 text-base font-medium text-danger-ink transition-colors hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Ich falle aus
+              </button>
+            </div>
           ) : null}
         </Card>
       ) : (
