@@ -51,7 +51,13 @@ export async function fahrerUebersichtLaden() {
   const jetzt = new Date();
   const laufendeSchicht = schichten.find((s) => s.start <= jetzt && jetzt <= s.end) ?? schichten[0] ?? null;
 
-  return { name, schichten, fahrten, laufendeSchichtId: laufendeSchicht?.id ?? null };
+  return {
+    name,
+    schichten,
+    fahrten,
+    laufendeSchichtId: laufendeSchicht?.id ?? null,
+    gpsConsentAt: fahrer.gpsConsentAt,
+  };
 }
 
 /** Statuswechsel durch den Fahrer selbst – nur für seine eigenen Fahrten. */
@@ -170,6 +176,34 @@ export async function fahrerFaelltAus() {
   revalidatePath("/fahrer");
   revalidatePath("/dispo");
   revalidatePath("/dispo/fahrten");
+}
+
+/** Einwilligung zur GPS-Ortung während der Schicht (docs/08-datenschutz-sicherheit.md). */
+export async function gpsEinwilligen() {
+  const { tenantId, userId } = await requireSession();
+  const db = withTenant(tenantId);
+  const fahrer = await eigenerFahrer(tenantId, userId);
+  await db.driver.update({ where: { id: fahrer.id }, data: { gpsConsentAt: new Date() } });
+  revalidatePath("/fahrer");
+}
+
+/** Speichert eine GPS-Position für das Fahrzeug der laufenden Schicht – nur mit Einwilligung, nur während der Schicht. */
+export async function gpsPositionMelden(lat: number, lng: number) {
+  const { tenantId, userId } = await requireSession();
+  const db = withTenant(tenantId);
+  const fahrer = await eigenerFahrer(tenantId, userId);
+  if (!fahrer.gpsConsentAt) return;
+
+  const laufendeSchicht = await db.shift.findFirst({
+    where: { driverId: fahrer.id, startedAt: { not: null }, endedAt: null },
+    orderBy: { start: "desc" },
+    select: { vehicleId: true },
+  });
+  if (!laufendeSchicht) return;
+
+  await db.vehicleLocation.create({
+    data: { tenantId, vehicleId: laufendeSchicht.vehicleId, lat, lng },
+  });
 }
 
 /** Speichert das Push-Abo des Geräts für den angemeldeten Fahrer. */

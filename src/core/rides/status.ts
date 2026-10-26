@@ -1,5 +1,6 @@
 import type { RideStatus } from "@/generated/prisma/enums";
 import { withTenant } from "@/lib/db";
+import { gefahreneKmBerechnen } from "./distanz";
 
 /**
  * Erlaubte Status-Übergänge (docs/03-datenmodell.md):
@@ -36,7 +37,15 @@ export async function fahrtStatusAendern(
   optionen?: { userId?: string; lat?: number; lng?: number },
 ) {
   const db = withTenant(tenantId);
-  const fahrt = await db.ride.findUnique({ where: { id: rideId }, select: { status: true } });
+  const fahrt = await db.ride.findUnique({
+    where: { id: rideId },
+    select: {
+      status: true,
+      vehicleId: true,
+      pickupPlace: { select: { lat: true, lng: true } },
+      dropoffPlace: { select: { lat: true, lng: true } },
+    },
+  });
   if (!fahrt) {
     throw new Error("Fahrt nicht gefunden.");
   }
@@ -44,11 +53,29 @@ export async function fahrtStatusAendern(
     throw new Error(`Übergang von ${fahrt.status} nach ${neuerStatus} ist nicht erlaubt.`);
   }
 
+  let distanceKm: number | undefined;
+  if (neuerStatus === "ERLEDIGT" && fahrt.vehicleId) {
+    const anBordEvent = await db.rideStatusEvent.findFirst({
+      where: { rideId, status: "AN_BORD" },
+      orderBy: { at: "desc" },
+      select: { at: true },
+    });
+    if (anBordEvent) {
+      const punkte = await db.vehicleLocation.findMany({
+        where: { vehicleId: fahrt.vehicleId, at: { gte: anBordEvent.at, lte: new Date() } },
+        orderBy: { at: "asc" },
+        select: { lat: true, lng: true },
+      });
+      distanceKm = gefahreneKmBerechnen(punkte, fahrt.pickupPlace, fahrt.dropoffPlace);
+    }
+  }
+
   const aktualisiert = await db.ride.update({
     where: { id: rideId },
     data: {
       status: neuerStatus,
       completedAt: neuerStatus === "ERLEDIGT" ? new Date() : undefined,
+      distanceKm,
     },
   });
 

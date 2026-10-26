@@ -26,6 +26,7 @@ export default async function FahrerPage() {
       schichten={uebersicht.schichten}
       fahrten={uebersicht.fahrten}
       laufendeSchichtId={uebersicht.laufendeSchichtId}
+      gpsConsentAt={uebersicht.gpsConsentAt}
     />
   );
 }

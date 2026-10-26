@@ -102,3 +102,78 @@ describe("fahrtStatusAendern", () => {
     expect(erledigt.completedAt).not.toBeNull();
   });
 });
+
+describe("fahrtStatusAendern berechnet gefahrene km bei ERLEDIGT", () => {
+  const kennung = randomUUID().slice(0, 8);
+  let tenantId: string;
+
+  beforeAll(async () => {
+    const tenant = await prisma.tenant.create({ data: { name: `Test-Distanz ${kennung}` } });
+    tenantId = tenant.id;
+  });
+
+  afterAll(async () => {
+    await prisma.vehicleLocation.deleteMany({ where: { tenantId } });
+    await prisma.rideStatusEvent.deleteMany({ where: { tenantId } });
+    await prisma.ride.deleteMany({ where: { tenantId } });
+    await prisma.vehicle.deleteMany({ where: { tenantId } });
+    await prisma.place.deleteMany({ where: { tenantId } });
+    await prisma.passenger.deleteMany({ where: { tenantId } });
+    await prisma.auditLog.deleteMany({ where: { tenantId } });
+    await prisma.tenant.delete({ where: { id: tenantId } });
+  });
+
+  async function neueFahrtMitFahrzeug() {
+    const passenger = await prisma.passenger.create({
+      data: { tenantId, firstName: "Test", lastName: "Fahrgast", phones: [] },
+    });
+    const abholort = await prisma.place.create({
+      data: { tenantId, label: "Abholort", street: "A 1", zip: "52062", city: "Aachen", lat: 50.77, lng: 6.08, type: "SONSTIGES" },
+    });
+    const zielort = await prisma.place.create({
+      data: { tenantId, label: "Zielort", street: "B 1", zip: "52062", city: "Aachen", lat: 50.8, lng: 6.1, type: "SONSTIGES" },
+    });
+    const vehicle = await prisma.vehicle.create({ data: { tenantId, plate: `TEST-${randomUUID().slice(0, 4)}` } });
+    const ride = await prisma.ride.create({
+      data: {
+        tenantId,
+        passengerId: passenger.id,
+        pickupPlaceId: abholort.id,
+        dropoffPlaceId: zielort.id,
+        pickupAt: new Date(),
+        transportType: "SITZEND",
+        status: "AN_BORD",
+        source: "MANUELL",
+        vehicleId: vehicle.id,
+      },
+    });
+    return { rideId: ride.id, vehicleId: vehicle.id, abholort, zielort };
+  }
+
+  it("rechnet aus GPS-Punkten zwischen 'an Bord' und 'Erledigt', wenn welche vorhanden sind", async () => {
+    const { rideId, vehicleId } = await neueFahrtMitFahrzeug();
+    const anBordZeitpunkt = new Date(Date.now() - 5 * 60_000);
+    await prisma.rideStatusEvent.create({
+      data: { tenantId, rideId, status: "AN_BORD", at: anBordZeitpunkt },
+    });
+    await prisma.vehicleLocation.create({
+      data: { tenantId, vehicleId, lat: 50.77, lng: 6.08, at: new Date(anBordZeitpunkt.getTime() + 60_000) },
+    });
+    await prisma.vehicleLocation.create({
+      data: { tenantId, vehicleId, lat: 50.8, lng: 6.1, at: new Date(anBordZeitpunkt.getTime() + 120_000) },
+    });
+
+    const erledigt = await fahrtStatusAendern(tenantId, rideId, "ERLEDIGT");
+    expect(erledigt.distanceKm).not.toBeNull();
+    expect(erledigt.distanceKm).toBeGreaterThan(0);
+  });
+
+  it("schätzt per Luftlinie, wenn keine GPS-Punkte vorliegen", async () => {
+    const { rideId } = await neueFahrtMitFahrzeug();
+    await prisma.rideStatusEvent.create({ data: { tenantId, rideId, status: "AN_BORD" } });
+
+    const erledigt = await fahrtStatusAendern(tenantId, rideId, "ERLEDIGT");
+    expect(erledigt.distanceKm).not.toBeNull();
+    expect(erledigt.distanceKm).toBeGreaterThan(0);
+  });
+});

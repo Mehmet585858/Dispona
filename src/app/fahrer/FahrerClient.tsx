@@ -8,6 +8,7 @@ import { SignOutButton } from "@/components/SignOutButton";
 import { TRANSPORT_TYPE_LABEL } from "@/core/rides/validation";
 import type { RideStatus } from "@/generated/prisma/enums";
 import { fahrerFaelltAus, fahrtStatusSetzenFahrer, problemMelden, schichtAktion, type ProblemArt } from "./actions";
+import { GpsTracking } from "./GpsTracking";
 import { PushAktivieren } from "./PushAktivieren";
 
 type Ort = { label: string; street: string; zip: string; city: string; lat: number; lng: number };
@@ -69,17 +70,20 @@ export function FahrerClient({
   schichten,
   fahrten,
   laufendeSchichtId,
+  gpsConsentAt,
 }: {
   name: string;
   schichten: Schicht[];
   fahrten: FahrerFahrt[];
   laufendeSchichtId: string | null;
+  gpsConsentAt: Date | string | null;
 }) {
   const [istLaufend, startTransition] = useTransition();
   const [aktuelleFahrten, setAktuelleFahrten] = useState(fahrten);
   const [problemOffen, setProblemOffen] = useState(false);
 
   const laufendeSchicht = schichten.find((s) => s.id === laufendeSchichtId) ?? null;
+  const schichtAktiv = Boolean(laufendeSchicht?.startedAt && !laufendeSchicht?.endedAt);
 
   const aktiveFahrten = useMemo(
     () =>
@@ -179,6 +183,8 @@ export function FahrerClient({
         <div className="mt-4">
           <PushAktivieren />
         </div>
+
+        <GpsTracking gpsConsentAt={gpsConsentAt} schichtAktiv={schichtAktiv} />
       </Card>
 
       {naechsteFahrt ? (
