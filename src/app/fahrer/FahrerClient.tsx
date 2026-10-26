@@ -40,17 +40,18 @@ type Schicht = {
 
 const STATUS_CHIP: Partial<Record<RideStatus, { label: string; ton: "neutral" | "warn" | "info" | "danger" | "accent" }>> = {
   DISPONIERT: { label: "Geplant", ton: "neutral" },
-  UNTERWEGS: { label: "Unterwegs", ton: "info" },
-  AN_BORD: { label: "Fahrgast an Bord", ton: "accent" },
-  ERLEDIGT: { label: "Erledigt", ton: "accent" },
+  UNTERWEGS: { label: "Fährt zum Fahrgast", ton: "info" },
+  AN_BORD: { label: "Fahrgast im Auto", ton: "accent" },
+  ERLEDIGT: { label: "Fahrgast am Ziel", ton: "accent" },
   NICHT_ANGETROFFEN: { label: "Nicht angetroffen", ton: "warn" },
   PROBLEM: { label: "Problem", ton: "danger" },
 };
 
-const NAECHSTER_SCHRITT: Partial<Record<RideStatus, { label: string; next: RideStatus }>> = {
-  DISPONIERT: { label: "Losgefahren", next: "UNTERWEGS" },
-  UNTERWEGS: { label: "Fahrgast an Bord", next: "AN_BORD" },
-  AN_BORD: { label: "Erledigt", next: "ERLEDIGT" },
+/** Großer Knopf: Statuswechsel UND Navigation in einem Tap (kein eigener Navigationsknopf mehr nötig). */
+const NAECHSTER_SCHRITT: Partial<Record<RideStatus, { label: string; next: RideStatus; navZu: "pickup" | "dropoff" | null }>> = {
+  DISPONIERT: { label: "Zum Fahrgast fahren", next: "UNTERWEGS", navZu: "pickup" },
+  UNTERWEGS: { label: "Fahrgast abgeholt", next: "AN_BORD", navZu: "dropoff" },
+  AN_BORD: { label: "Erledigt", next: "ERLEDIGT", navZu: null },
 };
 
 const ABGESCHLOSSEN: RideStatus[] = ["ERLEDIGT", "NICHT_ANGETROFFEN", "PROBLEM"];
@@ -65,6 +66,13 @@ function volleAdresse(ort: Ort): string {
 
 function navigationsLink(ort: Ort): string {
   return `https://www.google.com/maps/dir/?api=1&destination=${ort.lat},${ort.lng}`;
+}
+
+/** Ziel der gerade laufenden Etappe, zum erneuten Öffnen der Navigation ohne Statuswechsel. */
+function aktuellesNavigationsziel(fahrt: FahrerFahrt): Ort | null {
+  if (fahrt.status === "DISPONIERT" || fahrt.status === "UNTERWEGS") return fahrt.pickupPlace;
+  if (fahrt.status === "AN_BORD") return fahrt.dropoffPlace;
+  return null;
 }
 
 function AdressZeilen({ pickupPlace, dropoffPlace }: { pickupPlace: Ort; dropoffPlace: Ort }) {
@@ -110,6 +118,7 @@ export function FahrerClient({
     [aktuelleFahrten],
   );
   const naechsteFahrt = aktiveFahrten[0] ?? null;
+  const naechsteNavZiel = naechsteFahrt ? aktuellesNavigationsziel(naechsteFahrt) : null;
   const danach = aktiveFahrten.slice(1);
   const erledigtHeute = aktuelleFahrten.filter((f) => f.status === "ERLEDIGT").length;
   const zeigeGesehenUeberlagerung = naechsteFahrt?.status === "DISPONIERT" && !naechsteFahrt.driverAckAt;
@@ -123,6 +132,16 @@ export function FahrerClient({
       await fahrtStatusSetzenFahrer(rideId, status);
       setAktuelleFahrten((vorher) => vorher.map((f) => (f.id === rideId ? { ...f, status } : f)));
     });
+  }
+
+  function naechsterSchrittMitNavigation(fahrt: FahrerFahrt) {
+    const schritt = NAECHSTER_SCHRITT[fahrt.status];
+    if (!schritt) return;
+    if (schritt.navZu) {
+      const ziel = schritt.navZu === "pickup" ? fahrt.pickupPlace : fahrt.dropoffPlace;
+      window.open(navigationsLink(ziel), "_blank", "noopener,noreferrer");
+    }
+    statusSetzen(fahrt.id, schritt.next);
   }
 
   function schicht(aktion: "start" | "pause" | "weiter" | "beenden") {
@@ -240,33 +259,23 @@ export function FahrerClient({
             {naechsteFahrt.assistanceNotes ? <Chip ton="info">{naechsteFahrt.assistanceNotes}</Chip> : null}
           </div>
 
-          <div className="mt-4 flex gap-2">
-            {naechsteFahrt.passenger.phones[0] ? (
-              <a
-                href={`tel:${naechsteFahrt.passenger.phones[0]}`}
-                className="inline-flex min-h-11 flex-1 items-center justify-center rounded-xl border border-line-strong bg-surface px-4 text-base font-medium text-ink hover:bg-accent-soft"
-              >
-                Fahrgast anrufen
-              </a>
-            ) : null}
+          {naechsteFahrt.passenger.phones[0] ? (
             <a
-              href={navigationsLink(naechsteFahrt.status === "AN_BORD" ? naechsteFahrt.dropoffPlace : naechsteFahrt.pickupPlace)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex min-h-11 flex-1 items-center justify-center rounded-xl border border-line-strong bg-surface px-4 text-base font-medium text-ink hover:bg-accent-soft"
+              href={`tel:${naechsteFahrt.passenger.phones[0]}`}
+              className="mt-4 flex min-h-11 w-full items-center justify-center rounded-xl border border-line-strong bg-surface px-4 text-base font-medium text-ink hover:bg-accent-soft"
             >
-              {naechsteFahrt.status === "AN_BORD" ? "Zum Ziel navigieren" : "Zum Abholort navigieren"}
+              Fahrgast anrufen
             </a>
-          </div>
+          ) : null}
 
-          {naechsteFahrt.status !== "AN_BORD" ? (
+          {NAECHSTER_SCHRITT[naechsteFahrt.status] && schichtAktiv && naechsteNavZiel ? (
             <a
-              href={navigationsLink(naechsteFahrt.dropoffPlace)}
+              href={navigationsLink(naechsteNavZiel)}
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-2 flex min-h-11 w-full items-center justify-center rounded-xl border border-line-strong bg-surface px-4 text-base font-medium text-ink hover:bg-accent-soft"
+              className="mt-3 block text-center text-sm text-ink-soft underline-offset-2 hover:underline"
             >
-              Zum Ziel navigieren
+              Navigation öffnen
             </a>
           ) : null}
 
@@ -275,8 +284,8 @@ export function FahrerClient({
               <button
                 type="button"
                 disabled={istLaufend}
-                onClick={() => statusSetzen(naechsteFahrt.id, NAECHSTER_SCHRITT[naechsteFahrt.status]!.next)}
-                className="mt-4 flex min-h-16 w-full items-center justify-center rounded-2xl bg-accent text-lg font-semibold text-surface transition-colors hover:bg-accent/90 disabled:opacity-50"
+                onClick={() => naechsterSchrittMitNavigation(naechsteFahrt)}
+                className="mt-2 flex min-h-16 w-full items-center justify-center rounded-2xl bg-accent text-lg font-semibold text-surface transition-colors hover:bg-accent/90 disabled:opacity-50"
               >
                 {istLaufend ? "…" : NAECHSTER_SCHRITT[naechsteFahrt.status]!.label}
               </button>
