@@ -2,10 +2,19 @@
 
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 import { Card } from "@/components/ui/Card";
 import { Chip } from "@/components/ui/Chip";
 import { TRANSPORT_TYPE_LABEL } from "@/core/rides/validation";
 import { VorschlagAktion, type VorschlagOption } from "@/components/VorschlagAktion";
+import type { RideStatus } from "@/generated/prisma/enums";
+
+const AKTUALISIERUNG_MS = 5_000;
+
+const ALARM_STATUS_LABEL: Partial<Record<RideStatus, string>> = {
+  PROBLEM: "Problem",
+  NICHT_ANGETROFFEN: "Nicht angetroffen",
+};
 
 const Karte = dynamic(() => import("@/components/Karte").then((m) => m.Karte), {
   ssr: false,
@@ -27,6 +36,14 @@ type Fahrt = {
   suggestions?: { options: unknown }[];
 };
 
+type AlarmFahrt = {
+  id: string;
+  pickupAt: Date;
+  status: RideStatus;
+  problems: string[];
+  passenger: { firstName: string; lastName: string };
+};
+
 function uhrzeit(datum: Date): string {
   return new Date(datum).toLocaleTimeString("de-DE", {
     timeZone: "Europe/Berlin",
@@ -39,16 +56,23 @@ export function DispoClient({
   kennzahlen,
   bitteBestaetigen,
   tagesplan,
+  alarme,
   fahrzeuge,
   serviceArea,
 }: {
   kennzahlen: { fahrtenHeute: number; wartenAufSie: number; unterwegs: number; anrufeAngenommen: number };
   bitteBestaetigen: Fahrt[];
   tagesplan: Fahrt[];
-  fahrzeuge: { id: string; plate: string }[];
+  alarme: AlarmFahrt[];
+  fahrzeuge: { id: string; plate: string; position: { lat: number; lng: number; at: Date } | null }[];
   serviceArea: { center: { lat: number; lng: number }; radiusKm: number; depot: { lat: number; lng: number } | null } | null;
 }) {
   const router = useRouter();
+
+  useEffect(() => {
+    const intervallId = setInterval(() => router.refresh(), AKTUALISIERUNG_MS);
+    return () => clearInterval(intervallId);
+  }, [router]);
 
   const nachFahrzeug = new Map<string, { plate: string; fahrten: Fahrt[] }>();
   for (const fahrt of tagesplan) {
@@ -61,6 +85,22 @@ export function DispoClient({
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-2xl font-semibold text-ink">Heute</h1>
+
+      {alarme.length > 0 ? (
+        <div className="rounded-2xl bg-danger-bg p-6">
+          <p className="font-medium text-danger-ink">
+            {alarme.length} {alarme.length === 1 ? "Fahrt braucht" : "Fahrten brauchen"} Ihre Aufmerksamkeit
+          </p>
+          <div className="mt-2 flex flex-col gap-1">
+            {alarme.map((fahrt) => (
+              <p key={fahrt.id} className="text-sm text-danger-ink">
+                {uhrzeit(fahrt.pickupAt)} · {fahrt.passenger.firstName} {fahrt.passenger.lastName} ·{" "}
+                {fahrt.problems.length > 0 ? fahrt.problems.join(", ") : (ALARM_STATUS_LABEL[fahrt.status] ?? fahrt.status)}
+              </p>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <Card>
@@ -132,7 +172,7 @@ export function DispoClient({
             </Card>
           )}
           <p className="text-xs text-muted">
-            Live-Standorte der Fahrzeuge kommen mit der Fahrer-App (Phase 5) – hier stehen sie vorerst am
+            Standort aus der Fahrer-App, aktualisiert alle 5 Sekunden. Fahrzeuge ohne eigene Meldung stehen am
             Betriebshof.
           </p>
 

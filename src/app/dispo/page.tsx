@@ -8,6 +8,7 @@ export default async function DispoPage() {
       kennzahlen={daten.kennzahlen}
       bitteBestaetigen={daten.bitteBestaetigen}
       tagesplan={daten.tagesplan}
+      alarme={daten.alarme}
       fahrzeuge={daten.fahrzeuge}
       serviceArea={daten.serviceArea}
     />

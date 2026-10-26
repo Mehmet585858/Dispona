@@ -11,7 +11,7 @@ export async function dashboardLaden() {
   const morgen = new Date(heute);
   morgen.setDate(morgen.getDate() + 1);
 
-  const [fahrtenHeute, wartenAufSie, unterwegs, settings, fahrzeuge] = await Promise.all([
+  const [fahrtenHeute, wartenAufSie, unterwegs, settings, fahrzeugeRoh] = await Promise.all([
     db.ride.count({ where: { pickupAt: { gte: heute, lt: morgen } } }),
     db.ride.count({
       where: { pickupAt: { gte: heute, lt: morgen }, status: { in: ["ERFASST", "VORGESCHLAGEN"] } },
@@ -20,6 +20,18 @@ export async function dashboardLaden() {
     db.tenantSettings.findUnique({ where: { tenantId } }),
     db.vehicle.findMany({ where: { active: true }, orderBy: { plate: "asc" } }),
   ]);
+
+  const letztePositionen = await db.vehicleLocation.findMany({
+    where: { vehicleId: { in: fahrzeugeRoh.map((f) => f.id) } },
+    orderBy: { at: "desc" },
+    distinct: ["vehicleId"],
+    select: { vehicleId: true, lat: true, lng: true, at: true },
+  });
+  const positionNachFahrzeug = new Map(letztePositionen.map((p) => [p.vehicleId, p]));
+  const fahrzeuge = fahrzeugeRoh.map((f) => {
+    const position = positionNachFahrzeug.get(f.id);
+    return { ...f, position: position ? { lat: position.lat, lng: position.lng, at: position.at } : null };
+  });
 
   const bitteBestaetigen = await db.ride.findMany({
     where: { pickupAt: { gte: heute, lt: morgen }, status: { in: ["ERFASST", "VORGESCHLAGEN"] } },
@@ -44,10 +56,22 @@ export async function dashboardLaden() {
     orderBy: { pickupAt: "asc" },
   });
 
+  const alarme = await db.ride.findMany({
+    where: {
+      pickupAt: { gte: heute, lt: morgen },
+      OR: [{ status: { in: ["PROBLEM", "NICHT_ANGETROFFEN"] } }, { problems: { isEmpty: false } }],
+    },
+    include: {
+      passenger: { select: { firstName: true, lastName: true } },
+    },
+    orderBy: { pickupAt: "asc" },
+  });
+
   return {
     kennzahlen: { fahrtenHeute, wartenAufSie, unterwegs, anrufeAngenommen: 0 },
     bitteBestaetigen,
     tagesplan,
+    alarme,
     fahrzeuge,
     serviceArea: settings
       ? {

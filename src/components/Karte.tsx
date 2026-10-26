@@ -12,7 +12,7 @@ const fahrzeugIcon = new L.Icon({
   iconAnchor: [12, 41],
 });
 
-type Fahrzeug = { id: string; plate: string };
+type Fahrzeug = { id: string; plate: string; position?: { lat: number; lng: number } | null };
 
 export function Karte({
   zentrum,
@@ -41,17 +41,15 @@ export function Karte({
         radius={radiusKm * 1000}
         pathOptions={{ color: "#0E6E62", fillOpacity: 0.05 }}
       />
-      {depot ? (
-        fahrzeuge.map((fahrzeug, index) => (
-          <Marker
-            key={fahrzeug.id}
-            position={[depot.lat + index * 0.001, depot.lng + index * 0.001]}
-            icon={fahrzeugIcon}
-          >
+      {fahrzeuge.map((fahrzeug, index) => {
+        const position = fahrzeug.position ?? (depot ? { lat: depot.lat + index * 0.001, lng: depot.lng + index * 0.001 } : null);
+        if (!position) return null;
+        return (
+          <Marker key={fahrzeug.id} position={[position.lat, position.lng]} icon={fahrzeugIcon}>
             <Popup>{fahrzeug.plate}</Popup>
           </Marker>
-        ))
-      ) : null}
+        );
+      })}
     </MapContainer>
   );
 }
