@@ -74,14 +74,20 @@ export async function schichtMusterAnlegen(eingabe: SchichtMusterEingabe, montag
 
   for (const wochentagIndex of daten.wochentage) {
     const tag = tage[wochentagIndex];
+    const start = mitUhrzeit(tag, daten.start);
+    const end = mitUhrzeit(tag, daten.end);
+
+    // Keine doppelte Schicht anlegen, wenn für diesen Fahrer an dem Tag schon eine
+    // überlappende Schicht existiert (z. B. weil "Für diese Woche anlegen" zweimal
+    // angeklickt wurde).
+    const ueberlappend = await db.shift.findFirst({
+      where: { driverId: daten.driverId, start: { lt: end }, end: { gt: start } },
+      select: { id: true },
+    });
+    if (ueberlappend) continue;
+
     await db.shift.create({
-      data: {
-        tenantId,
-        driverId: daten.driverId,
-        vehicleId: daten.vehicleId,
-        start: mitUhrzeit(tag, daten.start),
-        end: mitUhrzeit(tag, daten.end),
-      },
+      data: { tenantId, driverId: daten.driverId, vehicleId: daten.vehicleId, start, end },
     });
   }
   revalidatePath("/dispo/fahrer");
