@@ -352,3 +352,9 @@ model Job {
 - `Passenger.notes` und `Ride.assistanceNotes`: nur organisatorische Hinweise. Die KI schreibt keine Diagnosen hinein.
 - `Call.transcript` und Adapter-Zugangsdaten werden mit `src/lib/crypto.ts` (AES-256-GCM) verschlüsselt gespeichert.
 - Statusübergänge nur über `core/rides/status.ts` (erlaubte Übergänge als Tabelle, jede Änderung erzeugt `RideStatusEvent` und `AuditLog`).
+
+## Änderungen in Phase 1 (26.10.2026)
+
+- **Generator:** `prisma-client` (neuer Prisma-7-Generator) statt `prisma-client-js`, Ausgabe nach `src/generated/prisma`. Die Verbindung steht in `prisma7.config.ts`, nicht mehr als `url = env("DATABASE_URL")` im Schema.
+- **User/Session/Account/Verification:** werden von Better Auth verwaltet (`npx auth generate`, siehe `src/lib/auth.ts`). `User` hat zusätzlich `tenantId`, `role`, `phone` (additionalFields) sowie von Hand ergänzt: Relation zu `Tenant` und zu `Driver`. Nach einem erneuten `npx auth generate` müssen diese beiden Relationen im Schema wieder ergänzt werden.
+- **Role:** kein Prisma-Enum mehr (Better Auth unterstützt dort nur einfache Typen) – `role` ist ein String, erlaubte Werte stehen in `src/lib/roles.ts` (`ADMIN` | `DISPONENT` | `FAHRER`).

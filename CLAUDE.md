@@ -26,19 +26,19 @@ Der Auftraggeber ist Marketing-Profi, kein Entwickler. Deshalb:
 
 ## Technik (fest, nicht ohne Rückfrage ändern)
 
-| Baustein | Wahl |
-| --- | --- |
-| Sprache | TypeScript, strikt (`strict: true`) |
-| Web-App und API | Next.js (App Router), eine App für Einrichtung, Disposition und Fahrer-App |
-| Datenbank | PostgreSQL mit Prisma |
-| Oberfläche | Tailwind CSS, eigene kleine Komponenten (siehe `docs/06-oberflaeche.md`) |
-| Anmeldung | E-Mail mit Einmal-Code (Auth.js) für Büro; Fahrer per SMS-Link; Rollen: ADMIN, DISPONENT, FAHRER |
-| Voice-Agent | über eine austauschbare Schnittstelle `VoiceProvider`; erster Anbieter: Vapi (siehe `docs/04-voice-agent.md`) |
-| Routing / Fahrzeiten | über Schnittstelle `RoutingProvider`; erster Anbieter: OpenRouteService, später Google oder HERE |
-| Fahrer-App | Progressive Web-App (PWA) im selben Projekt unter `/fahrer`, mit Push-Benachrichtigungen |
-| Karte | Leaflet + OpenStreetMap |
-| Tests | Vitest für Logik, Playwright für die wichtigsten Klickwege |
-| Hosting | nur Server in der EU (Details in `docs/08-datenschutz-sicherheit.md`) |
+| Baustein             | Wahl                                                                                                                                                                                                                                                                                |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Sprache              | TypeScript, strikt (`strict: true`)                                                                                                                                                                                                                                                 |
+| Web-App und API      | Next.js (App Router), eine App für Einrichtung, Disposition und Fahrer-App                                                                                                                                                                                                          |
+| Datenbank            | PostgreSQL mit Prisma                                                                                                                                                                                                                                                               |
+| Oberfläche           | Tailwind CSS, eigene kleine Komponenten (siehe `docs/06-oberflaeche.md`)                                                                                                                                                                                                            |
+| Anmeldung            | E-Mail mit Einmal-Code (Better Auth) für Büro; Fahrer per Einmal-Link; Rollen: ADMIN, DISPONENT, FAHRER. **Geändert am 26.10.2026:** Bauplan sah Auth.js vor; Auth.js ist laut eigener Aussage (authjs.dev) inzwischen in Better Auth aufgegangen. Mit dem Auftraggeber abgestimmt. |
+| Voice-Agent          | über eine austauschbare Schnittstelle `VoiceProvider`; erster Anbieter: Vapi (siehe `docs/04-voice-agent.md`)                                                                                                                                                                       |
+| Routing / Fahrzeiten | über Schnittstelle `RoutingProvider`; erster Anbieter: OpenRouteService, später Google oder HERE                                                                                                                                                                                    |
+| Fahrer-App           | Progressive Web-App (PWA) im selben Projekt unter `/fahrer`, mit Push-Benachrichtigungen                                                                                                                                                                                            |
+| Karte                | Leaflet + OpenStreetMap                                                                                                                                                                                                                                                             |
+| Tests                | Vitest für Logik, Playwright für die wichtigsten Klickwege                                                                                                                                                                                                                          |
+| Hosting              | nur Server in der EU (Details in `docs/08-datenschutz-sicherheit.md`)                                                                                                                                                                                                               |
 
 Vor dem Einsatz einer Bibliothek oder eines externen Dienstes: aktuelle Doku prüfen, nicht aus dem Gedächtnis programmieren.
 

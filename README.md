@@ -7,19 +7,19 @@ Du musst nicht programmieren können: Du gibst Claude Code die Aufträge aus
 
 ## Was im Paket steckt
 
-| Datei | Inhalt |
-| --- | --- |
-| `CLAUDE.md` | Projektregeln, liest Claude Code automatisch bei jedem Start |
-| `docs/01-produkt.md` | Was das Produkt kann und was nicht |
-| `docs/02-architektur.md` | Aufbau, Ablauf einer Bestellung, Fahrer-Benachrichtigung |
-| `docs/03-datenmodell.md` | Alle Datenbank-Tabellen |
-| `docs/04-voice-agent.md` | Gesprächsablauf, Anweisungen für die KI-Stimme, Werkzeuge |
-| `docs/05-disposition.md` | Fahrzeugwahl, Bestätigen, Automodus, Plan für morgen |
-| `docs/06-oberflaeche.md` | Bildschirme, Farben, Schrift, Bedienregeln |
-| `docs/07-adapter.md` | Export für die Abrechnung; spätere Anbindung (DMRZ u. a.) |
-| `docs/08-datenschutz-sicherheit.md` | DSGVO, Hosting, Sicherheit |
-| `docs/09-bauplan.md` | 13 Bauphasen mit fertigen Aufträgen zum Einfügen |
-| `docs/10-browser-erweiterung.md` | zurückgestellt: Idee für Kunden, die in DMRZ disponieren wollen |
+| Datei                               | Inhalt                                                          |
+| ----------------------------------- | --------------------------------------------------------------- |
+| `CLAUDE.md`                         | Projektregeln, liest Claude Code automatisch bei jedem Start    |
+| `docs/01-produkt.md`                | Was das Produkt kann und was nicht                              |
+| `docs/02-architektur.md`            | Aufbau, Ablauf einer Bestellung, Fahrer-Benachrichtigung        |
+| `docs/03-datenmodell.md`            | Alle Datenbank-Tabellen                                         |
+| `docs/04-voice-agent.md`            | Gesprächsablauf, Anweisungen für die KI-Stimme, Werkzeuge       |
+| `docs/05-disposition.md`            | Fahrzeugwahl, Bestätigen, Automodus, Plan für morgen            |
+| `docs/06-oberflaeche.md`            | Bildschirme, Farben, Schrift, Bedienregeln                      |
+| `docs/07-adapter.md`                | Export für die Abrechnung; spätere Anbindung (DMRZ u. a.)       |
+| `docs/08-datenschutz-sicherheit.md` | DSGVO, Hosting, Sicherheit                                      |
+| `docs/09-bauplan.md`                | 13 Bauphasen mit fertigen Aufträgen zum Einfügen                |
+| `docs/10-browser-erweiterung.md`    | zurückgestellt: Idee für Kunden, die in DMRZ disponieren wollen |
 
 ## So startest du
 

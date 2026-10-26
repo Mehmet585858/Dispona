@@ -11,3 +11,463 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+// User wird von Better Auth verwaltet (npx auth generate). tenantId, role, phone
+// sind additionalFields aus src/lib/auth.ts. tenant- und driver-Relation von Hand ergänzt,
+// nach einem erneuten "npx auth generate" hier wieder eintragen.
+model User {
+  id            String    @id
+  name          String
+  email         String
+  emailVerified Boolean   @default(false)
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  tenantId      String
+  role          String
+  phone         String?
+  tenant        Tenant    @relation(fields: [tenantId], references: [id])
+  driver        Driver?
+  sessions      Session[]
+  accounts      Account[]
+
+  @@unique([email])
+  @@index([tenantId])
+  @@map("user")
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([token])
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+// ---------------------------------------------------------------------------
+// Fachliches Datenmodell, siehe docs/03-datenmodell.md.
+// Rollen (User.role): "ADMIN" | "DISPONENT" | "FAHRER" (geprüft in src/lib/roles.ts).
+// ---------------------------------------------------------------------------
+
+model Tenant {
+  id           String          @id @default(cuid())
+  name         String
+  street       String?
+  zip          String?
+  city         String?
+  phoneNumbers PhoneNumber[]
+  settings     TenantSettings?
+  setupStep    Int             @default(1)
+  setupDoneAt  DateTime?
+  createdAt    DateTime        @default(now())
+  users        User[]
+  vehicles     Vehicle[]
+  drivers      Driver[]
+  passengers   Passenger[]
+  places       Place[]
+  rides        Ride[]
+  series       RideSeries[]
+  calls        Call[]
+  integration  Integration?
+}
+
+enum AutoMode {
+  AUS
+  NACHTS_WOCHENENDE
+  IMMER
+}
+
+model TenantSettings {
+  tenantId             String   @id
+  tenant               Tenant   @relation(fields: [tenantId], references: [id])
+  aiActive             Boolean  @default(false)
+  aiSchedule           Json?
+  greeting             String
+  voiceId              String
+  escalationNumber     String
+  openingHours         Json
+  serviceAreaCenter    Json
+  serviceAreaKm        Int      @default(30)
+  depotAddress         Json?
+  autoMode             AutoMode @default(AUS)
+  autoModeSchedule     Json?
+  autoModeMinMargin    Int      @default(5)
+  autoModeMaxDaysAhead Int      @default(3)
+  requireDocsForAuto   Boolean  @default(true)
+  driverAckMinutes     Int      @default(5)
+  alertPhone           String?
+  alertEmail           String?
+  exportTemplate       Json?
+  audioRetentionDays   Int      @default(30)
+  dataRetentionDays    Int      @default(3650)
+}
+
+model PhoneNumber {
+  id         String  @id @default(cuid())
+  tenantId   String
+  tenant     Tenant  @relation(fields: [tenantId], references: [id])
+  e164       String  @unique
+  provider   String
+  providerId String?
+}
+
+enum TransportType {
+  SITZEND
+  ROLLSTUHL
+  TRAGESTUHL
+  LIEGEND
+}
+
+model Vehicle {
+  id              String            @id @default(cuid())
+  tenantId        String
+  tenant          Tenant            @relation(fields: [tenantId], references: [id])
+  plate           String
+  seats           Int               @default(4)
+  wheelchairSpots Int               @default(0)
+  carryChair      Boolean           @default(false)
+  stretcher       Boolean           @default(false)
+  active          Boolean           @default(true)
+  externalId      String?
+  locations       VehicleLocation[]
+  rides           Ride[]
+  shifts          Shift[]
+
+  @@unique([tenantId, plate])
+}
+
+model Driver {
+  id                String             @id @default(cuid())
+  tenantId          String
+  tenant            Tenant             @relation(fields: [tenantId], references: [id])
+  userId            String             @unique
+  user              User               @relation(fields: [userId], references: [id])
+  shifts            Shift[]
+  pushSubscriptions PushSubscription[]
+  gpsConsentAt      DateTime?
+}
+
+model PushSubscription {
+  id        String    @id @default(cuid())
+  tenantId  String
+  driverId  String
+  driver    Driver    @relation(fields: [driverId], references: [id])
+  endpoint  String    @unique
+  keys      Json
+  createdAt DateTime  @default(now())
+  lastOkAt  DateTime?
+}
+
+model Shift {
+  id          String    @id @default(cuid())
+  tenantId    String
+  driverId    String
+  driver      Driver    @relation(fields: [driverId], references: [id])
+  vehicleId   String
+  vehicle     Vehicle   @relation(fields: [vehicleId], references: [id])
+  start       DateTime
+  end         DateTime
+  startedAt   DateTime?
+  endedAt     DateTime?
+  onBreak     Boolean   @default(false)
+  unavailable Boolean   @default(false)
+}
+
+model VehicleLocation {
+  id        String   @id @default(cuid())
+  tenantId  String
+  vehicleId String
+  vehicle   Vehicle  @relation(fields: [vehicleId], references: [id])
+  lat       Float
+  lng       Float
+  at        DateTime @default(now())
+
+  @@index([vehicleId, at])
+}
+
+model Passenger {
+  id          String     @id @default(cuid())
+  tenantId    String
+  tenant      Tenant     @relation(fields: [tenantId], references: [id])
+  firstName   String
+  lastName    String
+  birthDate   DateTime?
+  phones      String[]
+  insurer     String?
+  notes       String?
+  homePlaceId String?
+  externalId  String?
+  rides       Ride[]
+  approvals   Approval[]
+
+  @@index([tenantId, lastName])
+}
+
+enum PlaceType {
+  WOHNUNG
+  PRAXIS
+  KLINIK
+  DIALYSE
+  PFLEGEHEIM
+  SONSTIGES
+}
+
+model Place {
+  id         String    @id @default(cuid())
+  tenantId   String
+  tenant     Tenant    @relation(fields: [tenantId], references: [id])
+  label      String
+  street     String
+  zip        String
+  city       String
+  lat        Float
+  lng        Float
+  type       PlaceType
+  usageCount Int       @default(0)
+}
+
+enum DocStatus {
+  JA
+  NEIN
+  UNKLAR
+  NICHT_NOETIG
+}
+
+model Approval {
+  id          String    @id @default(cuid())
+  tenantId    String
+  passengerId String
+  passenger   Passenger @relation(fields: [passengerId], references: [id])
+  validFrom   DateTime
+  validUntil  DateTime
+  maxRides    Int?
+  reference   String?
+}
+
+// ENTWURF -> ERFASST -> VORGESCHLAGEN -> DISPONIERT -> UNTERWEGS -> AN_BORD -> ERLEDIGT
+// jederzeit möglich: PROBLEM, STORNIERT; NICHT_ANGETROFFEN nach UNTERWEGS
+enum RideStatus {
+  ENTWURF
+  ERFASST
+  VORGESCHLAGEN
+  DISPONIERT
+  UNTERWEGS
+  AN_BORD
+  ERLEDIGT
+  NICHT_ANGETROFFEN
+  STORNIERT
+  PROBLEM
+}
+
+enum RideSource {
+  ANRUF
+  MANUELL
+  IMPORT
+  SERIE
+}
+
+model Ride {
+  id              String            @id @default(cuid())
+  tenantId        String
+  tenant          Tenant            @relation(fields: [tenantId], references: [id])
+  passengerId     String
+  passenger       Passenger         @relation(fields: [passengerId], references: [id])
+  pickupPlaceId   String
+  dropoffPlaceId  String
+  pickupAt        DateTime
+  appointmentAt   DateTime?
+  transportType   TransportType
+  companion       Boolean           @default(false)
+  assistanceNotes String?
+  prescription    DocStatus         @default(UNKLAR)
+  approval        DocStatus         @default(UNKLAR)
+  status          RideStatus        @default(ENTWURF)
+  source          RideSource
+  vehicleId       String?
+  vehicle         Vehicle?          @relation(fields: [vehicleId], references: [id])
+  seriesId        String?
+  series          RideSeries?       @relation(fields: [seriesId], references: [id])
+  returnOfId      String?
+  callId          String?
+  call            Call?             @relation(fields: [callId], references: [id])
+  problems        String[]
+  completedAt     DateTime?
+  distanceKm      Float?
+  driverId        String?
+  dispatchMode    String?
+  autoSkipReason  String?
+  driverAckAt     DateTime?
+  driverDelayMin  Int?
+  externalId      String?
+  exportedAt      DateTime?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  suggestions     Suggestion[]
+  statusEvents    RideStatusEvent[]
+
+  @@index([tenantId, pickupAt])
+  @@index([tenantId, status])
+}
+
+model RideStatusEvent {
+  id       String     @id @default(cuid())
+  tenantId String
+  rideId   String
+  ride     Ride       @relation(fields: [rideId], references: [id])
+  status   RideStatus
+  byUserId String?
+  at       DateTime   @default(now())
+  lat      Float?
+  lng      Float?
+}
+
+model RideSeries {
+  id              String   @id @default(cuid())
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+  passengerId     String
+  rrule           String
+  pickupTime      String
+  appointmentTime String?
+  until           DateTime
+  template        Json
+  rides           Ride[]
+}
+
+enum Decision {
+  OFFEN
+  ANGENOMMEN
+  GEAENDERT
+  ABGELEHNT
+  AUTO
+}
+
+model Suggestion {
+  id              String    @id @default(cuid())
+  tenantId        String
+  rideId          String
+  ride            Ride      @relation(fields: [rideId], references: [id])
+  options         Json
+  decision        Decision  @default(OFFEN)
+  chosenVehicleId String?
+  decidedByUserId String?
+  decidedAt       DateTime?
+  createdAt       DateTime  @default(now())
+}
+
+enum CallOutcome {
+  FAHRT_ERFASST
+  FAHRT_GEAENDERT
+  FAHRT_STORNIERT
+  AUSKUNFT
+  WEITERGELEITET
+  ABGEBROCHEN
+  NOTFALL_HINWEIS
+}
+
+model Call {
+  id             String       @id @default(cuid())
+  tenantId       String
+  tenant         Tenant       @relation(fields: [tenantId], references: [id])
+  providerCallId String       @unique
+  fromNumber     String?
+  toNumber       String
+  startedAt      DateTime
+  durationSec    Int?
+  transcript     String?
+  summary        String?
+  audioUrl       String?
+  outcome        CallOutcome?
+  rides          Ride[]
+}
+
+enum AdapterKey {
+  NONE
+  DMRZ
+  OPTADATA
+  TAXIEXPERTE
+  LAVID
+}
+
+model Integration {
+  tenantId   String     @id
+  tenant     Tenant     @relation(fields: [tenantId], references: [id])
+  adapter    AdapterKey @default(NONE)
+  configEnc  String?
+  lastSyncAt DateTime?
+  lastError  String?
+}
+
+model Notification {
+  id       String    @id @default(cuid())
+  tenantId String
+  channel  String
+  toRef    String
+  rideId   String?
+  kind     String
+  sentAt   DateTime  @default(now())
+  ackAt    DateTime?
+  error    String?
+}
+
+model AuditLog {
+  id       String   @id @default(cuid())
+  tenantId String
+  userId   String?
+  action   String
+  entity   String
+  entityId String
+  at       DateTime @default(now())
+
+  @@index([tenantId, at])
+}
+
+model Job {
+  id       String    @id @default(cuid())
+  type     String
+  payload  Json
+  runAt    DateTime  @default(now())
+  attempts Int       @default(0)
+  doneAt   DateTime?
+  error    String?
+}

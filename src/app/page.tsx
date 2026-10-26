@@ -5,8 +5,8 @@ export default function Home() {
         Fahrdienst-KI
       </h1>
       <p className="max-w-md text-base text-zinc-600 dark:text-zinc-400">
-        Projekt angelegt. Die Einrichtung, die Disposition und die Fahrer-App
-        entstehen Phase für Phase – siehe docs/09-bauplan.md.
+        Projekt angelegt. Die Einrichtung, die Disposition und die Fahrer-App entstehen Phase für
+        Phase – siehe docs/09-bauplan.md.
       </p>
     </div>
   );
