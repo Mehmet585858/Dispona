@@ -253,17 +253,19 @@ enum PlaceType {
 }
 
 model Place {
-  id         String    @id @default(cuid())
-  tenantId   String
-  tenant     Tenant    @relation(fields: [tenantId], references: [id])
-  label      String
-  street     String
-  zip        String
-  city       String
-  lat        Float
-  lng        Float
-  type       PlaceType
-  usageCount Int       @default(0)
+  id           String    @id @default(cuid())
+  tenantId     String
+  tenant       Tenant    @relation(fields: [tenantId], references: [id])
+  label        String
+  street       String
+  zip          String
+  city         String
+  lat          Float
+  lng          Float
+  type         PlaceType
+  usageCount   Int       @default(0)
+  pickupRides  Ride[]    @relation("RidePickup")
+  dropoffRides Ride[]    @relation("RideDropoff")
 }
 
 enum DocStatus {
@@ -313,7 +315,9 @@ model Ride {
   passengerId     String
   passenger       Passenger         @relation(fields: [passengerId], references: [id])
   pickupPlaceId   String
+  pickupPlace     Place             @relation("RidePickup", fields: [pickupPlaceId], references: [id])
   dropoffPlaceId  String
+  dropoffPlace    Place             @relation("RideDropoff", fields: [dropoffPlaceId], references: [id])
   pickupAt        DateTime
   appointmentAt   DateTime?
   transportType   TransportType

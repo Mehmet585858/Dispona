@@ -15,6 +15,9 @@ function morgen(): Date {
 
 async function main() {
   console.log("Lösche alte Beispieldaten …");
+  await prisma.rideStatusEvent.deleteMany();
+  await prisma.suggestion.deleteMany();
+  await prisma.auditLog.deleteMany();
   await prisma.ride.deleteMany();
   await prisma.rideSeries.deleteMany();
   await prisma.shift.deleteMany();
