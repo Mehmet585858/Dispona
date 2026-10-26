@@ -70,19 +70,10 @@ export function withTenant(tenantId: string) {
             return query(typedArgs);
           }
 
-          if (READ_UNIQUE_OPS.has(operation)) {
-            const result = (await query(typedArgs)) as { tenantId?: string } | null;
-            if (!result || result.tenantId !== tenantId) {
-              if (operation === "findUniqueOrThrow") {
-                throw new Error("Nicht gefunden.");
-              }
-              return null;
-            }
-            return result;
-          }
-
-          if (WRITE_UNIQUE_OPS.has(operation)) {
-            // id identifiziert die Zeile eindeutig; vorher prüfen, dass sie zum Mandanten gehört.
+          if (READ_UNIQUE_OPS.has(operation) || WRITE_UNIQUE_OPS.has(operation)) {
+            // id identifiziert die Zeile eindeutig; das wird hier unabhängig vom select/include
+            // des Aufrufers geprüft (nie anhand des Ergebnisses selbst – das könnte tenantId
+            // durch ein eigenes select ausblenden).
             const client = prisma as unknown as Record<
               string,
               { findFirst: (a: unknown) => Promise<unknown> }
@@ -93,6 +84,12 @@ export function withTenant(tenantId: string) {
               select: { id: true },
             });
             if (!owned) {
+              if (operation === "findUniqueOrThrow") {
+                throw new Error("Nicht gefunden.");
+              }
+              if (operation === "findUnique") {
+                return null;
+              }
               throw new Error("Nicht gefunden.");
             }
             return query(typedArgs);
