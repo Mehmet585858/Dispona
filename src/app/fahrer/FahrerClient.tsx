@@ -59,12 +59,27 @@ function uhrzeit(datum: Date | string): string {
   return new Date(datum).toLocaleTimeString("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", minute: "2-digit" });
 }
 
-function kurzOrt(ort: Ort): string {
-  return `${ort.label}, ${ort.street}`;
+function volleAdresse(ort: Ort): string {
+  return `${ort.label}, ${ort.street}, ${ort.zip} ${ort.city}`;
 }
 
 function navigationsLink(ort: Ort): string {
   return `https://www.google.com/maps/dir/?api=1&destination=${ort.lat},${ort.lng}`;
+}
+
+function AdressZeilen({ pickupPlace, dropoffPlace }: { pickupPlace: Ort; dropoffPlace: Ort }) {
+  return (
+    <div className="mt-1 flex flex-col gap-1">
+      <p className="text-sm text-ink-soft">
+        <span className="font-medium text-ink">Abholung: </span>
+        {volleAdresse(pickupPlace)}
+      </p>
+      <p className="text-sm text-ink-soft">
+        <span className="font-medium text-ink">Ziel: </span>
+        {volleAdresse(dropoffPlace)}
+      </p>
+    </div>
+  );
 }
 
 export function FahrerClient({
@@ -149,8 +164,8 @@ export function FahrerClient({
         <GesehenUeberlagerung
           rideId={naechsteFahrt.id}
           uhrzeit={uhrzeit(naechsteFahrt.pickupAt)}
-          vonOrt={kurzOrt(naechsteFahrt.pickupPlace)}
-          nachOrt={kurzOrt(naechsteFahrt.dropoffPlace)}
+          vonOrt={volleAdresse(naechsteFahrt.pickupPlace)}
+          nachOrt={volleAdresse(naechsteFahrt.dropoffPlace)}
           onBestaetigt={() => gesehen(naechsteFahrt.id)}
         />
       ) : null}
@@ -215,9 +230,7 @@ export function FahrerClient({
           <p className="mt-2 text-lg font-medium text-ink">
             {naechsteFahrt.passenger.firstName} {naechsteFahrt.passenger.lastName}
           </p>
-          <p className="mt-1 text-sm text-ink-soft">
-            {kurzOrt(naechsteFahrt.pickupPlace)} → {kurzOrt(naechsteFahrt.dropoffPlace)}
-          </p>
+          <AdressZeilen pickupPlace={naechsteFahrt.pickupPlace} dropoffPlace={naechsteFahrt.dropoffPlace} />
           {naechsteFahrt.appointmentAt ? (
             <p className="mt-1 text-sm text-ink-soft">Termin: {uhrzeit(naechsteFahrt.appointmentAt)}</p>
           ) : null}
@@ -242,19 +255,34 @@ export function FahrerClient({
               rel="noopener noreferrer"
               className="inline-flex min-h-11 flex-1 items-center justify-center rounded-xl border border-line-strong bg-surface px-4 text-base font-medium text-ink hover:bg-accent-soft"
             >
-              Navigation starten
+              {naechsteFahrt.status === "AN_BORD" ? "Zum Ziel navigieren" : "Zum Abholort navigieren"}
             </a>
           </div>
 
-          {NAECHSTER_SCHRITT[naechsteFahrt.status] ? (
-            <button
-              type="button"
-              disabled={istLaufend}
-              onClick={() => statusSetzen(naechsteFahrt.id, NAECHSTER_SCHRITT[naechsteFahrt.status]!.next)}
-              className="mt-4 flex min-h-16 w-full items-center justify-center rounded-2xl bg-accent text-lg font-semibold text-surface transition-colors hover:bg-accent/90 disabled:opacity-50"
+          {naechsteFahrt.status !== "AN_BORD" ? (
+            <a
+              href={navigationsLink(naechsteFahrt.dropoffPlace)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-2 flex min-h-11 w-full items-center justify-center rounded-xl border border-line-strong bg-surface px-4 text-base font-medium text-ink hover:bg-accent-soft"
             >
-              {istLaufend ? "…" : NAECHSTER_SCHRITT[naechsteFahrt.status]!.label}
-            </button>
+              Zum Ziel navigieren
+            </a>
+          ) : null}
+
+          {NAECHSTER_SCHRITT[naechsteFahrt.status] ? (
+            schichtAktiv ? (
+              <button
+                type="button"
+                disabled={istLaufend}
+                onClick={() => statusSetzen(naechsteFahrt.id, NAECHSTER_SCHRITT[naechsteFahrt.status]!.next)}
+                className="mt-4 flex min-h-16 w-full items-center justify-center rounded-2xl bg-accent text-lg font-semibold text-surface transition-colors hover:bg-accent/90 disabled:opacity-50"
+              >
+                {istLaufend ? "…" : NAECHSTER_SCHRITT[naechsteFahrt.status]!.label}
+              </button>
+            ) : (
+              <p className="mt-4 text-center text-sm text-ink-soft">Bitte zuerst die Schicht starten.</p>
+            )
           ) : null}
 
           <button
@@ -330,9 +358,7 @@ export function FahrerClient({
                 <p className="mt-1 text-sm text-ink">
                   {fahrt.passenger.firstName} {fahrt.passenger.lastName}
                 </p>
-                <p className="text-sm text-ink-soft">
-                  {kurzOrt(fahrt.pickupPlace)} → {kurzOrt(fahrt.dropoffPlace)}
-                </p>
+                <AdressZeilen pickupPlace={fahrt.pickupPlace} dropoffPlace={fahrt.dropoffPlace} />
               </Card>
             ))}
           </div>

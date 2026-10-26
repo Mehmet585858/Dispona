@@ -57,9 +57,11 @@ export function GesehenUeberlagerung({
     <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 bg-accent p-6 text-center text-surface">
       <p className="text-sm font-medium uppercase tracking-wide opacity-80">Neue Fahrt</p>
       <p className="text-4xl font-semibold tabular-nums">{uhrzeit}</p>
-      <p className="text-lg">
-        {vonOrt} → {nachOrt}
-      </p>
+      <div className="flex flex-col gap-1 text-lg">
+        <p>{vonOrt}</p>
+        <p>↓</p>
+        <p>{nachOrt}</p>
+      </div>
       <button
         type="button"
         onClick={bestaetigen}
