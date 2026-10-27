@@ -31,7 +31,7 @@ Der Auftraggeber ist Marketing-Profi, kein Entwickler. Deshalb:
 | Sprache              | TypeScript, strikt (`strict: true`)                                                                                                                                                                                                                                                 |
 | Web-App und API      | Next.js (App Router), eine App für Einrichtung, Disposition und Fahrer-App                                                                                                                                                                                                          |
 | Datenbank            | PostgreSQL mit Prisma                                                                                                                                                                                                                                                               |
-| Oberfläche           | Tailwind CSS, eigene kleine Komponenten (siehe `docs/06-oberflaeche.md`)                                                                                                                                                                                                            |
+| Oberfläche           | Tailwind CSS, eigene kleine Komponenten (Design: `docs/DESIGN-GUIDE.md` "Gedämpft"; Bedienregeln/Bildschirme weiterhin in `docs/06-oberflaeche.md`)                                                                                                                                 |
 | Anmeldung            | E-Mail mit Einmal-Code (Better Auth) für Büro; Fahrer per Einmal-Link; Rollen: ADMIN, DISPONENT, FAHRER. **Geändert am 26.10.2026:** Bauplan sah Auth.js vor; Auth.js ist laut eigener Aussage (authjs.dev) inzwischen in Better Auth aufgegangen. Mit dem Auftraggeber abgestimmt. |
 | Voice-Agent          | über eine austauschbare Schnittstelle `VoiceProvider`; erster Anbieter: Vapi (siehe `docs/04-voice-agent.md`)                                                                                                                                                                       |
 | Routing / Fahrzeiten | über Schnittstelle `RoutingProvider`; erster Anbieter: OpenRouteService, später Google oder HERE                                                                                                                                                                                    |
@@ -69,13 +69,20 @@ docs/                  Spezifikation (nicht ändern ohne Auftrag)
 tests/
 ```
 
+## Design
+
+Vor jeder UI-Arbeit `docs/DESIGN-GUIDE.md` lesen und einhalten. Für die Disposition zusätzlich `docs/DISPO-SPEZ.md`.
+Neue Seiten nur aus den Komponenten in `docs/DESIGN-GUIDE.md` Abschnitt 10 bauen (`src/components/ui/`); fehlende Komponenten zuerst ergänzen und dort dokumentieren.
+Am Ende jeder UI-Aufgabe die Checkliste aus `docs/DESIGN-GUIDE.md` Abschnitt 11 durchgehen und das Ergebnis nennen.
+Seit 27.10.2026 **vollständig abgelöst**: die bisherigen Tokens/Schrift aus `docs/06-oberflaeche.md` (Figtree, Petrol-Akzent). Die Tailwind-Variablennamen in `src/app/globals.css` blieben gleich, nur die Werte wurden auf "Gedämpft" umgestellt – damit zeigen alle Seiten automatisch das neue Design. Bestehende Seiten werden nach und nach weiter angepasst (Sprache, Seitenmuster, neue Bausteine), nicht alle auf einmal.
+
 ## Regeln für den Code
 
 - Fachlogik gehört nach `src/core/` und hat Tests. Seiten und API-Routen rufen nur `core/` auf.
 - Jede Datenbankabfrage filtert nach `tenantId`. Nutze dafür die Hilfsfunktion `withTenant()` aus `src/lib/db.ts`; nie direkt `prisma.ride.findMany()` ohne Mandant.
 - Externe Dienste nur über ihre Schnittstelle in `providers/` ansprechen, damit Anbieter austauschbar bleiben.
 - Gesundheitsnahe Daten (Fahrgast, Fahrten, Gesprächsprotokolle) nie in Logs, Push-Texten oder SMS. Logs enthalten nur IDs; Push/SMS an Fahrer nur Uhrzeit und Ort, kein Name.
-- Alle Texte der Oberfläche auf Deutsch, in kurzer, freundlicher Sprache (Sie-Form). Texte in `src/app/**/texte.ts` sammeln, nicht im Code verstreuen.
+- Alle Texte der Oberfläche auf Deutsch, kurze Aussagesätze. **Seit 27.10.2026:** du-los und sachlich (keine Anrede, Begriffe aus `docs/DESIGN-GUIDE.md` Abschnitt 8) statt der bisherigen Sie-Form – gilt für neue und geänderte Texte; alte Sie-Form-Texte werden nach und nach mit umgestellt, nicht in einem Rutsch. Texte in `src/app/**/texte.ts` sammeln, nicht im Code verstreuen.
 - Uhrzeiten intern in UTC speichern, in der Oberfläche in `Europe/Berlin` anzeigen. Datum/Zeit-Rechnung (Wochenstart, "heute", Uhrzeiten setzen) immer über `src/core/shifts/week.ts` – nie `new Date()` direkt mit `setHours()`/`toISOString()` mischen, das ist je nach Server-Zeitzone falsch (siehe Tests in `tests/shifts-week.test.ts`).
 - Next.js 16 "Cache Components" (`cacheComponents` in `next.config.ts`) ist **bewusst ausgeschaltet**: Abgebrochene Prerender-Versuche haben die Datenbankverbindung lahmgelegt und auf fast jeder angemeldeten Seite Entwicklungs-Fehler ausgelöst, ohne uns Vorteile zu bringen (jede Seite prüft ohnehin zuerst die Anmeldung). Nicht ohne Rückfrage wieder einschalten.
 - Kleine Schritte: pro Aufgabe nur das Nötige ändern. Nach jeder Aufgabe `npm run lint`, `npm run typecheck` und `npm test` ausführen; erst bei grün ist die Aufgabe fertig.

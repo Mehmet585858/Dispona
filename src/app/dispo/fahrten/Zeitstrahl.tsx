@@ -103,7 +103,7 @@ function Spur({
         />
       ) : null}
       {jetztProzent !== null ? (
-        <div className="absolute inset-y-0 w-px bg-danger-ink" style={{ left: `${jetztProzent}%` }} />
+        <div className="absolute inset-y-0 w-px bg-now" style={{ left: `${jetztProzent}%` }} />
       ) : null}
       {fahrten.map((fahrt) => (
         <button
@@ -112,7 +112,7 @@ function Spur({
           onClick={() => onKlick?.(fahrt.id)}
           title={`${uhrzeit(fahrt.pickupAt)} ${fahrt.passenger.firstName} ${fahrt.passenger.lastName}`}
           className={`absolute rounded-sm ${kompakt ? "top-0.5 bottom-0.5 w-1.5" : "top-1 bottom-1 w-9"} ${
-            istAlarmFahrt(fahrt) ? "bg-danger-ink" : "bg-accent"
+            istAlarmFahrt(fahrt) ? "bg-late" : "bg-accent"
           } ${ausgewaehlteId === fahrt.id ? "ring-2 ring-ink" : ""}`}
           style={{ left: `${zeitstrahlPosition(fahrt.pickupAt)}%` }}
         />
@@ -172,7 +172,7 @@ export function Zeitstrahl({
           {tage.map((tag, index) => (
             <div
               key={index}
-              className={`text-center text-xs font-medium ${datumIso(tag) === heuteIso ? "text-danger-ink" : "text-muted"}`}
+              className={`text-center text-xs font-medium ${datumIso(tag) === heuteIso ? "text-now" : "text-muted"}`}
             >
               {WOCHENTAG_KURZ[index]}
             </div>
@@ -180,7 +180,7 @@ export function Zeitstrahl({
 
           {nichtZugewiesen.length > 0 ? (
             <>
-              <div className="text-sm font-medium text-danger-ink">Nicht zugewiesen</div>
+              <div className="text-sm font-medium text-warn-ink">Nicht zugewiesen</div>
               {tage.map((tag, index) => {
                 const tagesFahrten = fahrtenAmTag(null, tag);
                 return (
@@ -240,7 +240,7 @@ export function Zeitstrahl({
 
         {nichtZugewiesen.length > 0 ? (
           <>
-            <div className="text-sm font-medium text-danger-ink">Nicht zugewiesen</div>
+            <div className="text-sm font-medium text-warn-ink">Nicht zugewiesen</div>
             <Spur
               schicht={null}
               fahrten={nichtZugewiesen}

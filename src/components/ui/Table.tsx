@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 export function Table({ children }: { children: ReactNode }) {
   return (
-    <div className="overflow-x-auto rounded-2xl border border-line bg-surface">
+    <div className="overflow-x-auto rounded-[14px] border border-line bg-surface">
       <table className="w-full border-collapse text-left text-sm">{children}</table>
     </div>
   );
@@ -10,7 +10,7 @@ export function Table({ children }: { children: ReactNode }) {
 
 export function TableHead({ children }: { children: ReactNode }) {
   return (
-    <thead className="border-b border-line bg-ground text-xs font-medium uppercase tracking-wide text-muted">
+    <thead className="border-b border-line bg-surface2 text-xs text-muted">
       <tr>{children}</tr>
     </thead>
   );

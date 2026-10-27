@@ -87,13 +87,13 @@ export function DispoClient({
       <h1 className="text-2xl font-semibold text-ink">Heute</h1>
 
       {alarme.length > 0 ? (
-        <div className="rounded-2xl bg-danger-bg p-6">
-          <p className="font-medium text-danger-ink">
+        <div className="rounded-[14px] border border-warn-bd bg-warn-bg p-4">
+          <p className="font-semibold text-warn-ink">
             {alarme.length} {alarme.length === 1 ? "Fahrt braucht" : "Fahrten brauchen"} Ihre Aufmerksamkeit
           </p>
           <div className="mt-2 flex flex-col gap-1">
             {alarme.map((fahrt) => (
-              <p key={fahrt.id} className="text-sm text-danger-ink">
+              <p key={fahrt.id} className="text-sm text-warn-ink">
                 {uhrzeit(fahrt.pickupAt)} · {fahrt.passenger.firstName} {fahrt.passenger.lastName} ·{" "}
                 {fahrt.problems.length > 0 ? fahrt.problems.join(", ") : (ALARM_STATUS_LABEL[fahrt.status] ?? fahrt.status)}
               </p>

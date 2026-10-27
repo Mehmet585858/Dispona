@@ -1,5 +1,7 @@
 # 06 – Oberfläche
 
+> **Seit 27.10.2026 abgelöst:** Die Design-Tokens, Schrift und Sprache in diesem Dokument (Abschnitt "Gestaltung") gelten nicht mehr – siehe `docs/DESIGN-GUIDE.md` ("Gedämpft"). Die Bedienregeln und die Bildschirm-Beschreibungen unten sind weiter gültig und werden nach und nach an das neue Design angepasst.
+
 Vorlage für das Aussehen sind die drei Bildschirm-Entwürfe (Einrichtungsassistent, Disponenten-Startseite, Fahrer-App). Screenshots in `docs/entwuerfe/`, falls abgelegt. Sie passen genau zum Pilot.
 
 ## Bedienregeln (gelten überall)
