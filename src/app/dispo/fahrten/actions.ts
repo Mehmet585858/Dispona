@@ -20,20 +20,19 @@ function uhrzeitBerlin(datum: Date): string {
 
 async function fahrtenImZeitraumLaden(tenantId: string, von: Date, bis: Date) {
   const db = withTenant(tenantId);
-  const [fahrtenRoh, fahrer] = await Promise.all([
-    db.ride.findMany({
-      where: { pickupAt: { gte: von, lt: bis } },
-      include: {
-        passenger: { select: { firstName: true, lastName: true } },
-        pickupPlace: { select: { label: true } },
-        dropoffPlace: { select: { label: true } },
-        vehicle: { select: { plate: true } },
-        suggestions: { where: { decision: "OFFEN" }, orderBy: { createdAt: "desc" }, take: 1 },
-      },
-      orderBy: { pickupAt: "asc" },
-    }),
-    db.driver.findMany({ select: { id: true, user: { select: { name: true } } } }),
-  ]);
+  // Nacheinander statt mit Promise.all, siehe fahrplanLaden weiter unten.
+  const fahrtenRoh = await db.ride.findMany({
+    where: { pickupAt: { gte: von, lt: bis } },
+    include: {
+      passenger: { select: { firstName: true, lastName: true } },
+      pickupPlace: { select: { label: true } },
+      dropoffPlace: { select: { label: true } },
+      vehicle: { select: { plate: true } },
+      suggestions: { where: { decision: "OFFEN" }, orderBy: { createdAt: "desc" }, take: 1 },
+    },
+    orderBy: { pickupAt: "asc" },
+  });
+  const fahrer = await db.driver.findMany({ select: { id: true, user: { select: { name: true } } } });
 
   const fahrerNachId = new Map(fahrer.map((f) => [f.id, f.user.name]));
   return fahrtenRoh.map((fahrt) => ({

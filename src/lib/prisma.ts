@@ -40,18 +40,22 @@ function createClient() {
     keepAliveInitialDelayMillis: 5_000,
   });
   const client = new PrismaClient({ adapter });
+  const MAX_VERSUCHE = 3;
   return client.$extends({
     name: "wiederholungBeiVerbindungsabbruch",
     query: {
       $allModels: {
         async $allOperations({ args, query }) {
-          try {
-            return await query(args);
-          } catch (fehler) {
-            if (!istVorruebergehenderVerbindungsfehler(fehler)) throw fehler;
-            await new Promise((resolve) => setTimeout(resolve, 150));
-            return query(args);
+          for (let versuch = 1; versuch <= MAX_VERSUCHE; versuch += 1) {
+            try {
+              return await query(args);
+            } catch (fehler) {
+              if (versuch === MAX_VERSUCHE || !istVorruebergehenderVerbindungsfehler(fehler)) throw fehler;
+              await new Promise((resolve) => setTimeout(resolve, 150 * versuch));
+            }
           }
+          // Unerreichbar (die Schleife wirft oder gibt in jedem Durchlauf zurück) – nur für TypeScript.
+          throw new Error("unerreichbar");
         },
       },
     },
