@@ -1,0 +1,46 @@
+/**
+ * Findet den Mandanten anhand der angerufenen Nummer (docs/04-voice-agent.md,
+ * POST /api/voice/assistant-request). PhoneNumber, Tenant und TenantSettings direkt über prisma
+ * statt withTenant(): das ist genau die Abfrage, über die wir den Mandanten erst herausfinden,
+ * withTenant() setzt eine schon bekannte tenantId voraus (wie beim Cron-Job, src/app/api/cron/).
+ */
+import { prisma } from "@/lib/prisma";
+import type { TenantVoiceSettings } from "@/providers/voice/types";
+
+export type MandantFuerAnruf = {
+  tenantId: string;
+  aiAktiv: boolean;
+  settings: TenantVoiceSettings;
+};
+
+export async function mandantFuerNummerLaden(
+  angerufeneNummer: string,
+  anrufernummer: string | null,
+): Promise<MandantFuerAnruf | null> {
+  const nummer = await prisma.phoneNumber.findUnique({
+    where: { e164: angerufeneNummer },
+    select: { tenantId: true },
+  });
+  if (!nummer) return null;
+
+  const [tenant, settings] = await Promise.all([
+    prisma.tenant.findUnique({ where: { id: nummer.tenantId } }),
+    prisma.tenantSettings.findUnique({ where: { tenantId: nummer.tenantId } }),
+  ]);
+  if (!tenant || !settings) return null;
+
+  return {
+    tenantId: nummer.tenantId,
+    aiAktiv: settings.aiActive,
+    settings: {
+      tenantId: nummer.tenantId,
+      firmenname: tenant.name,
+      ort: tenant.city ?? "",
+      greeting: settings.greeting,
+      voiceId: settings.voiceId,
+      escalationNumber: settings.escalationNumber,
+      anrufernummer: anrufernummer ?? undefined,
+      bestaetigungsweg: " in Kürze",
+    },
+  };
+}
