@@ -4,6 +4,7 @@ import { withTenant } from "@/lib/db";
 import { prisma } from "@/lib/prisma";
 import { anrufAbschliessen } from "@/core/voice/anruf";
 import { anrufZusammenfassen } from "@/core/notify/anrufZusammenfassung";
+import { outcomeKlassifizieren } from "@/core/voice/outcome";
 
 /**
  * Statusmeldungen und Gesprächsbericht (docs/04-voice-agent.md). Nur end-of-call-report wird
@@ -30,10 +31,13 @@ export async function POST(request: NextRequest) {
   const zusammenfassung = await anrufZusammenfassen(bericht.transcript);
   const callId = await anrufAbschliessen(nummer.tenantId, bericht, zusammenfassung);
 
-  const hatFahrt = await withTenant(nummer.tenantId).ride.findFirst({ where: { callId }, select: { id: true } });
-  if (hatFahrt) {
-    await withTenant(nummer.tenantId).call.update({ where: { id: callId }, data: { outcome: "FAHRT_ERFASST" } });
-  }
+  const fahrten = await withTenant(nummer.tenantId).ride.findMany({ where: { callId }, select: { status: true } });
+  const outcome = outcomeKlassifizieren({
+    endedReason: bericht.endedReason,
+    hatFahrt: fahrten.length > 0,
+    fahrtStorniert: fahrten.length > 0 && fahrten.every((f) => f.status === "STORNIERT"),
+  });
+  await withTenant(nummer.tenantId).call.update({ where: { id: callId }, data: { outcome } });
 
   return NextResponse.json({ ok: true });
 }

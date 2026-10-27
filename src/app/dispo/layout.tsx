@@ -10,6 +10,7 @@ const navigation = [
   { href: "/dispo/fahrgaeste", label: "Fahrgäste" },
   { href: "/dispo/orte", label: "Orte" },
   { href: "/dispo/anrufe", label: "Anrufe" },
+  { href: "/dispo/auswertung", label: "Auswertung" },
   { href: "/dispo/einstellungen", label: "Einstellungen" },
 ];
 

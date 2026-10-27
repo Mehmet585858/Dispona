@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { TextField } from "@/components/ui/TextField";
 import { automodusEinstellungenSpeichern, type AutomodusEingabe } from "./actions";
+import { ExportAbrechnung } from "./ExportAbrechnung";
+import type { ExportSpalte } from "@/core/export/abrechnung";
 
 const AUTOMODUS_OPTIONEN: { wert: AutomodusEingabe["autoMode"]; label: string; hinweis: string }[] = [
   { wert: "AUS", label: "Aus", hinweis: "Jede Fahrt bestätigt ein Disponent von Hand." },
@@ -16,9 +18,11 @@ const AUTOMODUS_OPTIONEN: { wert: AutomodusEingabe["autoMode"]; label: string; h
 export function EinstellungenClient({
   einstellungen,
   istAdmin,
+  exportSpalten,
 }: {
   einstellungen: AutomodusEingabe;
   istAdmin: boolean;
+  exportSpalten: ExportSpalte[];
 }) {
   const router = useRouter();
   const [werte, setWerte] = useState<AutomodusEingabe>(einstellungen);
@@ -133,6 +137,8 @@ export function EinstellungenClient({
           </div>
         ) : null}
       </Card>
+
+      <ExportAbrechnung anfangsSpalten={exportSpalten} />
     </div>
   );
 }

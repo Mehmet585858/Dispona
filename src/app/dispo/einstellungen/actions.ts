@@ -5,6 +5,7 @@ import { z } from "zod";
 import { withTenant } from "@/lib/db";
 import { requireSession } from "@/lib/session";
 import type { AutoMode } from "@/generated/prisma/enums";
+import { spaltenReihenfolgeBereinigen, type ExportSpalte } from "@/core/export/abrechnung";
 
 export async function einstellungenLaden() {
   const { tenantId } = await requireSession();
@@ -17,6 +18,26 @@ export async function einstellungenLaden() {
     requireDocsForAuto: settings.requireDocsForAuto,
     alertPhone: settings.alertPhone ?? "",
   };
+}
+
+export async function exportVorlageLaden(): Promise<ExportSpalte[]> {
+  const { tenantId } = await requireSession();
+  const settings = await withTenant(tenantId).tenantSettings.findUnique({
+    where: { tenantId },
+    select: { exportTemplate: true },
+  });
+  return spaltenReihenfolgeBereinigen(settings?.exportTemplate);
+}
+
+export async function exportVorlageSpeichern(spalten: ExportSpalte[]) {
+  const { tenantId, userId } = await requireSession();
+  const bereinigt = spaltenReihenfolgeBereinigen(spalten);
+  const db = withTenant(tenantId);
+  await db.tenantSettings.update({ where: { tenantId }, data: { exportTemplate: bereinigt } });
+  await db.auditLog.create({
+    data: { tenantId, userId, action: "tenantSettings.exportvorlage_geaendert", entity: "TenantSettings", entityId: tenantId },
+  });
+  revalidatePath("/dispo/einstellungen");
 }
 
 const automodusSchema = z.object({
