@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  automodusStatusText,
   pruefeBesterVorschlag,
   pruefeFahrerImDienst,
   pruefeGpsOderBetriebshof,
@@ -122,5 +123,23 @@ describe("sicherheitsbedingungenPruefen", () => {
   it("blockiert außerhalb des Zeitfensters", () => {
     const eingabe: SicherheitsbedingungenEingabe = { ...basisEingabe(), jetzt: TAGSUEBER, pickupAt: TAGSUEBER };
     expect(sicherheitsbedingungenPruefen(eingabe).erlaubt).toBe(false);
+  });
+});
+
+describe("automodusStatusText", () => {
+  it("zeigt aus, wenn der Automodus ausgeschaltet ist", () => {
+    expect(automodusStatusText("AUS", TAGSUEBER)).toBe("Automodus: aus");
+  });
+  it("zeigt immer aktiv bei IMMER", () => {
+    expect(automodusStatusText("IMMER", TAGSUEBER)).toBe("Automodus: immer aktiv");
+  });
+  it("zeigt aktiv bis 6 Uhr nachts bei NACHTS_WOCHENENDE", () => {
+    expect(automodusStatusText("NACHTS_WOCHENENDE", NACHTS)).toBe("Automodus: aktiv bis 6:00 Uhr");
+  });
+  it("zeigt aktiv am Wochenende", () => {
+    expect(automodusStatusText("NACHTS_WOCHENENDE", WOCHENENDE_TAG)).toBe("Automodus: aktiv (Wochenende)");
+  });
+  it("zeigt aus werktags tagsüber bei NACHTS_WOCHENENDE", () => {
+    expect(automodusStatusText("NACHTS_WOCHENENDE", TAGSUEBER)).toContain("aus");
   });
 });

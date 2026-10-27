@@ -4,6 +4,7 @@ import { withTenant } from "@/lib/db";
 import { requireSession } from "@/lib/session";
 import { berlinerMitternacht, datumIso } from "@/core/shifts/week";
 import { minutenSeitDisponiert } from "@/core/rides/status";
+import { automodusStatusText } from "@/core/disposition/automodus";
 
 export async function dashboardLaden() {
   const { tenantId } = await requireSession();
@@ -91,12 +92,28 @@ export async function dashboardLaden() {
 
   const alarme = [...alarmeRoh, ...unbestaetigt].sort((a, b) => a.pickupAt.getTime() - b.pickupAt.getTime());
 
+  const heuteAutoDisponiert = await db.ride.count({
+    where: { pickupAt: { gte: heute, lt: morgen }, dispatchMode: "AUTO" },
+  });
+  const heuteLiegenGeblieben = await db.ride.findMany({
+    where: { pickupAt: { gte: heute, lt: morgen }, status: "VORGESCHLAGEN", autoSkipReason: { not: null } },
+    select: {
+      id: true,
+      pickupAt: true,
+      autoSkipReason: true,
+      passenger: { select: { firstName: true, lastName: true } },
+    },
+    orderBy: { pickupAt: "asc" },
+  });
+
   return {
     kennzahlen: { fahrtenHeute, wartenAufSie, unterwegs, anrufeAngenommen: 0 },
     bitteBestaetigen,
     tagesplan,
     alarme,
     fahrzeuge,
+    automodusText: automodusStatusText(settings?.autoMode ?? "AUS", new Date()),
+    heuteNacht: { automatischDisponiert: heuteAutoDisponiert, liegenGeblieben: heuteLiegenGeblieben },
     serviceArea: settings
       ? {
           center: settings.serviceAreaCenter as { lat: number; lng: number },

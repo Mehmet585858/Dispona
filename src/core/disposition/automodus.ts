@@ -72,6 +72,15 @@ export function pruefeZeitfenster(
   return ok;
 }
 
+/** Kurzer Text für den Kopf der Dispo-Seite, z. B. "Automodus: aktiv bis 6:00 Uhr". */
+export function automodusStatusText(autoMode: AutoMode, jetzt: Date): string {
+  if (autoMode === "AUS") return "Automodus: aus";
+  if (autoMode === "IMMER") return "Automodus: immer aktiv";
+  if (istNachtsInBerlin(jetzt)) return "Automodus: aktiv bis 6:00 Uhr";
+  if (istWochenendeInBerlin(jetzt)) return "Automodus: aktiv (Wochenende)";
+  return "Automodus: aus (nur nachts und am Wochenende aktiv)";
+}
+
 export type SicherheitsbedingungenEingabe = {
   problems: string[];
   bester: { zuSpaet: boolean; score: number };

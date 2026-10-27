@@ -11,6 +11,8 @@ export default async function DispoPage() {
       alarme={daten.alarme}
       fahrzeuge={daten.fahrzeuge}
       serviceArea={daten.serviceArea}
+      automodusText={daten.automodusText}
+      heuteNacht={daten.heuteNacht}
     />
   );
 }

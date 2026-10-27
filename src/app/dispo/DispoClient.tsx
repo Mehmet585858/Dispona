@@ -44,6 +44,13 @@ type AlarmFahrt = {
   passenger: { firstName: string; lastName: string };
 };
 
+type LiegengebliebeneFahrt = {
+  id: string;
+  pickupAt: Date;
+  autoSkipReason: string | null;
+  passenger: { firstName: string; lastName: string };
+};
+
 function uhrzeit(datum: Date): string {
   return new Date(datum).toLocaleTimeString("de-DE", {
     timeZone: "Europe/Berlin",
@@ -59,6 +66,8 @@ export function DispoClient({
   alarme,
   fahrzeuge,
   serviceArea,
+  automodusText,
+  heuteNacht,
 }: {
   kennzahlen: { fahrtenHeute: number; wartenAufSie: number; unterwegs: number; anrufeAngenommen: number };
   bitteBestaetigen: Fahrt[];
@@ -66,6 +75,8 @@ export function DispoClient({
   alarme: AlarmFahrt[];
   fahrzeuge: { id: string; plate: string; position: { lat: number; lng: number; at: Date } | null }[];
   serviceArea: { center: { lat: number; lng: number }; radiusKm: number; depot: { lat: number; lng: number } | null } | null;
+  automodusText: string;
+  heuteNacht: { automatischDisponiert: number; liegenGeblieben: LiegengebliebeneFahrt[] };
 }) {
   const router = useRouter();
 
@@ -84,7 +95,30 @@ export function DispoClient({
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-semibold text-ink">Heute</h1>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h1 className="text-2xl font-semibold text-ink">Heute</h1>
+        <Chip ton={automodusText.startsWith("Automodus: aus") ? "neutral" : "accent"}>{automodusText}</Chip>
+      </div>
+
+      {heuteNacht.automatischDisponiert > 0 || heuteNacht.liegenGeblieben.length > 0 ? (
+        <Card className="flex flex-col gap-2">
+          <h2 className="font-semibold text-ink">Heute Nacht</h2>
+          <p className="text-sm text-ink-soft">
+            {heuteNacht.automatischDisponiert} automatisch disponiert, {heuteNacht.liegenGeblieben.length} liegen
+            geblieben
+          </p>
+          {heuteNacht.liegenGeblieben.length > 0 ? (
+            <div className="mt-1 flex flex-col gap-1">
+              {heuteNacht.liegenGeblieben.map((fahrt) => (
+                <p key={fahrt.id} className="text-sm text-muted">
+                  {uhrzeit(fahrt.pickupAt)} · {fahrt.passenger.firstName} {fahrt.passenger.lastName} ·{" "}
+                  {fahrt.autoSkipReason}
+                </p>
+              ))}
+            </div>
+          ) : null}
+        </Card>
+      ) : null}
 
       {alarme.length > 0 ? (
         <div className="rounded-[14px] border border-warn-bd bg-warn-bg p-4">
