@@ -137,6 +137,8 @@ model TenantSettings {
   driverAckMinutes     Int      @default(5)
   alertPhone           String?
   alertEmail           String?
+  planFuerMorgenZeit   String   @default("18:00")
+  planFuerMorgenLauf   DateTime?
   exportTemplate       Json?
   audioRetentionDays   Int      @default(30)
   dataRetentionDays    Int      @default(3650)

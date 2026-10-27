@@ -13,6 +13,7 @@ export default async function DispoPage() {
       serviceArea={daten.serviceArea}
       automodusText={daten.automodusText}
       heuteNacht={daten.heuteNacht}
+      planFuerMorgen={daten.planFuerMorgen}
     />
   );
 }

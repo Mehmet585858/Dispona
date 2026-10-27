@@ -3,9 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { withTenant } from "@/lib/db";
 import { requireSession } from "@/lib/session";
-import type { FahrtEingabe } from "@/core/rides/validation";
+import type { FahrtEingabe, SerieEingabe } from "@/core/rides/validation";
 import { fahrtStatusAendern } from "@/core/rides/status";
 import { fahrtErfassen } from "@/core/rides/erfassen";
+import { serieAnlegen as serieAnlegenKern } from "@/core/rides/serie";
 import { fahrtStornieren as fahrtStornierenKern } from "@/core/rides/stornieren";
 import { fahrzeugZuweisen } from "@/core/disposition/zuweisen";
 import { fahrgaesteAehnlicheNamen, telefonNormalisieren } from "@/core/passengers/suche";
@@ -152,6 +153,14 @@ export async function ortAusAdresseAnlegen(eingabe: {
 export async function fahrtAnlegen(eingabe: FahrtEingabe) {
   const { tenantId, userId } = await requireSession();
   const ergebnis = await fahrtErfassen(tenantId, eingabe, { userId, source: "MANUELL" });
+  revalidatePath("/dispo/fahrten");
+  revalidatePath("/dispo");
+  return ergebnis;
+}
+
+export async function serieAnlegen(eingabe: SerieEingabe) {
+  const { tenantId, userId } = await requireSession();
+  const ergebnis = await serieAnlegenKern(tenantId, eingabe, { userId, source: "MANUELL" });
   revalidatePath("/dispo/fahrten");
   revalidatePath("/dispo");
   return ergebnis;

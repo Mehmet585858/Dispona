@@ -15,10 +15,11 @@ import {
   TRANSPORT_TYPES,
   type FahrtEingabe,
 } from "@/core/rides/validation";
+import { WOCHENTAGE, WOCHENTAG_LABEL, type Wochentag } from "@/core/shifts/rrule";
 import { berlinerMitternacht, datumIso, montagVerschieben, wochenStart } from "@/core/shifts/week";
 import { FahrgastAuswahl } from "./FahrgastAuswahl";
 import { OrtAuswahl } from "./OrtAuswahl";
-import { fahrtAnlegen } from "./actions";
+import { fahrtAnlegen, serieAnlegen } from "./actions";
 import { Zeitstrahl, type FahrerZeile, type FahrtMini } from "./Zeitstrahl";
 
 const AKTUALISIERUNG_MS = 10_000;
@@ -77,6 +78,9 @@ export function FahrtenClient({
   const [formularOffen, setFormularOffen] = useState(false);
   const [fahrgast, setFahrgast] = useState<{ id: string; name: string } | null>(null);
   const [eingabe, setEingabe] = useState<FahrtEingabe>(LEER);
+  const [serieModus, setSerieModus] = useState(false);
+  const [serieWochentage, setSerieWochentage] = useState<Wochentag[]>([]);
+  const [serieBis, setSerieBis] = useState("");
   const [speichert, setSpeichert] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
   const [erfolg, setErfolg] = useState<string | null>(null);
@@ -111,16 +115,50 @@ export function FahrtenClient({
       setFehler("Bitte zuerst einen Fahrgast wählen.");
       return;
     }
+    if (serieModus && (serieWochentage.length === 0 || !serieBis)) {
+      setFehler("Bitte Wochentage und ein Enddatum der Serie angeben.");
+      return;
+    }
     setSpeichert(true);
     setFehler(null);
     setErfolg(null);
     try {
-      const { probleme } = await fahrtAnlegen({ ...eingabe, passengerId: fahrgast.id });
-      setErfolg(
-        probleme.length > 0
-          ? `Fahrt angelegt, aber mit Hinweis: ${probleme.join(", ")}`
-          : "Fahrt angelegt.",
-      );
+      if (serieModus) {
+        const ergebnis = await serieAnlegen({
+          passengerId: fahrgast.id,
+          pickupPlaceId: eingabe.pickupPlaceId,
+          dropoffPlaceId: eingabe.dropoffPlaceId,
+          wochentage: serieWochentage,
+          abholzeit: eingabe.abholzeit,
+          terminzeit: eingabe.terminzeit,
+          rueckfahrt: eingabe.rueckfahrt,
+          rueckfahrtzeit: eingabe.rueckfahrtzeit,
+          bis: serieBis,
+          transportType: eingabe.transportType,
+          companion: eingabe.companion,
+          assistanceNotes: eingabe.assistanceNotes,
+          prescription: eingabe.prescription,
+          approval: eingabe.approval,
+        });
+        const hinweise = [`Serie angelegt, ${ergebnis.erzeugteFahrten.length} Fahrten erzeugt.`];
+        if (ergebnis.feiertagsHinweise.length > 0) {
+          hinweise.push(
+            `Feiertage im Zeitraum: ${ergebnis.feiertagsHinweise.map((f) => `${f.datum} (${f.name})`).join(", ")}.`,
+          );
+        }
+        if (ergebnis.genehmigungsWarnung) hinweise.push(ergebnis.genehmigungsWarnung);
+        setErfolg(hinweise.join(" "));
+        setSerieModus(false);
+        setSerieWochentage([]);
+        setSerieBis("");
+      } else {
+        const { probleme } = await fahrtAnlegen({ ...eingabe, passengerId: fahrgast.id });
+        setErfolg(
+          probleme.length > 0
+            ? `Fahrt angelegt, aber mit Hinweis: ${probleme.join(", ")}`
+            : "Fahrt angelegt.",
+        );
+      }
       setEingabe(LEER);
       setFahrgast(null);
       setFormularOffen(false);
@@ -196,8 +234,18 @@ export function FahrtenClient({
 
       {formularOffen ? (
         <Card>
-          <h2 className="mb-4 text-lg font-semibold text-ink">Neue Fahrt</h2>
+          <h2 className="mb-4 text-lg font-semibold text-ink">{serieModus ? "Neue Serienfahrt" : "Neue Fahrt"}</h2>
           <div className="flex flex-col gap-4">
+            <label className="flex items-center gap-2 text-sm font-medium text-ink">
+              <input
+                type="checkbox"
+                checked={serieModus}
+                onChange={(event) => setSerieModus(event.target.checked)}
+                className="h-5 w-5 rounded border-line-strong"
+              />
+              Serie (wiederkehrend, z. B. Dialyse)
+            </label>
+
             <FahrgastAuswahl wert={fahrgast} onChange={setFahrgast} />
 
             <div className="grid gap-4 sm:grid-cols-2">
@@ -215,26 +263,68 @@ export function FahrtenClient({
               />
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-3">
-              <TextField
-                label="Datum"
-                type="date"
-                value={eingabe.datum}
-                onChange={(event) => setEingabe({ ...eingabe, datum: event.target.value })}
-              />
-              <TextField
-                label="Abholzeit"
-                type="time"
-                value={eingabe.abholzeit}
-                onChange={(event) => setEingabe({ ...eingabe, abholzeit: event.target.value })}
-              />
-              <TextField
-                label="Termin am Ziel (optional)"
-                type="time"
-                value={eingabe.terminzeit}
-                onChange={(event) => setEingabe({ ...eingabe, terminzeit: event.target.value })}
-              />
-            </div>
+            {serieModus ? (
+              <div className="flex flex-col gap-3">
+                <div>
+                  <p className="mb-1.5 text-sm font-medium text-ink">Wochentage</p>
+                  <div className="flex flex-wrap gap-2">
+                    {WOCHENTAGE.map((tag) => (
+                      <Tile
+                        key={tag}
+                        label={WOCHENTAG_LABEL[tag]}
+                        active={serieWochentage.includes(tag)}
+                        onClick={() =>
+                          setSerieWochentage((bisher) =>
+                            bisher.includes(tag) ? bisher.filter((t) => t !== tag) : [...bisher, tag],
+                          )
+                        }
+                      />
+                    ))}
+                  </div>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <TextField
+                    label="Abholzeit"
+                    type="time"
+                    value={eingabe.abholzeit}
+                    onChange={(event) => setEingabe({ ...eingabe, abholzeit: event.target.value })}
+                  />
+                  <TextField
+                    label="Termin am Ziel (optional)"
+                    type="time"
+                    value={eingabe.terminzeit}
+                    onChange={(event) => setEingabe({ ...eingabe, terminzeit: event.target.value })}
+                  />
+                  <TextField
+                    label="Serie bis"
+                    type="date"
+                    value={serieBis}
+                    onChange={(event) => setSerieBis(event.target.value)}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-3">
+                <TextField
+                  label="Datum"
+                  type="date"
+                  value={eingabe.datum}
+                  onChange={(event) => setEingabe({ ...eingabe, datum: event.target.value })}
+                />
+                <TextField
+                  label="Abholzeit"
+                  type="time"
+                  value={eingabe.abholzeit}
+                  onChange={(event) => setEingabe({ ...eingabe, abholzeit: event.target.value })}
+                />
+                <TextField
+                  label="Termin am Ziel (optional)"
+                  type="time"
+                  value={eingabe.terminzeit}
+                  onChange={(event) => setEingabe({ ...eingabe, terminzeit: event.target.value })}
+                />
+              </div>
+            )}
 
             <div className="flex flex-col gap-2">
               <label className="flex items-center gap-2 text-sm font-medium text-ink">
@@ -327,10 +417,14 @@ export function FahrtenClient({
                 type="button"
                 onClick={speichern}
                 disabled={
-                  speichert || !fahrgast || !eingabe.pickupPlaceId || !eingabe.dropoffPlaceId
+                  speichert ||
+                  !fahrgast ||
+                  !eingabe.pickupPlaceId ||
+                  !eingabe.dropoffPlaceId ||
+                  (serieModus && (serieWochentage.length === 0 || !serieBis))
                 }
               >
-                {speichert ? "Speichert …" : "Fahrt anlegen"}
+                {speichert ? "Speichert …" : serieModus ? "Serie anlegen" : "Fahrt anlegen"}
               </Button>
               <Button type="button" variant="secondary" onClick={() => setFormularOffen(false)}>
                 Abbrechen

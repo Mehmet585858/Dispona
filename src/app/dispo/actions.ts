@@ -1,10 +1,12 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { withTenant } from "@/lib/db";
 import { requireSession } from "@/lib/session";
-import { berlinerMitternacht, datumIso } from "@/core/shifts/week";
+import { berlinerMitternacht, datumIso, tagVerschieben } from "@/core/shifts/week";
 import { minutenSeitDisponiert } from "@/core/rides/status";
 import { automodusStatusText } from "@/core/disposition/automodus";
+import { fahrzeugZuweisen } from "@/core/disposition/zuweisen";
 
 export async function dashboardLaden() {
   const { tenantId } = await requireSession();
@@ -92,6 +94,24 @@ export async function dashboardLaden() {
 
   const alarme = [...alarmeRoh, ...unbestaetigt].sort((a, b) => a.pickupAt.getTime() - b.pickupAt.getTime());
 
+  const morgenIso = tagVerschieben(datumIso(heute), 1);
+  const morgenStart = berlinerMitternacht(morgenIso);
+  const morgenEnde = new Date(morgenStart);
+  morgenEnde.setDate(morgenEnde.getDate() + 1);
+  const planFuerMorgenFahrten = await db.ride.findMany({
+    where: { pickupAt: { gte: morgenStart, lt: morgenEnde }, status: "VORGESCHLAGEN" },
+    include: {
+      passenger: { select: { firstName: true, lastName: true } },
+      pickupPlace: { select: { label: true } },
+      dropoffPlace: { select: { label: true } },
+      suggestions: { where: { decision: "OFFEN" }, orderBy: { createdAt: "desc" }, take: 1 },
+    },
+    orderBy: { pickupAt: "asc" },
+  });
+  const morgenAutoDisponiert = await db.ride.count({
+    where: { pickupAt: { gte: morgenStart, lt: morgenEnde }, dispatchMode: "AUTO" },
+  });
+
   const heuteAutoDisponiert = await db.ride.count({
     where: { pickupAt: { gte: heute, lt: morgen }, dispatchMode: "AUTO" },
   });
@@ -114,6 +134,7 @@ export async function dashboardLaden() {
     fahrzeuge,
     automodusText: automodusStatusText(settings?.autoMode ?? "AUS", new Date()),
     heuteNacht: { automatischDisponiert: heuteAutoDisponiert, liegenGeblieben: heuteLiegenGeblieben },
+    planFuerMorgen: { fahrten: planFuerMorgenFahrten, automatischDisponiert: morgenAutoDisponiert },
     serviceArea: settings
       ? {
           center: settings.serviceAreaCenter as { lat: number; lng: number },
@@ -122,4 +143,33 @@ export async function dashboardLaden() {
         }
       : null,
   };
+}
+
+/** "Alle übernehmen" beim Sammel-Vorschlag "Plan für morgen": jede offene Fahrt bekommt ihren besten Vorschlag. */
+export async function planFuerMorgenAlleUebernehmen() {
+  const { tenantId, userId } = await requireSession();
+  const db = withTenant(tenantId);
+  const heute = berlinerMitternacht(datumIso(new Date()));
+  const morgenIso = tagVerschieben(datumIso(heute), 1);
+  const morgenStart = berlinerMitternacht(morgenIso);
+  const morgenEnde = new Date(morgenStart);
+  morgenEnde.setDate(morgenEnde.getDate() + 1);
+
+  const fahrten = await db.ride.findMany({
+    where: { pickupAt: { gte: morgenStart, lt: morgenEnde }, status: "VORGESCHLAGEN" },
+    include: { suggestions: { where: { decision: "OFFEN" }, orderBy: { createdAt: "desc" }, take: 1 } },
+    orderBy: { pickupAt: "asc" },
+  });
+
+  let uebernommen = 0;
+  for (const fahrt of fahrten) {
+    const beste = (fahrt.suggestions[0]?.options as { vehicleId: string }[] | undefined)?.[0];
+    if (!beste) continue;
+    await fahrzeugZuweisen(tenantId, fahrt.id, beste.vehicleId, { dispatchMode: "MANUELL", userId });
+    uebernommen += 1;
+  }
+
+  revalidatePath("/dispo");
+  revalidatePath("/dispo/fahrten");
+  return { uebernommen };
 }

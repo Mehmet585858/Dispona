@@ -15,9 +15,43 @@ import { DOC_STATUS, TRANSPORT_TYPES } from "@/core/rides/validation";
 import { fahrtErfassen } from "@/core/rides/erfassen";
 import { fahrtAendern } from "@/core/rides/aendern";
 import { fahrtStornieren as fahrtStornierenKern } from "@/core/rides/stornieren";
+import { serieAnlegen } from "@/core/rides/serie";
 import { parseDeutscheAdresse } from "@/core/places/adresse";
 import { routingProvider, GEOCODE_SICHER_SCHWELLE } from "@/providers/routing";
+import { WOCHENTAGE } from "@/core/shifts/rrule";
 import type { ToolCall, ToolResult } from "@/providers/voice/types";
+
+const fahrgastFelderSchema = z.object({
+  passengerId: z.string().optional(),
+  fahrgastVorname: z.string().optional(),
+  fahrgastNachname: z.string().optional(),
+  fahrgastGeburtsdatum: z.string().optional(),
+  fahrgastTelefon: z.string().optional(),
+  fahrgastKrankenkasse: z.string().optional(),
+});
+
+/** Nutzt die übergebene passengerId oder legt einen neuen Fahrgast an (fahrt_anlegen und serie_anlegen teilen sich das). */
+async function passagierSicherstellen(
+  tenantId: string,
+  daten: z.infer<typeof fahrgastFelderSchema>,
+): Promise<{ passengerId: string } | { problem: string }> {
+  if (daten.passengerId) return { passengerId: daten.passengerId };
+  if (!daten.fahrgastVorname || !daten.fahrgastNachname) {
+    return { problem: "Problem: Fahrgast fehlt. Vorher fahrgast_suchen aufrufen oder Vor- und Nachnamen angeben." };
+  }
+  const db = withTenant(tenantId);
+  const neu = await db.passenger.create({
+    data: {
+      tenantId,
+      firstName: daten.fahrgastVorname,
+      lastName: daten.fahrgastNachname,
+      birthDate: daten.fahrgastGeburtsdatum ? berlinerMitternacht(daten.fahrgastGeburtsdatum) : undefined,
+      phones: daten.fahrgastTelefon ? [telefonNormalisieren(daten.fahrgastTelefon)] : [],
+      insurer: daten.fahrgastKrankenkasse,
+    },
+  });
+  return { passengerId: neu.id };
+}
 
 const fahrgastSuchenSchema = z.object({
   telefon: z.string().optional(),
@@ -85,13 +119,7 @@ async function ortSuchen(tenantId: string, args: unknown): Promise<string> {
   return `Adresse: ${beste.label} (placeId ${neu.id}, ${sicher ? "sicher" : "unsicher – bitte vorlesen und bestätigen lassen"}).`;
 }
 
-const fahrtAnlegenSchema = z.object({
-  passengerId: z.string().optional(),
-  fahrgastVorname: z.string().optional(),
-  fahrgastNachname: z.string().optional(),
-  fahrgastGeburtsdatum: z.string().optional(),
-  fahrgastTelefon: z.string().optional(),
-  fahrgastKrankenkasse: z.string().optional(),
+const fahrtAnlegenSchema = fahrgastFelderSchema.extend({
   pickupPlaceId: z.string(),
   dropoffPlaceId: z.string(),
   datum: z.string(),
@@ -108,30 +136,13 @@ const fahrtAnlegenSchema = z.object({
 
 async function fahrtAnlegenWerkzeug(tenantId: string, callId: string, args: unknown): Promise<string> {
   const daten = fahrtAnlegenSchema.parse(args);
-  const db = withTenant(tenantId);
-
-  let passengerId = daten.passengerId;
-  if (!passengerId) {
-    if (!daten.fahrgastVorname || !daten.fahrgastNachname) {
-      return "Problem: Fahrgast fehlt. Vorher fahrgast_suchen aufrufen oder Vor- und Nachnamen angeben.";
-    }
-    const neu = await db.passenger.create({
-      data: {
-        tenantId,
-        firstName: daten.fahrgastVorname,
-        lastName: daten.fahrgastNachname,
-        birthDate: daten.fahrgastGeburtsdatum ? berlinerMitternacht(daten.fahrgastGeburtsdatum) : undefined,
-        phones: daten.fahrgastTelefon ? [telefonNormalisieren(daten.fahrgastTelefon)] : [],
-        insurer: daten.fahrgastKrankenkasse,
-      },
-    });
-    passengerId = neu.id;
-  }
+  const fahrgast = await passagierSicherstellen(tenantId, daten);
+  if ("problem" in fahrgast) return fahrgast.problem;
 
   const { rideId, probleme } = await fahrtErfassen(
     tenantId,
     {
-      passengerId,
+      passengerId: fahrgast.passengerId,
       pickupPlaceId: daten.pickupPlaceId,
       dropoffPlaceId: daten.dropoffPlaceId,
       datum: daten.datum,
@@ -152,6 +163,58 @@ async function fahrtAnlegenWerkzeug(tenantId: string, callId: string, args: unkn
     return `Fahrt erfasst, aber mit Hinweis: ${probleme.join(", ")}. (rideId ${rideId})`;
   }
   return `Fahrt erfasst. Die genaue Abholzeit wird noch bestätigt. (rideId ${rideId})`;
+}
+
+const serieAnlegenSchema = fahrgastFelderSchema.extend({
+  pickupPlaceId: z.string(),
+  dropoffPlaceId: z.string(),
+  wochentage: z.array(z.enum(WOCHENTAGE)).min(1),
+  abholzeit: z.string(),
+  terminzeit: z.string().optional(),
+  rueckfahrt: z.boolean().optional(),
+  rueckfahrtzeit: z.string().optional(),
+  bis: z.string(),
+  transportType: z.enum(TRANSPORT_TYPES),
+  companion: z.boolean().optional(),
+  assistanceNotes: z.string().optional(),
+  prescription: z.enum(DOC_STATUS),
+  approval: z.enum(DOC_STATUS),
+});
+
+async function serieAnlegenWerkzeug(tenantId: string, args: unknown): Promise<string> {
+  const daten = serieAnlegenSchema.parse(args);
+  const fahrgast = await passagierSicherstellen(tenantId, daten);
+  if ("problem" in fahrgast) return fahrgast.problem;
+
+  const ergebnis = await serieAnlegen(
+    tenantId,
+    {
+      passengerId: fahrgast.passengerId,
+      pickupPlaceId: daten.pickupPlaceId,
+      dropoffPlaceId: daten.dropoffPlaceId,
+      wochentage: daten.wochentage,
+      abholzeit: daten.abholzeit,
+      terminzeit: daten.terminzeit ?? "",
+      rueckfahrt: daten.rueckfahrt ?? false,
+      rueckfahrtzeit: daten.rueckfahrtzeit ?? "",
+      bis: daten.bis,
+      transportType: daten.transportType,
+      companion: daten.companion ?? false,
+      assistanceNotes: daten.assistanceNotes ?? "",
+      prescription: daten.prescription,
+      approval: daten.approval,
+    },
+    { source: "ANRUF" },
+  );
+
+  const teile = [`Serie angelegt, ${ergebnis.erzeugteFahrten.length} Fahrten bis ${daten.bis} erzeugt.`];
+  if (ergebnis.feiertagsHinweise.length > 0) {
+    teile.push(`Hinweis: Fällt auf Feiertage (${ergebnis.feiertagsHinweise.map((f) => f.name).join(", ")}).`);
+  }
+  if (ergebnis.genehmigungsWarnung) {
+    teile.push(ergebnis.genehmigungsWarnung);
+  }
+  return teile.join(" ");
 }
 
 const fahrtFindenSchema = z.object({ passengerId: z.string(), datum: z.string().optional() });
@@ -276,6 +339,9 @@ export async function werkzeugAusfuehren(tenantId: string, callId: string, toolC
         break;
       case "fahrt_anlegen":
         result = await fahrtAnlegenWerkzeug(tenantId, callId, toolCall.arguments);
+        break;
+      case "serie_anlegen":
+        result = await serieAnlegenWerkzeug(tenantId, toolCall.arguments);
         break;
       case "fahrt_finden":
         result = await fahrtFinden(tenantId, toolCall.arguments);

@@ -25,6 +25,7 @@ Jeder Endpunkt prüft zuerst die Signatur (`verifyWebhook`). Antwortzeit der Wer
 | `fahrgast_suchen` | `telefon?`, `nachname?`, `geburtsdatum?` | Treffer (Name, Geburtsjahr, bekannte Adressen, letzte Fahrten) – höchstens 3 |
 | `ort_suchen` | `text` (z. B. "Dialyse Aachen", "Hauptstraße 12 Baesweiler") | bekannte Orte des Mandanten zuerst, dann Geocoding; mit `sicher: true/false` |
 | `fahrt_anlegen` | alle Pflichtdaten (`docs/01-produkt.md`) | `rideId`, erkannte Probleme (z. B. Genehmigung fehlt, Doppelbuchung); hat der Automodus sofort disponiert: ungefähre Abholzeit |
+| `serie_anlegen` | wie `fahrt_anlegen`, aber `wochentage` (statt `datum`) und `bis` (Serienende) | Anzahl angelegter Fahrten; Hinweis bei Feiertagen im Zeitraum; Warnung, falls die Genehmigung der Kasse vor Serienende abläuft |
 | `fahrt_finden` | `fahrgastId`, `datum?` | kommende Fahrten (für Änderung, Absage, Auskunft) |
 | `fahrt_aendern` | `rideId`, Änderungen | ok / Problem. Ist die Fahrt schon `DISPONIERT`, wird neu vorgeschlagen und der Fahrer per Push informiert |
 | `fahrt_stornieren` | `rideId`, `grund?` | ok; ist ein Fahrer zugewiesen, bekommt er sofort eine Push-Nachricht „Fahrt 09:40 entfällt“ |
@@ -58,14 +59,15 @@ Für eine neue Fahrt brauchst du, in dieser Reihenfolge:
 1. Wer fährt? Rufe zuerst fahrgast_suchen mit der Anrufernummer {{anrufernummer}} auf. Bei Treffer: "Spreche ich mit Frau/Herrn …?" und nur noch bestätigen lassen.
    Sonst: Vor- und Nachname (bei Unsicherheit buchstabieren lassen), Geburtsdatum, Krankenkasse, Rückrufnummer.
    Ruft jemand für eine andere Person an (Angehörige, Praxis, Klinik), erfasse die Daten des Fahrgastes und die Rückrufnummer des Anrufers.
-2. Wann? Datum, Uhrzeit des Termins am Ziel oder gewünschte Abholzeit. Rückfahrt nötig? Wenn ja, wann ungefähr?
+2. Wann? Fährt die Person regelmäßig (z. B. Dialyse dreimal pro Woche)? Dann frage nach den Wochentagen und bis wann die Serie laufen soll, und rufe am Ende serie_anlegen statt fahrt_anlegen auf.
+   Sonst: Datum, Uhrzeit des Termins am Ziel oder gewünschte Abholzeit. Rückfahrt nötig? Wenn ja, wann ungefähr?
 3. Von wo nach wo? Nutze ort_suchen. Ist das Ergebnis nicht sicher, lies die gefundene Adresse vor und lass sie bestätigen.
 4. Wie? Kann die Person sitzen, bleibt sie im Rollstuhl, braucht sie einen Tragestuhl oder muss sie liegen?
 5. Hat die Person einen Transportschein vom Arzt? Bei Serienfahrten: Liegt eine Genehmigung der Krankenkasse vor? (Ja / Nein / Weiß nicht ist alles in Ordnung.)
 6. Besonderheiten: Begleitperson, Treppen, Hilfe bis in die Wohnung?
-Fasse dann alles in zwei, drei Sätzen zusammen und frage: "Ist das so richtig?" Erst nach einem Ja rufst du fahrt_anlegen auf.
+Fasse dann alles in zwei, drei Sätzen zusammen und frage: "Ist das so richtig?" Erst nach einem Ja rufst du fahrt_anlegen bzw. serie_anlegen auf.
 
-Meldet fahrt_anlegen ein Problem, erkläre es einfach und sage, dass sich das Team meldet.
+Meldet fahrt_anlegen oder serie_anlegen ein Problem, erkläre es einfach und sage, dass sich das Team meldet.
 Verabschiede dich freundlich mit dem Namen des Fahrdienstes.
 Wenn du nach drei Versuchen etwas nicht verstehst: an_mensch_weiterleiten oder rueckruf_anlegen.
 ```

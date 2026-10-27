@@ -16,6 +16,7 @@ export type FahrtErfassenOptionen = {
   userId?: string;
   source: RideSource;
   callId?: string;
+  seriesId?: string;
 };
 
 async function einzelneFahrtAnlegen(
@@ -71,6 +72,7 @@ async function einzelneFahrtAnlegen(
       approval: daten.approval,
       source: optionen.source,
       callId: optionen.callId,
+      seriesId: optionen.seriesId,
       status: "ENTWURF",
       problems: probleme,
     },

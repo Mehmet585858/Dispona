@@ -2,12 +2,14 @@
 
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Chip } from "@/components/ui/Chip";
 import { TRANSPORT_TYPE_LABEL } from "@/core/rides/validation";
 import { VorschlagAktion, type VorschlagOption } from "@/components/VorschlagAktion";
 import type { RideStatus } from "@/generated/prisma/enums";
+import { planFuerMorgenAlleUebernehmen } from "./actions";
 
 const AKTUALISIERUNG_MS = 5_000;
 
@@ -68,6 +70,7 @@ export function DispoClient({
   serviceArea,
   automodusText,
   heuteNacht,
+  planFuerMorgen,
 }: {
   kennzahlen: { fahrtenHeute: number; wartenAufSie: number; unterwegs: number; anrufeAngenommen: number };
   bitteBestaetigen: Fahrt[];
@@ -77,8 +80,20 @@ export function DispoClient({
   serviceArea: { center: { lat: number; lng: number }; radiusKm: number; depot: { lat: number; lng: number } | null } | null;
   automodusText: string;
   heuteNacht: { automatischDisponiert: number; liegenGeblieben: LiegengebliebeneFahrt[] };
+  planFuerMorgen: { fahrten: Fahrt[]; automatischDisponiert: number };
 }) {
   const router = useRouter();
+  const [uebernimmtAlle, setUebernimmtAlle] = useState(false);
+
+  async function alleUebernehmen() {
+    setUebernimmtAlle(true);
+    try {
+      await planFuerMorgenAlleUebernehmen();
+      router.refresh();
+    } finally {
+      setUebernimmtAlle(false);
+    }
+  }
 
   useEffect(() => {
     const intervallId = setInterval(() => router.refresh(), AKTUALISIERUNG_MS);
@@ -117,6 +132,40 @@ export function DispoClient({
               ))}
             </div>
           ) : null}
+        </Card>
+      ) : null}
+
+      {planFuerMorgen.fahrten.length > 0 || planFuerMorgen.automatischDisponiert > 0 ? (
+        <Card className="flex flex-col gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="font-semibold text-ink">
+              Plan für morgen ({planFuerMorgen.fahrten.length})
+              {planFuerMorgen.automatischDisponiert > 0
+                ? `, ${planFuerMorgen.automatischDisponiert} automatisch disponiert`
+                : ""}
+            </h2>
+            {planFuerMorgen.fahrten.length > 0 ? (
+              <Button type="button" onClick={alleUebernehmen} disabled={uebernimmtAlle}>
+                {uebernimmtAlle ? "Übernimmt …" : "Alle übernehmen"}
+              </Button>
+            ) : null}
+          </div>
+          {planFuerMorgen.fahrten.map((fahrt) => {
+            const beste = (fahrt.suggestions?.[0]?.options as VorschlagOption[] | undefined)?.[0] ?? null;
+            return (
+              <div key={fahrt.id} className="flex items-start justify-between gap-3 border-t border-line pt-3 first:border-t-0 first:pt-0">
+                <div>
+                  <p className="font-medium text-ink">
+                    {uhrzeit(fahrt.pickupAt)} · {fahrt.passenger.firstName} {fahrt.passenger.lastName}
+                  </p>
+                  <p className="text-sm text-ink-soft">
+                    {fahrt.pickupPlace.label} → {fahrt.dropoffPlace.label}
+                  </p>
+                </div>
+                <VorschlagAktion rideId={fahrt.id} beste={beste} fahrzeuge={fahrzeuge} onErledigt={() => router.refresh()} />
+              </div>
+            );
+          })}
         </Card>
       ) : null}
 

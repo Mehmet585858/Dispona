@@ -67,6 +67,40 @@ const WERKZEUGE: Anthropic.Tool[] = [
     },
   },
   {
+    name: "serie_anlegen",
+    description:
+      "Serienfahrt anlegen (wiederkehrend, z. B. Dialyse Mo/Mi/Fr). passengerId verwenden, wenn über fahrgast_suchen gefunden; sonst fahrgastVorname/fahrgastNachname für einen neuen Fahrgast angeben.",
+    input_schema: {
+      type: "object",
+      properties: {
+        passengerId: { type: "string" },
+        fahrgastVorname: { type: "string" },
+        fahrgastNachname: { type: "string" },
+        fahrgastGeburtsdatum: { type: "string", description: "JJJJ-MM-TT" },
+        fahrgastTelefon: { type: "string" },
+        fahrgastKrankenkasse: { type: "string" },
+        pickupPlaceId: { type: "string" },
+        dropoffPlaceId: { type: "string" },
+        wochentage: {
+          type: "array",
+          items: { type: "string", enum: ["MO", "DI", "MI", "DO", "FR", "SA", "SO"] },
+          description: "Wochentage, an denen die Fahrt stattfindet",
+        },
+        abholzeit: { type: "string", description: "HH:MM" },
+        terminzeit: { type: "string", description: "HH:MM" },
+        rueckfahrt: { type: "boolean" },
+        rueckfahrtzeit: { type: "string", description: "HH:MM" },
+        bis: { type: "string", description: "JJJJ-MM-TT, Enddatum der Serie" },
+        transportType: { type: "string", enum: ["SITZEND", "ROLLSTUHL", "TRAGESTUHL", "LIEGEND"] },
+        companion: { type: "boolean" },
+        assistanceNotes: { type: "string" },
+        prescription: { type: "string", enum: ["JA", "NEIN", "UNKLAR", "NICHT_NOETIG"] },
+        approval: { type: "string", enum: ["JA", "NEIN", "UNKLAR", "NICHT_NOETIG"] },
+      },
+      required: ["pickupPlaceId", "dropoffPlaceId", "wochentage", "abholzeit", "bis", "transportType", "prescription", "approval"],
+    },
+  },
+  {
     name: "fahrt_finden",
     description: "Kommende Fahrten eines Fahrgasts finden.",
     input_schema: {
