@@ -43,6 +43,7 @@ async function main() {
       city: "Baesweiler",
       settings: {
         create: {
+          aiActive: true,
           greeting:
             "Willkommen bei Muster Krankenfahrten. Dieses Gespräch wird von einer KI geführt und zur Bearbeitung aufgezeichnet.",
           voiceId: "de-freundlich-1",
@@ -58,6 +59,9 @@ async function main() {
             lng: 6.1894,
           },
         },
+      },
+      phoneNumbers: {
+        create: [{ e164: "+4924011112222", provider: "VAPI" }],
       },
     },
   });

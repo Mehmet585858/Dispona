@@ -9,6 +9,7 @@ const navigation = [
   { href: "/dispo/fahrzeuge", label: "Fahrzeuge" },
   { href: "/dispo/fahrgaeste", label: "Fahrgäste" },
   { href: "/dispo/orte", label: "Orte" },
+  { href: "/dispo/anrufe", label: "Anrufe" },
 ];
 
 export default async function DispoLayout({ children }: { children: ReactNode }) {
