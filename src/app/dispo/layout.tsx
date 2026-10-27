@@ -5,9 +5,8 @@ import { getServerSession } from "@/lib/session";
 
 const navigation = [
   { href: "/dispo", label: "Start" },
-  { href: "/dispo/fahrten", label: "Fahrten" },
+  { href: "/dispo/fahrten", label: "Fahrplan" },
   { href: "/dispo/fahrzeuge", label: "Fahrzeuge" },
-  { href: "/dispo/fahrer", label: "Fahrer & Schichten" },
   { href: "/dispo/fahrgaeste", label: "Fahrgäste" },
   { href: "/dispo/orte", label: "Orte" },
 ];

@@ -1,11 +1,11 @@
 "use client";
 
+import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { Chip } from "@/components/ui/Chip";
-import { Table, TableCell, TableHead, TableHeaderCell, TableRow } from "@/components/ui/Table";
 import { TextField } from "@/components/ui/TextField";
 import { Tile } from "@/components/ui/Tile";
 import {
@@ -16,50 +16,28 @@ import {
   type FahrtEingabe,
 } from "@/core/rides/validation";
 import { berlinerMitternacht, datumIso, montagVerschieben, wochenStart } from "@/core/shifts/week";
-import { VorschlagAktion, type VorschlagOption } from "@/components/VorschlagAktion";
 import { FahrgastAuswahl } from "./FahrgastAuswahl";
 import { OrtAuswahl } from "./OrtAuswahl";
 import { fahrtAnlegen } from "./actions";
+import { Zeitstrahl, type FahrerZeile, type FahrtMini } from "./Zeitstrahl";
 
-type Fahrt = {
-  id: string;
-  pickupAt: Date;
-  transportType: (typeof TRANSPORT_TYPES)[number];
-  status: string;
-  problems: string[];
-  passenger: { firstName: string; lastName: string };
-  pickupPlace: { label: string };
-  dropoffPlace: { label: string };
-  vehicle: { plate: string } | null;
-  fahrerName: string | null;
-  suggestions?: { options: unknown }[];
-};
+const AKTUALISIERUNG_MS = 10_000;
+
+const Karte = dynamic(() => import("@/components/Karte").then((m) => m.Karte), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-56 w-full items-center justify-center rounded-2xl bg-ground text-sm text-muted">
+      Karte lädt …
+    </div>
+  ),
+});
+
+type Fahrt = FahrtMini & { fahrerName: string | null };
 type Ort = { id: string; label: string; street: string; city: string };
 type Fahrzeug = { id: string; plate: string };
-
-const STATUS_TON: Record<string, "neutral" | "warn" | "info" | "danger" | "accent"> = {
-  ENTWURF: "neutral",
-  ERFASST: "warn",
-  VORGESCHLAGEN: "warn",
-  DISPONIERT: "info",
-  UNTERWEGS: "info",
-  AN_BORD: "info",
-  ERLEDIGT: "accent",
-  NICHT_ANGETROFFEN: "danger",
-  STORNIERT: "neutral",
-  PROBLEM: "danger",
-};
-const STATUS_LABEL: Record<string, string> = {
-  ENTWURF: "Entwurf",
-  ERFASST: "Erfasst",
-  VORGESCHLAGEN: "Vorgeschlagen",
-  DISPONIERT: "Disponiert",
-  UNTERWEGS: "Fährt zum Fahrgast",
-  AN_BORD: "Fahrgast im Auto",
-  ERLEDIGT: "Fahrgast am Ziel",
-  NICHT_ANGETROFFEN: "Nicht angetroffen",
-  STORNIERT: "Storniert",
-  PROBLEM: "Problem",
+type KartenDaten = {
+  fahrzeuge: { id: string; plate: string; position: { lat: number; lng: number } | null }[];
+  serviceArea: { center: { lat: number; lng: number }; radiusKm: number; depot: { lat: number; lng: number } | null };
 };
 
 const LEER: FahrtEingabe = {
@@ -80,12 +58,16 @@ const LEER: FahrtEingabe = {
 
 export function FahrtenClient({
   fahrten,
+  fahrer,
+  karte,
   orte,
   fahrzeuge,
   datum,
   ansicht,
 }: {
   fahrten: Fahrt[];
+  fahrer: FahrerZeile[];
+  karte: KartenDaten | null;
   orte: Ort[];
   fahrzeuge: Fahrzeug[];
   datum: string;
@@ -98,6 +80,11 @@ export function FahrtenClient({
   const [speichert, setSpeichert] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
   const [erfolg, setErfolg] = useState<string | null>(null);
+
+  useEffect(() => {
+    const intervallId = setInterval(() => router.refresh(), AKTUALISIERUNG_MS);
+    return () => clearInterval(intervallId);
+  }, [router]);
 
   function wechselDatum(neuesDatum: string) {
     router.push(`/dispo/fahrten?datum=${neuesDatum}`);
@@ -148,7 +135,12 @@ export function FahrtenClient({
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold text-ink">Fahrten</h1>
+        <div>
+          <h1 className="text-2xl font-semibold text-ink">Fahrplan</h1>
+          <Link href="/dispo/fahrer" className="text-sm text-accent hover:underline">
+            Schichten verwalten, Fahrer einladen →
+          </Link>
+        </div>
         <div className="flex items-end gap-3">
           <div className="flex gap-1.5 rounded-xl border border-line-strong p-1">
             <button
@@ -348,79 +340,27 @@ export function FahrtenClient({
         </Card>
       ) : null}
 
-      <Table>
-        <TableHead>
-          {ansicht === "woche" ? <TableHeaderCell>Datum</TableHeaderCell> : null}
-          <TableHeaderCell>Zeit</TableHeaderCell>
-          <TableHeaderCell>Fahrgast</TableHeaderCell>
-          <TableHeaderCell>Von → Nach</TableHeaderCell>
-          <TableHeaderCell>Art</TableHeaderCell>
-          <TableHeaderCell>Status</TableHeaderCell>
-          <TableHeaderCell>Fahrzeug</TableHeaderCell>
-          <TableHeaderCell>Fahrer</TableHeaderCell>
-        </TableHead>
-        <tbody>
-          {fahrten.map((fahrt) => (
-            <TableRow key={fahrt.id}>
-              {ansicht === "woche" ? (
-                <TableCell>
-                  {new Date(fahrt.pickupAt).toLocaleDateString("de-DE", {
-                    timeZone: "Europe/Berlin",
-                    day: "2-digit",
-                    month: "2-digit",
-                  })}
-                </TableCell>
-              ) : null}
-              <TableCell nums>
-                {new Date(fahrt.pickupAt).toLocaleTimeString("de-DE", {
-                  timeZone: "Europe/Berlin",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </TableCell>
-              <TableCell>
-                {fahrt.passenger.firstName} {fahrt.passenger.lastName}
-              </TableCell>
-              <TableCell>
-                {fahrt.pickupPlace.label} → {fahrt.dropoffPlace.label}
-              </TableCell>
-              <TableCell>{TRANSPORT_TYPE_LABEL[fahrt.transportType]}</TableCell>
-              <TableCell>
-                <Chip ton={STATUS_TON[fahrt.status]}>{STATUS_LABEL[fahrt.status]}</Chip>
-                {fahrt.problems.length > 0 ? (
-                  <div className="mt-1">
-                    <Chip ton="danger">{fahrt.problems.join(", ")}</Chip>
-                  </div>
-                ) : null}
-              </TableCell>
-              <TableCell>
-                {fahrt.vehicle ? (
-                  fahrt.vehicle.plate
-                ) : fahrt.status === "ERFASST" || fahrt.status === "VORGESCHLAGEN" ? (
-                  <VorschlagAktion
-                    rideId={fahrt.id}
-                    beste={
-                      (fahrt.suggestions?.[0]?.options as VorschlagOption[] | undefined)?.[0] ?? null
-                    }
-                    fahrzeuge={fahrzeuge}
-                    onErledigt={() => router.refresh()}
-                  />
-                ) : (
-                  "—"
-                )}
-              </TableCell>
-              <TableCell>{fahrt.fahrerName ?? "—"}</TableCell>
-            </TableRow>
-          ))}
-          {fahrten.length === 0 ? (
-            <TableRow>
-              <TableCell colSpan={ansicht === "woche" ? 8 : 7}>
-                <span className="text-muted">{ansicht === "woche" ? "Keine Fahrten in dieser Woche." : "Keine Fahrten an diesem Tag."}</span>
-              </TableCell>
-            </TableRow>
-          ) : null}
-        </tbody>
-      </Table>
+      {karte ? (
+        <div className="flex flex-col gap-1">
+          <Karte
+            zentrum={karte.serviceArea.center}
+            radiusKm={karte.serviceArea.radiusKm}
+            depot={karte.serviceArea.depot}
+            fahrzeuge={karte.fahrzeuge}
+          />
+          <p className="text-xs text-muted">Live-Standort aus der Fahrer-App, aktualisiert alle 10 Sekunden.</p>
+        </div>
+      ) : null}
+
+      {fahrten.length === 0 && fahrer.length === 0 ? (
+        <Card>
+          <p className="text-sm text-muted">
+            {ansicht === "woche" ? "Keine Fahrten in dieser Woche." : "Keine Fahrten an diesem Tag."}
+          </p>
+        </Card>
+      ) : (
+        <Zeitstrahl fahrten={fahrten} fahrer={fahrer} fahrzeuge={fahrzeuge} datum={datum} ansicht={ansicht} />
+      )}
     </div>
   );
 }

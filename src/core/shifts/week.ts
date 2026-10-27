@@ -114,6 +114,12 @@ export function montagVerschieben(isoDatum: string, wochenVersatz: number): stri
   return tagVerschieben(isoDatum, wochenVersatz * 7);
 }
 
+/** Minuten seit Mitternacht (Berliner Zeit) des Tages, an dem `datum` liegt. */
+export function minutenSeitMitternacht(datum: Date): number {
+  const t = teileInBerlin(datum);
+  return t.stunde * 60 + t.minute;
+}
+
 /** Setzt eine Uhrzeit (HH:MM, Berliner Zeit) auf den Kalendertag von `datum`. */
 export function mitUhrzeit(datum: Date, uhrzeitHhMm: string): Date {
   const t = teileInBerlin(datum);

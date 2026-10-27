@@ -42,21 +42,73 @@ async function fahrtenImZeitraumLaden(tenantId: string, von: Date, bis: Date) {
   }));
 }
 
-export async function fahrtenLaden(datumFilter?: string) {
-  const { tenantId } = await requireSession();
-  const tag = berlinerMitternacht(datumFilter ?? datumIso(new Date()));
-  const tagDanach = new Date(tag);
-  tagDanach.setDate(tagDanach.getDate() + 1);
-  return fahrtenImZeitraumLaden(tenantId, tag, tagDanach);
-}
 
-/** Dieselben Fahrten wie fahrtenLaden, aber für die ganze Woche (Montag–Sonntag) statt für einen Tag. */
-export async function fahrtenFuerWocheLaden(datumInWoche?: string) {
+/**
+ * Lädt alles für die Fahrplan-Seite in einem Rutsch: Fahrten, Fahrer mit ihren Schichten im
+ * selben Zeitraum und die Live-Fahrzeugpositionen für die Karte – ersetzt die frühere
+ * Trennung zwischen "Fahrten" und "Fahrer & Schichten" (ein Menüpunkt statt zwei).
+ */
+export async function fahrplanLaden(datumFilter: string | undefined, ansicht: "tag" | "woche") {
   const { tenantId } = await requireSession();
-  const montag = wochenStart(berlinerMitternacht(datumInWoche ?? datumIso(new Date())));
-  const sonntagEnde = new Date(montag);
-  sonntagEnde.setDate(sonntagEnde.getDate() + 7);
-  return fahrtenImZeitraumLaden(tenantId, montag, sonntagEnde);
+  const db = withTenant(tenantId);
+  const tagIso = datumFilter ?? datumIso(new Date());
+  const montag = wochenStart(berlinerMitternacht(tagIso));
+
+  const von = ansicht === "woche" ? montag : berlinerMitternacht(tagIso);
+  const bis = new Date(von);
+  bis.setDate(bis.getDate() + (ansicht === "woche" ? 7 : 1));
+
+  // Nacheinander statt mit Promise.all: die lokale Entwicklungsdatenbank (npx prisma dev)
+  // verträgt viele gleichzeitige Abfragen auf einer Seite schlecht (siehe src/lib/prisma.ts).
+  // Diese Seite lädt ohnehin selten genug, dass die paar zusätzlichen Millisekunden nicht auffallen.
+  const fahrten = await fahrtenImZeitraumLaden(tenantId, von, bis);
+  const fahrerRoh = await db.driver.findMany({
+    select: { id: true, user: { select: { name: true } } },
+    orderBy: { user: { name: "asc" } },
+  });
+  const schichtenRoh = await db.shift.findMany({
+    where: { start: { lt: bis }, end: { gt: von } },
+    select: { driverId: true, start: true, end: true, vehicle: { select: { plate: true } } },
+    orderBy: { start: "asc" },
+  });
+  const settings = await db.tenantSettings.findUnique({ where: { tenantId } });
+  const fahrzeugeAktiv = await db.vehicle.findMany({ where: { active: true }, orderBy: { plate: "asc" } });
+
+  const letztePositionen = await db.vehicleLocation.findMany({
+    where: { vehicleId: { in: fahrzeugeAktiv.map((f) => f.id) } },
+    orderBy: { at: "desc" },
+    distinct: ["vehicleId"],
+    select: { vehicleId: true, lat: true, lng: true },
+  });
+  const positionNachFahrzeug = new Map(letztePositionen.map((p) => [p.vehicleId, p]));
+
+  const fahrer = fahrerRoh.map((f) => ({
+    id: f.id,
+    name: f.user.name,
+    schichten: schichtenRoh
+      .filter((s) => s.driverId === f.id)
+      .map((s) => ({ start: s.start, end: s.end, plate: s.vehicle.plate })),
+  }));
+
+  return {
+    fahrten,
+    fahrer,
+    montagIso: datumIso(montag),
+    karte: settings
+      ? {
+          fahrzeuge: fahrzeugeAktiv.map((f) => ({
+            id: f.id,
+            plate: f.plate,
+            position: positionNachFahrzeug.get(f.id) ?? null,
+          })),
+          serviceArea: {
+            center: settings.serviceAreaCenter as { lat: number; lng: number },
+            radiusKm: settings.serviceAreaKm,
+            depot: settings.depotAddress as { lat: number; lng: number } | null,
+          },
+        }
+      : null,
+  };
 }
 
 export async function fahrgaesteSuchen(text: string) {
