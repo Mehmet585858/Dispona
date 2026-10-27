@@ -6,10 +6,13 @@
  */
 import { prisma } from "@/lib/prisma";
 import type { TenantVoiceSettings } from "@/providers/voice/types";
+import { aiJetztErreichbar } from "./zeitplan";
 
 export type MandantFuerAnruf = {
   tenantId: string;
   aiAktiv: boolean;
+  /** aiActive UND (falls gesetzt) innerhalb des Zeitplans aus Einrichtungsschritt 8. */
+  aiErreichbarJetzt: boolean;
   settings: TenantVoiceSettings;
 };
 
@@ -32,6 +35,7 @@ export async function mandantFuerNummerLaden(
   return {
     tenantId: nummer.tenantId,
     aiAktiv: settings.aiActive,
+    aiErreichbarJetzt: aiJetztErreichbar(settings.aiActive, settings.aiSchedule, new Date()),
     settings: {
       tenantId: nummer.tenantId,
       firmenname: tenant.name,

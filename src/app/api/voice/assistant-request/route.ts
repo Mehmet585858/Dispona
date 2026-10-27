@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
     await anrufSicherstellen(mandant.tenantId, anrufId, { fromNumber: anrufernummer, toNumber: angerufeneNummer });
   }
 
-  if (!mandant.aiAktiv) {
+  if (!mandant.aiErreichbarJetzt) {
     return NextResponse.json({ destination: { type: "number", number: mandant.settings.escalationNumber } });
   }
 

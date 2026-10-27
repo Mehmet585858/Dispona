@@ -1,7 +1,8 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { TextField } from "@/components/ui/TextField";
@@ -11,9 +12,20 @@ import { ermittleAnmeldeMethode } from "./actions";
 type Schritt = "email" | "code-warten" | "link-gesendet";
 
 export default function AnmeldungPage() {
+  return (
+    <Suspense>
+      <AnmeldungInhalt />
+    </Suspense>
+  );
+}
+
+function AnmeldungInhalt() {
   const router = useRouter();
-  const [schritt, setSchritt] = useState<Schritt>("email");
-  const [email, setEmail] = useState("");
+  const searchParams = useSearchParams();
+  const vorausgefuellteEmail = searchParams.get("email") ?? "";
+  // Nach /registrieren ist der Code schon unterwegs – direkt zur Eingabe springen.
+  const [schritt, setSchritt] = useState<Schritt>(vorausgefuellteEmail ? "code-warten" : "email");
+  const [email, setEmail] = useState(vorausgefuellteEmail);
   const [code, setCode] = useState("");
   const [fehler, setFehler] = useState<string | null>(null);
   const [ladend, setLadend] = useState(false);
@@ -123,6 +135,12 @@ export default function AnmeldungPage() {
             </Button>
           </div>
         )}
+
+        {schritt === "email" ? (
+          <Link href="/registrieren" className="mt-4 block text-center text-sm font-medium text-accent hover:underline">
+            Neuen Fahrdienst anlegen
+          </Link>
+        ) : null}
       </Card>
     </main>
   );

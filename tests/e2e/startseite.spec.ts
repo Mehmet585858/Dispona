@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
-test("Startseite zeigt Fahrdienst-KI", async ({ page }) => {
+test("Startseite leitet nicht angemeldete Besucher zur Anmeldung", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Fahrdienst-KI" })).toBeVisible();
+  await expect(page).toHaveURL(/\/anmeldung/);
+  await expect(page.getByRole("heading", { name: "Anmelden" })).toBeVisible();
 });
