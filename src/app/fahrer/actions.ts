@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { withTenant } from "@/lib/db";
 import { requireSession } from "@/lib/session";
 import { fahrtStatusAendern } from "@/core/rides/status";
+import { fahrerFaelltAusKern } from "@/core/rides/fahrerAusfall";
 import { berlinerMitternacht, datumIso, tagVerschieben } from "@/core/shifts/week";
 import { pushAboSpeichern } from "@/core/notify/push";
 import type { RideStatus } from "@/generated/prisma/enums";
@@ -144,34 +145,20 @@ export async function problemMelden(rideId: string, art: ProblemArt) {
   revalidatePath("/dispo/fahrten");
 }
 
-/** "Ich falle aus": Schicht und alle noch offenen Fahrten des Tages als Problem markieren, damit die Disposition neu plant. */
+/**
+ * "Ich falle aus": Schicht als ausgefallen markieren. Noch nicht begonnene Fahrten (DISPONIERT)
+ * werden neu vorgeschlagen (docs/05-disposition.md "Neuplanung"); schon laufende Fahrten
+ * (UNTERWEGS/AN_BORD) lassen sich nicht automatisch umplanen und bekommen nur das Problem.
+ */
 export async function fahrerFaelltAus() {
   const { tenantId, userId } = await requireSession();
-  const db = withTenant(tenantId);
   const fahrer = await eigenerFahrer(tenantId, userId);
 
   const heuteIso = datumIso(new Date());
   const heute = berlinerMitternacht(heuteIso);
   const uebermorgen = berlinerMitternacht(tagVerschieben(heuteIso, 2));
 
-  await db.shift.updateMany({
-    where: { driverId: fahrer.id, start: { lt: uebermorgen }, end: { gte: heute } },
-    data: { unavailable: true },
-  });
-
-  const betroffeneFahrten = await db.ride.findMany({
-    where: {
-      driverId: fahrer.id,
-      pickupAt: { gte: heute, lt: uebermorgen },
-      status: { in: ["DISPONIERT", "UNTERWEGS", "AN_BORD"] },
-    },
-    select: { id: true },
-  });
-
-  for (const fahrt of betroffeneFahrten) {
-    await fahrtStatusAendern(tenantId, fahrt.id, "PROBLEM", { userId });
-    await db.ride.update({ where: { id: fahrt.id }, data: { problems: { push: "Fahrer fällt aus" } } });
-  }
+  await fahrerFaelltAusKern(tenantId, fahrer.id, heute, uebermorgen, userId);
 
   revalidatePath("/fahrer");
   revalidatePath("/dispo");

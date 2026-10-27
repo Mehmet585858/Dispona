@@ -7,16 +7,11 @@ import type { FahrtEingabe } from "@/core/rides/validation";
 import { fahrtStatusAendern } from "@/core/rides/status";
 import { fahrtErfassen } from "@/core/rides/erfassen";
 import { fahrtStornieren as fahrtStornierenKern } from "@/core/rides/stornieren";
+import { fahrzeugZuweisen } from "@/core/disposition/zuweisen";
 import { fahrgaesteAehnlicheNamen, telefonNormalisieren } from "@/core/passengers/suche";
 import { berlinerMitternacht, datumIso, wochenStart } from "@/core/shifts/week";
-import { pushAnFahrer } from "@/core/notify/push";
-import { neueFahrtText } from "@/core/notify/texte";
 import { routingProvider, GEOCODE_SICHER_SCHWELLE } from "@/providers/routing";
 import type { RideStatus } from "@/generated/prisma/enums";
-
-function uhrzeitBerlin(datum: Date): string {
-  return datum.toLocaleTimeString("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", minute: "2-digit" });
-}
 
 async function fahrtenImZeitraumLaden(tenantId: string, von: Date, bis: Date) {
   const db = withTenant(tenantId);
@@ -165,50 +160,7 @@ export async function fahrtAnlegen(eingabe: FahrtEingabe) {
 /** "Bestätigen" (vorgeschlagenes Fahrzeug) oder "Anderes Fahrzeug" – beides läuft hierüber. */
 export async function fahrzeugWaehlen(rideId: string, vehicleId: string) {
   const { tenantId, userId } = await requireSession();
-  const db = withTenant(tenantId);
-  const fahrt = await db.ride.findUnique({
-    where: { id: rideId },
-    select: { pickupAt: true, pickupPlace: { select: { label: true } }, dropoffPlace: { select: { label: true } } },
-  });
-  if (!fahrt) throw new Error("Fahrt nicht gefunden.");
-
-  const schicht = await db.shift.findFirst({
-    where: { vehicleId, start: { lte: fahrt.pickupAt }, end: { gte: fahrt.pickupAt } },
-    select: { driverId: true },
-  });
-
-  await db.ride.update({
-    where: { id: rideId },
-    data: { vehicleId, driverId: schicht?.driverId, dispatchMode: "MANUELL", driverAckAt: null },
-  });
-  await fahrtStatusAendern(tenantId, rideId, "DISPONIERT", { userId });
-
-  if (schicht?.driverId) {
-    const text = neueFahrtText(uhrzeitBerlin(fahrt.pickupAt), fahrt.pickupPlace.label, fahrt.dropoffPlace.label);
-    await pushAnFahrer(tenantId, schicht.driverId, { title: "Neue Fahrt", body: text, url: "/fahrer" });
-    await db.notification.create({
-      data: { tenantId, channel: "PUSH", toRef: schicht.driverId, rideId, kind: "NEUE_FAHRT" },
-    });
-  }
-
-  const vorschlag = await db.suggestion.findFirst({
-    where: { rideId, decision: "OFFEN" },
-    orderBy: { createdAt: "desc" },
-  });
-  if (vorschlag) {
-    const optionen = vorschlag.options as { vehicleId: string }[];
-    const istBesterVorschlag = optionen[0]?.vehicleId === vehicleId;
-    await db.suggestion.update({
-      where: { id: vorschlag.id },
-      data: {
-        decision: istBesterVorschlag ? "ANGENOMMEN" : "GEAENDERT",
-        chosenVehicleId: vehicleId,
-        decidedByUserId: userId,
-        decidedAt: new Date(),
-      },
-    });
-  }
-
+  await fahrzeugZuweisen(tenantId, rideId, vehicleId, { dispatchMode: "MANUELL", userId });
   revalidatePath("/dispo/fahrten");
   revalidatePath("/dispo");
 }

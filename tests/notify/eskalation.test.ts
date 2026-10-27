@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { bestaetigungenPruefen } from "@/core/notify/eskalation";
+import { bestaetigungenPruefen, keinFahrzeugAlarmPruefen } from "@/core/notify/eskalation";
 import { prisma } from "@/lib/prisma";
 
 describe("bestaetigungenPruefen", () => {
@@ -77,6 +77,88 @@ describe("bestaetigungenPruefen", () => {
     await bestaetigungenPruefen(tenantId);
 
     const notifications = await prisma.notification.findMany({ where: { rideId, kind: "KEINE_BESTAETIGUNG_FAHRER" } });
+    expect(notifications).toHaveLength(1);
+  });
+});
+
+describe("keinFahrzeugAlarmPruefen", () => {
+  const kennung = randomUUID().slice(0, 8);
+  let tenantId: string;
+
+  beforeAll(async () => {
+    const tenant = await prisma.tenant.create({
+      data: {
+        name: `Test-KeinFahrzeug ${kennung}`,
+        settings: {
+          create: {
+            greeting: "Test",
+            voiceId: "test",
+            escalationNumber: "+4924019999999",
+            openingHours: {},
+            serviceAreaCenter: { lat: 50.77, lng: 6.08 },
+            alertPhone: "+491701112222",
+          },
+        },
+      },
+    });
+    tenantId = tenant.id;
+  });
+
+  afterAll(async () => {
+    await prisma.notification.deleteMany({ where: { tenantId } });
+    await prisma.ride.deleteMany({ where: { tenantId } });
+    await prisma.place.deleteMany({ where: { tenantId } });
+    await prisma.passenger.deleteMany({ where: { tenantId } });
+    await prisma.tenantSettings.delete({ where: { tenantId } });
+    await prisma.tenant.delete({ where: { id: tenantId } });
+  });
+
+  async function neueFahrtOhneFahrzeug(minutenBisAbholung: number) {
+    const passenger = await prisma.passenger.create({
+      data: { tenantId, firstName: "Test", lastName: "Fahrgast", phones: [] },
+    });
+    const ort = await prisma.place.create({
+      data: { tenantId, label: "Ort", street: "A 1", zip: "52062", city: "Aachen", lat: 50.77, lng: 6.08, type: "SONSTIGES" },
+    });
+    const ride = await prisma.ride.create({
+      data: {
+        tenantId,
+        passengerId: passenger.id,
+        pickupPlaceId: ort.id,
+        dropoffPlaceId: ort.id,
+        pickupAt: new Date(Date.now() + minutenBisAbholung * 60_000),
+        transportType: "SITZEND",
+        status: "ERFASST",
+        source: "MANUELL",
+        problems: ["KEIN_FAHRZEUG"],
+      },
+    });
+    return ride.id;
+  }
+
+  it("schickt eine SMS, wenn in den nächsten 2 Stunden kein Fahrzeug gefunden wurde", async () => {
+    const rideId = await neueFahrtOhneFahrzeug(90);
+    const ergebnis = await keinFahrzeugAlarmPruefen(tenantId);
+    expect(ergebnis.smsAnInhaber).toBeGreaterThanOrEqual(1);
+
+    const notifications = await prisma.notification.findMany({ where: { rideId, kind: "KEIN_FAHRZEUG_ALARM" } });
+    expect(notifications).toHaveLength(1);
+  });
+
+  it("schickt keine SMS für Fahrten weiter als 2 Stunden in der Zukunft", async () => {
+    const rideId = await neueFahrtOhneFahrzeug(300);
+    await keinFahrzeugAlarmPruefen(tenantId);
+
+    const notifications = await prisma.notification.findMany({ where: { rideId, kind: "KEIN_FAHRZEUG_ALARM" } });
+    expect(notifications).toHaveLength(0);
+  });
+
+  it("schickt beim nächsten Lauf keine zweite SMS für dieselbe Fahrt", async () => {
+    const rideId = await neueFahrtOhneFahrzeug(60);
+    await keinFahrzeugAlarmPruefen(tenantId);
+    await keinFahrzeugAlarmPruefen(tenantId);
+
+    const notifications = await prisma.notification.findMany({ where: { rideId, kind: "KEIN_FAHRZEUG_ALARM" } });
     expect(notifications).toHaveLength(1);
   });
 });

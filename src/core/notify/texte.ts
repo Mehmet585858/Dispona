@@ -23,3 +23,7 @@ export function stornierteFahrtText(uhrzeit: string): string {
 export function keineBestaetigungAlarmText(uhrzeit: string): string {
   return `Fahrer hat Fahrt ${uhrzeit} nicht bestätigt. Bitte prüfen.`;
 }
+
+export function keinFahrzeugAlarmText(uhrzeit: string): string {
+  return `Für Fahrt ${uhrzeit} ist noch kein Fahrzeug gefunden. Bitte prüfen.`;
+}
