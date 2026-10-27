@@ -20,6 +20,7 @@ async function main() {
   await prisma.auditLog.deleteMany();
   await prisma.notification.deleteMany();
   await prisma.ride.deleteMany();
+  await prisma.call.deleteMany();
   await prisma.rideSeries.deleteMany();
   await prisma.shift.deleteMany();
   await prisma.pushSubscription.deleteMany();

@@ -13,9 +13,11 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "seed": "tsx prisma/seed.ts"
+    "seed": "tsx prisma/seed.ts",
+    "voice:sim": "tsx scripts/voice-sim.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.3.0",
     "@prisma/adapter-pg": "^7.10.1",
     "@prisma/client": "^7.10.1",
     "better-auth": "^1.7.13",

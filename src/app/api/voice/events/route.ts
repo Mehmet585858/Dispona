@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
-  const zusammenfassung = anrufZusammenfassen(bericht.transcript);
+  const zusammenfassung = await anrufZusammenfassen(bericht.transcript);
   const callId = await anrufAbschliessen(nummer.tenantId, bericht, zusammenfassung);
 
   const hatFahrt = await withTenant(nummer.tenantId).ride.findFirst({ where: { callId }, select: { id: true } });
