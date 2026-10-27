@@ -10,6 +10,7 @@ import {
   type FahrgastEingabe,
   type GenehmigungEingabe,
 } from "@/core/passengers/validation";
+import { fahrgastAnonymisieren, fahrgastExportieren } from "@/core/passengers/loeschung";
 
 export async function fahrgaesteLaden(suche?: string) {
   const { tenantId } = await requireSession();
@@ -32,7 +33,7 @@ export async function fahrgaesteLaden(suche?: string) {
 }
 
 export async function fahrgastSpeichern(id: string | null, eingabe: FahrgastEingabe) {
-  const { tenantId } = await requireSession();
+  const { tenantId, userId } = await requireSession();
   const geprüft = fahrgastSchema.parse(eingabe);
   const daten = {
     firstName: geprüft.firstName,
@@ -43,12 +44,31 @@ export async function fahrgastSpeichern(id: string | null, eingabe: FahrgastEing
     notes: geprüft.notes || null,
   };
   const db = withTenant(tenantId);
+  let passengerId = id;
   if (id) {
     await db.passenger.update({ where: { id }, data: daten });
   } else {
-    await db.passenger.create({ data: { ...daten, tenantId } });
+    const neu = await db.passenger.create({ data: { ...daten, tenantId } });
+    passengerId = neu.id;
   }
+  await db.auditLog.create({
+    data: {
+      tenantId,
+      userId,
+      action: id ? "passenger.geaendert" : "passenger.angelegt",
+      entity: "Passenger",
+      entityId: passengerId!,
+    },
+  });
   revalidatePath("/dispo/fahrgaeste");
+}
+
+/** Protokolliert das Ansehen eines einzelnen Fahrgastdatensatzes (docs/08-datenschutz-sicherheit.md). */
+export async function fahrgastAngesehen(passengerId: string) {
+  const { tenantId, userId } = await requireSession();
+  await withTenant(tenantId).auditLog.create({
+    data: { tenantId, userId, action: "passenger.angesehen", entity: "Passenger", entityId: passengerId },
+  });
 }
 
 export async function genehmigungSpeichern(passengerId: string, eingabe: GenehmigungEingabe) {
@@ -100,4 +120,34 @@ export async function fahrgaesteImportieren(
   }
   revalidatePath("/dispo/fahrgaeste");
   return { ok, fehler };
+}
+
+/**
+ * Auskunftsrecht (Art. 15 DSGVO): alle Daten eines Fahrgastes als JSON – Stammdaten, Genehmigungen,
+ * Fahrten, verknüpfte Anrufe mit Transkript. Nur ADMIN (docs/08-datenschutz-sicherheit.md).
+ */
+export async function fahrgastExportLaden(passengerId: string) {
+  const { tenantId, userId, role } = await requireSession();
+  if (role !== "ADMIN") throw new Error("Nur Admins dürfen Fahrgastdaten exportieren.");
+  const daten = await fahrgastExportieren(tenantId, passengerId);
+  await withTenant(tenantId).auditLog.create({
+    data: { tenantId, userId, action: "passenger.export", entity: "Passenger", entityId: passengerId },
+  });
+  return daten;
+}
+
+/**
+ * Löschung (Art. 17 DSGVO): persönliche Daten werden anonymisiert statt die Zeile hart zu
+ * löschen – erledigte Fahrten bleiben sonst ohne gültige Fremdschlüssel für die Abrechnung
+ * stehen (Ride.passengerId ist nicht optional). Noch nicht begonnene Fahrten werden storniert,
+ * eine laufende Serie endet sofort. Nur ADMIN.
+ */
+export async function fahrgastLoeschen(passengerId: string) {
+  const { tenantId, userId, role } = await requireSession();
+  if (role !== "ADMIN") throw new Error("Nur Admins dürfen einen Fahrgast löschen.");
+  await fahrgastAnonymisieren(tenantId, passengerId, userId);
+  await withTenant(tenantId).auditLog.create({
+    data: { tenantId, userId, action: "passenger.geloescht", entity: "Passenger", entityId: passengerId },
+  });
+  revalidatePath("/dispo/fahrgaeste");
 }

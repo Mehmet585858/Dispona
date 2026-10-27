@@ -34,8 +34,12 @@ export async function anrufeLaden() {
 }
 
 export async function anrufTranskriptLaden(callId: string): Promise<string | null> {
-  const { tenantId } = await requireSession();
-  const anruf = await withTenant(tenantId).call.findUnique({ where: { id: callId }, select: { transcript: true } });
+  const { tenantId, userId } = await requireSession();
+  const db = withTenant(tenantId);
+  const anruf = await db.call.findUnique({ where: { id: callId }, select: { transcript: true } });
   if (!anruf?.transcript) return null;
+  await db.auditLog.create({
+    data: { tenantId, userId, action: "call.transkript_angesehen", entity: "Call", entityId: callId },
+  });
   return decrypt(anruf.transcript);
 }

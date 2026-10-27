@@ -11,6 +11,9 @@ import { FAHRGAST_IMPORT_FELDER, type FahrgastEingabe } from "@/core/passengers/
 import {
   fahrgaesteImportieren,
   fahrgaesteLaden,
+  fahrgastAngesehen,
+  fahrgastExportLaden,
+  fahrgastLoeschen,
   fahrgastSpeichern,
   genehmigungLöschen,
   genehmigungSpeichern,
@@ -56,6 +59,9 @@ export function FahrgaesteClient({ fahrgaeste: anfangsListe }: { fahrgaeste: Fah
     maxRides: "",
     reference: "",
   });
+  const [exportiert, setExportiert] = useState(false);
+  const [loeschenBestaetigen, setLoeschenBestaetigen] = useState(false);
+  const [loescht, setLoescht] = useState(false);
 
   async function suchen(event?: FormEvent) {
     event?.preventDefault();
@@ -83,6 +89,7 @@ export function FahrgaesteClient({ fahrgaeste: anfangsListe }: { fahrgaeste: Fah
       insurer: fahrgast.insurer ?? "",
       notes: fahrgast.notes ?? "",
     });
+    void fahrgastAngesehen(fahrgast.id);
   }
 
   async function speichern() {
@@ -104,6 +111,34 @@ export function FahrgaesteClient({ fahrgaeste: anfangsListe }: { fahrgaeste: Fah
     await genehmigungSpeichern(passengerId, genehmigungEingabe);
     setGenehmigungEingabe({ validFrom: "", validUntil: "", maxRides: "", reference: "" });
     await suchen();
+  }
+
+  async function datenExportieren(passengerId: string, name: string) {
+    setExportiert(true);
+    try {
+      const daten = await fahrgastExportLaden(passengerId);
+      const blob = new Blob([JSON.stringify(daten, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `fahrgast-${name.replace(/\s+/g, "-").toLowerCase()}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExportiert(false);
+    }
+  }
+
+  async function fahrgastWirklichLoeschen(passengerId: string) {
+    setLoescht(true);
+    try {
+      await fahrgastLoeschen(passengerId);
+      setBearbeiteId(null);
+      setLoeschenBestaetigen(false);
+      await suchen();
+    } finally {
+      setLoescht(false);
+    }
   }
 
   const bearbeiteterFahrgast =
@@ -262,6 +297,50 @@ export function FahrgaesteClient({ fahrgaeste: anfangsListe }: { fahrgaeste: Fah
               >
                 Genehmigung hinzufügen
               </Button>
+            </div>
+          ) : null}
+
+          {bearbeiteterFahrgast ? (
+            <div className="mt-6 border-t border-line pt-6">
+              <h3 className="mb-3 text-base font-semibold text-ink">Auskunft und Löschung</h3>
+              <div className="flex flex-wrap items-center gap-3">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() =>
+                    datenExportieren(bearbeiteterFahrgast.id, `${bearbeiteterFahrgast.firstName} ${bearbeiteterFahrgast.lastName}`)
+                  }
+                  disabled={exportiert}
+                >
+                  {exportiert ? "Erstellt …" : "Daten exportieren (JSON)"}
+                </Button>
+                {!loeschenBestaetigen ? (
+                  <button
+                    type="button"
+                    onClick={() => setLoeschenBestaetigen(true)}
+                    className="text-sm font-medium text-danger-ink hover:underline"
+                  >
+                    Fahrgast löschen
+                  </button>
+                ) : (
+                  <span className="flex items-center gap-2 text-sm">
+                    <span className="text-danger-ink">
+                      Name, Geburtsdatum, Telefon und Hinweise werden entfernt. Wirklich löschen?
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => fahrgastWirklichLoeschen(bearbeiteterFahrgast.id)}
+                      disabled={loescht}
+                      className="font-medium text-danger-ink hover:underline"
+                    >
+                      {loescht ? "Löscht …" : "Ja, löschen"}
+                    </button>
+                    <button type="button" onClick={() => setLoeschenBestaetigen(false)} className="text-muted hover:text-ink">
+                      Abbrechen
+                    </button>
+                  </span>
+                )}
+              </div>
             </div>
           ) : null}
         </Card>

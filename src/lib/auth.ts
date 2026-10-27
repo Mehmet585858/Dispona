@@ -9,6 +9,13 @@ export const auth = betterAuth({
   secret: process.env.AUTH_SECRET,
   baseURL: process.env.APP_URL,
   database: prismaAdapter(prisma, { provider: "postgresql" }),
+  // Fahrer sollen laut docs/08-datenschutz-sicherheit.md 30 Tage angemeldet bleiben (Gerät,
+  // kein Login pro Fahrt); fürs Büro gilt die kürzere 12-Stunden-Grenze aus derselben Doku –
+  // die setzt src/proxy.ts zusätzlich durch (better-auth kennt keine rollenabhängige Sitzungsdauer).
+  session: {
+    expiresIn: 60 * 60 * 24 * 30,
+    updateAge: 60 * 60 * 24,
+  },
   user: {
     additionalFields: {
       tenantId: { type: "string", input: false },

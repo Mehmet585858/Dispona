@@ -1,35 +1,50 @@
-const CACHE_NAME = "fahrer-app-v1";
+const CACHE_PRAEFIX = "fahrer-app-";
 const APP_SHELL = ["/fahrer", "/manifest.json", "/icon-192.png"];
+
+// Zwischenspeicher nur für den Tag (docs/08-datenschutz-sicherheit.md): der Name trägt das
+// Tagesdatum (lokale Zeit des Geräts), ältere Stände werden bei jeder Gelegenheit gelöscht –
+// so bleiben Fahrgastdaten von gestern nicht unbegrenzt auf dem Handy liegen.
+function heutigerCacheName() {
+  const heute = new Date().toLocaleDateString("sv-SE"); // JJJJ-MM-TT, lokale Zeit
+  return `${CACHE_PRAEFIX}${heute}`;
+}
+
+async function alteCachesLoeschen() {
+  const aktuell = heutigerCacheName();
+  const schluessel = await caches.keys();
+  await Promise.all(
+    schluessel.filter((k) => k.startsWith(CACHE_PRAEFIX) && k !== aktuell).map((k) => caches.delete(k)),
+  );
+}
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)).then(() => self.skipWaiting()),
+    caches.open(heutigerCacheName()).then((cache) => cache.addAll(APP_SHELL)).then(() => self.skipWaiting()),
   );
 });
 
 self.addEventListener("activate", (event) => {
-  event.waitUntil(
-    caches
-      .keys()
-      .then((schluessel) => Promise.all(schluessel.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))))
-      .then(() => self.clients.claim()),
-  );
+  event.waitUntil(alteCachesLoeschen().then(() => self.clients.claim()));
 });
 
-// Netzwerk zuerst, bei Funkloch aus dem Zwischenspeicher (Fahrten des Tages bleiben sichtbar).
+// Netzwerk zuerst, bei Funkloch aus dem heutigen Zwischenspeicher (Fahrten des Tages bleiben sichtbar).
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return;
 
   event.respondWith(
-    fetch(event.request)
-      .then((antwort) => {
-        const kopie = antwort.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, kopie));
+    (async () => {
+      await alteCachesLoeschen();
+      const cache = await caches.open(heutigerCacheName());
+      try {
+        const antwort = await fetch(event.request);
+        cache.put(event.request, antwort.clone());
         return antwort;
-      })
-      .catch(() => caches.match(event.request).then((treffer) => treffer || caches.match("/fahrer"))),
+      } catch {
+        return (await cache.match(event.request)) || (await cache.match("/fahrer"));
+      }
+    })(),
   );
 });
 

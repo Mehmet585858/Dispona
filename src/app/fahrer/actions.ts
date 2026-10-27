@@ -52,10 +52,17 @@ export async function fahrerUebersichtLaden() {
   const jetzt = new Date();
   const laufendeSchicht = schichten.find((s) => s.start <= jetzt && jetzt <= s.end) ?? schichten[0] ?? null;
 
+  // Fahrgastdaten nach Erledigung nicht mehr in der App (docs/08-datenschutz-sicherheit.md).
+  const fahrtenOhneAltdaten = fahrten.map((fahrt) =>
+    fahrt.status === "ERLEDIGT"
+      ? { ...fahrt, passenger: { firstName: "Erledigt", lastName: "", phones: [] as string[] } }
+      : fahrt,
+  );
+
   return {
     name,
     schichten,
-    fahrten,
+    fahrten: fahrtenOhneAltdaten,
     laufendeSchichtId: laufendeSchicht?.id ?? null,
     gpsConsentAt: fahrer.gpsConsentAt,
   };

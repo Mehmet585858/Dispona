@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { withTenant } from "@/lib/db";
 import { requireSession } from "@/lib/session";
+import { prisma } from "@/lib/prisma";
 import {
   fahrerEinladenSchema,
   schichtMusterSchema,
@@ -134,4 +135,36 @@ export async function fahrerImportieren(
   }
   revalidatePath("/dispo/fahrer");
   return { ok, fehler };
+}
+
+/**
+ * Angemeldete Geräte (Sitzungen) eines Fahrers (docs/08-datenschutz-sicherheit.md "Admin kann
+ * Geräte abmelden"). better-auths eigene list/revoke-Endpunkte setzen die Sitzung des Aufrufers
+ * selbst voraus, nicht die eines anderen Nutzers – deshalb hier direkt über prisma.session
+ * (eigene Tabelle von better-auth, nicht über withTenant), mit eigener Mandantenprüfung.
+ */
+export async function fahrerGeraeteLaden(driverId: string) {
+  const { tenantId } = await requireSession();
+  const fahrer = await withTenant(tenantId).driver.findUnique({ where: { id: driverId }, select: { userId: true } });
+  if (!fahrer) throw new Error("Fahrer nicht gefunden.");
+  return prisma.session.findMany({
+    where: { userId: fahrer.userId },
+    select: { id: true, createdAt: true, updatedAt: true, userAgent: true },
+    orderBy: { updatedAt: "desc" },
+  });
+}
+
+export async function fahrerGeraetAbmelden(driverId: string, sessionId: string) {
+  const { tenantId, userId, role } = await requireSession();
+  if (role !== "ADMIN") {
+    throw new Error("Nur Admins dürfen Geräte abmelden.");
+  }
+  const fahrer = await withTenant(tenantId).driver.findUnique({ where: { id: driverId }, select: { userId: true } });
+  if (!fahrer) throw new Error("Fahrer nicht gefunden.");
+
+  await prisma.session.deleteMany({ where: { id: sessionId, userId: fahrer.userId } });
+  await withTenant(tenantId).auditLog.create({
+    data: { tenantId, userId, action: "driver.geraet_abgemeldet", entity: "Driver", entityId: driverId },
+  });
+  revalidatePath("/dispo/fahrer");
 }

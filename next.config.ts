@@ -15,6 +15,21 @@ const nextConfig: NextConfig = {
       },
     },
   },
+  // HTTPS erzwingen und ein paar Standard-Schutzheader setzen (docs/08-datenschutz-sicherheit.md
+  // "Verschlüsselung: HTTPS überall"). HSTS wirkt nur, wenn der Browser die Seite schon einmal
+  // über HTTPS gesehen hat – im lokalen http-Betrieb harmlos und ohne Effekt.
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

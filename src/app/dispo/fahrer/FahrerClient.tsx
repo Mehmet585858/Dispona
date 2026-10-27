@@ -23,6 +23,8 @@ import {
 import { authClient } from "@/lib/auth-client";
 import {
   fahrerEinladen,
+  fahrerGeraetAbmelden,
+  fahrerGeraeteLaden,
   fahrerImportieren,
   schichtenFuerWoche,
   schichtLöschen,
@@ -79,6 +81,11 @@ export function FahrerClient({
   });
   const [musterFehler, setMusterFehler] = useState<string | null>(null);
   const [musterSpeichert, setMusterSpeichert] = useState(false);
+
+  const [geraeteFahrerId, setGeraeteFahrerId] = useState(fahrer[0]?.id ?? "");
+  const [geraete, setGeraete] = useState<{ id: string; createdAt: Date; updatedAt: Date; userAgent: string | null }[]>([]);
+  const [geraeteLaedt, setGeraeteLaedt] = useState(false);
+  const [geraeteGeladen, setGeraeteGeladen] = useState(false);
 
   const tage = useMemo(() => wochenTage(berlinerMitternacht(montag)), [montag]);
 
@@ -138,6 +145,22 @@ export function FahrerClient({
   async function schichtEntfernen(id: string) {
     await schichtLöschen(id);
     await wocheLaden(montag);
+  }
+
+  async function geraeteLaden(fahrerId: string) {
+    setGeraeteFahrerId(fahrerId);
+    setGeraeteLaedt(true);
+    try {
+      setGeraete(await fahrerGeraeteLaden(fahrerId));
+      setGeraeteGeladen(true);
+    } finally {
+      setGeraeteLaedt(false);
+    }
+  }
+
+  async function geraetAbmelden(sessionId: string) {
+    await fahrerGeraetAbmelden(geraeteFahrerId, sessionId);
+    await geraeteLaden(geraeteFahrerId);
   }
 
   return (
@@ -244,6 +267,54 @@ export function FahrerClient({
         >
           {musterSpeichert ? "Legt an …" : "Für diese Woche anlegen"}
         </Button>
+      </Card>
+
+      <Card>
+        <h2 className="mb-4 text-lg font-semibold text-ink">Geräte verwalten</h2>
+        <p className="mb-3 text-sm text-muted">
+          Ein abgemeldetes Gerät braucht beim nächsten Öffnen wieder einen neuen Anmelde-Link.
+        </p>
+        <div className="flex items-end gap-3">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-ink">Fahrer</label>
+            <select
+              value={geraeteFahrerId}
+              onChange={(event) => {
+                setGeraeteGeladen(false);
+                setGeraeteFahrerId(event.target.value);
+              }}
+              className="h-11 rounded-xl border border-line-strong bg-surface px-3 text-base text-ink"
+            >
+              {fahrer.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.user.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <Button type="button" variant="secondary" onClick={() => geraeteLaden(geraeteFahrerId)} disabled={geraeteLaedt || !geraeteFahrerId}>
+            {geraeteLaedt ? "Lädt …" : "Geräte anzeigen"}
+          </Button>
+        </div>
+        {geraeteGeladen ? (
+          <div className="mt-4 flex flex-col gap-2">
+            {geraete.length === 0 ? (
+              <p className="text-sm text-muted">Keine angemeldeten Geräte.</p>
+            ) : (
+              geraete.map((g) => (
+                <div key={g.id} className="flex items-center justify-between rounded-xl border border-line px-3 py-2 text-sm">
+                  <span className="text-ink-soft">
+                    Zuletzt aktiv {new Date(g.updatedAt).toLocaleString("de-DE")}
+                    {g.userAgent ? ` · ${g.userAgent.slice(0, 40)}` : ""}
+                  </span>
+                  <button type="button" onClick={() => geraetAbmelden(g.id)} className="font-medium text-danger-ink hover:underline">
+                    Abmelden
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        ) : null}
       </Card>
 
       <Card>
