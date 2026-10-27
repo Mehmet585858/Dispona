@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
+import { ProgressSteps } from "@/components/ui/ProgressSteps";
 import { EINRICHTUNG_SCHRITTE, LETZTER_SCHRITT } from "@/core/einrichtung/schritte";
 import { authClient } from "@/lib/auth-client";
 import { schrittAbschliessen } from "./actions";
@@ -55,38 +56,12 @@ export function EinrichtungLayout({
 
       <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-8 p-6 lg:flex-row">
         <aside className="shrink-0 lg:w-64">
-          <p className="mb-3 text-sm font-medium text-muted">
-            Schritt {schritt} von {LETZTER_SCHRITT}
-          </p>
-          <div className="mb-4 h-2 overflow-hidden rounded-full bg-line">
-            <div
-              className="h-full rounded-full bg-accent transition-all"
-              style={{ width: `${(schritt / LETZTER_SCHRITT) * 100}%` }}
-            />
-          </div>
-          <ol className="flex flex-col gap-1">
-            {EINRICHTUNG_SCHRITTE.map((s) => {
-              const erreichbar = s.nummer <= erledigtBis;
-              return (
-                <li key={s.nummer}>
-                  <button
-                    type="button"
-                    disabled={!erreichbar}
-                    onClick={() => router.push(`/einrichtung/${s.nummer}`)}
-                    className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm ${
-                      s.nummer === schritt
-                        ? "bg-accent-soft font-medium text-accent"
-                        : erreichbar
-                          ? "text-ink-soft hover:bg-accent-soft"
-                          : "cursor-not-allowed text-muted"
-                    }`}
-                  >
-                    <span className="tabular-nums">{s.nummer}.</span> {s.titel}
-                  </button>
-                </li>
-              );
-            })}
-          </ol>
+          <ProgressSteps
+            schritte={EINRICHTUNG_SCHRITTE}
+            aktuell={schritt}
+            erledigtBis={erledigtBis}
+            onSchrittWaehlen={(nummer) => router.push(`/einrichtung/${nummer}`)}
+          />
         </aside>
 
         <main className="min-w-0 flex-1">{children}</main>
