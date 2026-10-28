@@ -20,7 +20,7 @@ export default async function DispoLayout({ children }: { children: ReactNode })
   return (
     <div className="flex min-h-screen flex-col">
       <header className="border-b border-line bg-surface">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-6 py-4">
+        <div className="flex w-full flex-wrap items-center justify-between gap-3 px-6 py-4">
           <div className="flex flex-wrap items-center gap-1">
             <Link href="/dispo" className="mr-4 flex items-center">
               <Logo className="h-6 text-ink" />
@@ -41,7 +41,7 @@ export default async function DispoLayout({ children }: { children: ReactNode })
           </div>
         </div>
       </header>
-      <div className="mx-auto w-full max-w-6xl flex-1 px-6 py-8">{children}</div>
+      <div className="w-full flex-1 px-6 py-8">{children}</div>
     </div>
   );
 }

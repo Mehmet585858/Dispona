@@ -21,6 +21,7 @@ import {
 } from "@/core/rides/validation";
 import { WOCHENTAGE, WOCHENTAG_LABEL, type Wochentag } from "@/core/shifts/rrule";
 import { berlinerMitternacht, datumIso, montagVerschieben, tagVerschieben, wochenStart } from "@/core/shifts/week";
+import { anrufTranskriptLaden } from "./anrufe/actions";
 import { FahrgastAuswahl } from "./fahrten/FahrgastAuswahl";
 import { OrtAuswahl } from "./fahrten/OrtAuswahl";
 import { TripModal } from "./fahrten/TripModal";
@@ -149,6 +150,18 @@ function BrauchtSieKarte({
 }
 
 function AnrufKarte({ anruf }: { anruf: LiveAnruf }) {
+  const [transkript, setTranskript] = useState<string | null | undefined>(undefined);
+
+  useEffect(() => {
+    let abgebrochen = false;
+    anrufTranskriptLaden(anruf.id).then((text) => {
+      if (!abgebrochen) setTranskript(text);
+    });
+    return () => {
+      abgebrochen = true;
+    };
+  }, [anruf.id]);
+
   return (
     <Card className="flex flex-col gap-3 border-line-strong">
       <div className="flex items-center gap-2">
@@ -157,6 +170,22 @@ function AnrufKarte({ anruf }: { anruf: LiveAnruf }) {
         <span className="ml-auto font-mono text-sm text-muted">seit {minutenSeit(anruf.startedAt)} Min.</span>
       </div>
       {anruf.fromNumber ? <p className="text-sm text-muted">{anruf.fromNumber}</p> : null}
+
+      <div>
+        <p className="mb-1 text-xs font-medium text-muted">Transkript</p>
+        <div className="max-h-40 overflow-y-auto rounded-xl bg-surface2 p-3">
+          {transkript === undefined ? (
+            <p className="text-sm text-muted">Lädt …</p>
+          ) : transkript ? (
+            <p className="whitespace-pre-wrap text-sm text-ink-soft">{transkript}</p>
+          ) : (
+            <p className="text-sm text-muted">
+              Noch kein Transkript verfügbar – erscheint hier, sobald Dispona Gesprächsabschnitte erkannt hat.
+            </p>
+          )}
+        </div>
+      </div>
+
       {anruf.fahrt ? (
         <div className="grid grid-cols-2 gap-2 border-t border-line pt-2.5 text-sm">
           <div>
