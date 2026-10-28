@@ -16,6 +16,12 @@ export function geaenderteFahrtText(uhrzeit: string): string {
   return `Fahrt ${uhrzeit} wurde geändert. Bitte App öffnen.`;
 }
 
+export function fahrtEntzogenText(uhrzeit: string): string {
+  // Bewusst neutral (nicht "einem anderen Fahrzeug zugeteilt"): der Grund kann auch ein
+  // Schichtende sein, das bei einer Zeitänderung keinen Fahrer mehr für diese Fahrt übrig lässt.
+  return `Fahrt ${uhrzeit} wurde Ihnen entzogen. Bitte App öffnen.`;
+}
+
 export function stornierteFahrtText(uhrzeit: string): string {
   return `Fahrt ${uhrzeit} entfällt. Bitte App öffnen.`;
 }
