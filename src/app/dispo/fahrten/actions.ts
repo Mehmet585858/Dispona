@@ -39,28 +39,6 @@ function fahrzeugTypLabel(fahrzeug: { stretcher: boolean; carryChair: boolean; w
   return "Taxi";
 }
 
-async function fahrtenImZeitraumLaden(tenantId: string, von: Date, bis: Date, fahrerNameNachId: Map<string, string>) {
-  const db = withTenant(tenantId);
-  const fahrtenRoh = await db.ride.findMany({
-    where: { pickupAt: { gte: von, lt: bis } },
-    include: {
-      passenger: { select: { firstName: true, lastName: true, phones: true, insurer: true } },
-      pickupPlace: { select: { label: true, lat: true, lng: true } },
-      dropoffPlace: { select: { label: true, lat: true, lng: true } },
-      vehicle: { select: { plate: true } },
-      suggestions: { where: { decision: "OFFEN" }, orderBy: { createdAt: "desc" }, take: 1 },
-    },
-    orderBy: { pickupAt: "asc" },
-  });
-
-  return fahrtenRoh.map((fahrt) => ({
-    ...fahrt,
-    fahrerName: fahrt.driverId ? (fahrerNameNachId.get(fahrt.driverId) ?? null) : null,
-    geplantesEnde: geplantesEnde(fahrt.pickupAt, fahrt.transportType, fahrt.pickupPlace, fahrt.dropoffPlace),
-  }));
-}
-
-
 /**
  * Lädt alles für die Fahrplan-Seite in einem Rutsch: Fahrten, Fahrer mit ihren Schichten im
  * selben Zeitraum und die Live-Fahrzeugpositionen für die Karte – ersetzt die frühere
@@ -76,23 +54,40 @@ export async function fahrplanLaden(datumFilter: string | undefined, ansicht: "t
   const bis = new Date(von);
   bis.setDate(bis.getDate() + (ansicht === "woche" ? 7 : 1));
 
-  // Nacheinander statt mit Promise.all: die lokale Entwicklungsdatenbank (npx prisma dev)
-  // verträgt viele gleichzeitige Abfragen auf einer Seite schlecht (siehe src/lib/prisma.ts).
-  // Diese Seite lädt ohnehin selten genug, dass die paar zusätzlichen Millisekunden nicht auffallen.
-  const fahrerRoh = await db.driver.findMany({
-    select: { id: true, user: { select: { name: true } } },
-    orderBy: { user: { name: "asc" } },
-  });
+  // Diese sieben Abfragen sind voneinander unabhängig und laufen deshalb gleichzeitig statt
+  // nacheinander - spart auf einer entfernten Datenbank (Produktion) mehrere Netzwerk-Umläufe
+  // pro Seitenaufruf. Nur was wirklich von einem Ergebnis hier abhängt (z. B. Fahrzeug-Positionen
+  // brauchen erst die Fahrzeug-IDs) folgt danach noch als eigener, nacheinander laufender Schritt.
+  const [fahrerRoh, fahrtenRoh, schichtenRoh, settings, tenant, fahrzeugeAktiv, unterwegs] = await Promise.all([
+    db.driver.findMany({ select: { id: true, user: { select: { name: true } } }, orderBy: { user: { name: "asc" } } }),
+    db.ride.findMany({
+      where: { pickupAt: { gte: von, lt: bis } },
+      include: {
+        passenger: { select: { firstName: true, lastName: true, phones: true, insurer: true } },
+        pickupPlace: { select: { label: true, lat: true, lng: true } },
+        dropoffPlace: { select: { label: true, lat: true, lng: true } },
+        vehicle: { select: { plate: true } },
+        suggestions: { where: { decision: "OFFEN" }, orderBy: { createdAt: "desc" }, take: 1 },
+      },
+      orderBy: { pickupAt: "asc" },
+    }),
+    db.shift.findMany({
+      where: { start: { lt: bis }, end: { gt: von } },
+      select: { driverId: true, vehicleId: true, start: true, end: true, vehicle: { select: { plate: true } } },
+      orderBy: { start: "asc" },
+    }),
+    db.tenantSettings.findUnique({ where: { tenantId } }),
+    db.tenant.findUnique({ where: { id: tenantId }, select: { paket: true } }),
+    db.vehicle.findMany({ where: { active: true }, orderBy: { plate: "asc" } }),
+    db.ride.count({ where: { status: "UNTERWEGS" } }),
+  ]);
+
   const fahrerNameNachId = new Map(fahrerRoh.map((f) => [f.id, f.user.name]));
-  const fahrten = await fahrtenImZeitraumLaden(tenantId, von, bis, fahrerNameNachId);
-  const schichtenRoh = await db.shift.findMany({
-    where: { start: { lt: bis }, end: { gt: von } },
-    select: { driverId: true, vehicleId: true, start: true, end: true, vehicle: { select: { plate: true } } },
-    orderBy: { start: "asc" },
-  });
-  const settings = await db.tenantSettings.findUnique({ where: { tenantId } });
-  const tenant = await db.tenant.findUnique({ where: { id: tenantId }, select: { paket: true } });
-  const fahrzeugeAktiv = await db.vehicle.findMany({ where: { active: true }, orderBy: { plate: "asc" } });
+  const fahrten = fahrtenRoh.map((fahrt) => ({
+    ...fahrt,
+    fahrerName: fahrt.driverId ? (fahrerNameNachId.get(fahrt.driverId) ?? null) : null,
+    geplantesEnde: geplantesEnde(fahrt.pickupAt, fahrt.transportType, fahrt.pickupPlace, fahrt.dropoffPlace),
+  }));
 
   const letztePositionen = await db.vehicleLocation.findMany({
     where: { vehicleId: { in: fahrzeugeAktiv.map((f) => f.id) } },
@@ -188,23 +183,47 @@ export async function fahrplanLaden(datumFilter: string | undefined, ansicht: "t
 
     const driverAckMinutes = settings?.driverAckMinutes ?? 5;
     const unbestaetigtKandidaten = fahrten.filter((f) => f.status === "DISPONIERT" && f.driverId && !f.driverAckAt);
+
+    // Diese drei sind voneinander unabhängig (keine braucht das Ergebnis der anderen) und laufen
+    // deshalb gleichzeitig statt nacheinander.
+    const [letzteDisponiertEvents, anrufeHeuteAnzahl, liveAnrufeRoh] = await Promise.all([
+      unbestaetigtKandidaten.length > 0
+        ? db.rideStatusEvent.findMany({
+            where: { rideId: { in: unbestaetigtKandidaten.map((f) => f.id) }, status: "DISPONIERT" },
+            orderBy: { at: "desc" },
+            select: { rideId: true, at: true },
+          })
+        : Promise.resolve([]),
+      db.call.count({ where: { startedAt: { gte: von, lt: bis } } }),
+      db.call.findMany({
+        where: { durationSec: null, startedAt: { gte: new Date(jetzt.getTime() - LIVE_ANRUF_FENSTER_MIN * 60_000) } },
+        orderBy: { startedAt: "desc" },
+        include: {
+          rides: {
+            take: 1,
+            orderBy: { createdAt: "desc" },
+            include: {
+              passenger: { select: { firstName: true, lastName: true } },
+              pickupPlace: { select: { label: true } },
+              dropoffPlace: { select: { label: true } },
+              vehicle: { select: { plate: true } },
+            },
+          },
+        },
+      }),
+    ]);
+    anrufeHeute = anrufeHeuteAnzahl;
+
     const unbestaetigt: typeof alarme = [];
-    if (unbestaetigtKandidaten.length > 0) {
-      const letzteDisponiertEvents = await db.rideStatusEvent.findMany({
-        where: { rideId: { in: unbestaetigtKandidaten.map((f) => f.id) }, status: "DISPONIERT" },
-        orderBy: { at: "desc" },
-        select: { rideId: true, at: true },
-      });
-      const letztesEventJeFahrt = new Map<string, Date>();
-      for (const event of letzteDisponiertEvents) {
-        if (!letztesEventJeFahrt.has(event.rideId)) letztesEventJeFahrt.set(event.rideId, event.at);
-      }
-      for (const f of unbestaetigtKandidaten) {
-        const seitWann = letztesEventJeFahrt.get(f.id);
-        const minuten = seitWann ? (jetzt.getTime() - seitWann.getTime()) / 60_000 : null;
-        if (minuten !== null && minuten >= driverAckMinutes) {
-          unbestaetigt.push({ rideId: f.id, grund: "Fahrer hat nicht bestätigt", beste: null });
-        }
+    const letztesEventJeFahrt = new Map<string, Date>();
+    for (const event of letzteDisponiertEvents) {
+      if (!letztesEventJeFahrt.has(event.rideId)) letztesEventJeFahrt.set(event.rideId, event.at);
+    }
+    for (const f of unbestaetigtKandidaten) {
+      const seitWann = letztesEventJeFahrt.get(f.id);
+      const minuten = seitWann ? (jetzt.getTime() - seitWann.getTime()) / 60_000 : null;
+      if (minuten !== null && minuten >= driverAckMinutes) {
+        unbestaetigt.push({ rideId: f.id, grund: "Fahrer hat nicht bestätigt", beste: null });
       }
     }
 
@@ -215,27 +234,10 @@ export async function fahrplanLaden(datumFilter: string | undefined, ansicht: "t
       if (!brauchtSieNachId.has(eintrag.rideId)) brauchtSieNachId.set(eintrag.rideId, eintrag);
     }
     brauchtSie = [...brauchtSieNachId.values()];
-    anrufeHeute = await db.call.count({ where: { startedAt: { gte: von, lt: bis } } });
 
-    const liveAnrufeRoh = await db.call.findMany({
-      where: { durationSec: null, startedAt: { gte: new Date(jetzt.getTime() - LIVE_ANRUF_FENSTER_MIN * 60_000) } },
-      orderBy: { startedAt: "desc" },
-      include: {
-        rides: {
-          take: 1,
-          orderBy: { createdAt: "desc" },
-          include: {
-            passenger: { select: { firstName: true, lastName: true } },
-            pickupPlace: { select: { label: true } },
-            dropoffPlace: { select: { label: true } },
-            vehicle: { select: { plate: true } },
-          },
-        },
-      },
-    });
     // Solange die KI noch keine Fahrt erfasst hat, dem Disponenten trotzdem zeigen, ob die
     // Nummer zu einem bekannten Fahrgast passt (erspart das manuelle Nachschlagen während des
-    // Gesprächs).
+    // Gesprächs). Erst jetzt möglich (braucht liveAnrufeRoh von oben).
     const nummernOhneFahrt = [
       ...new Set(
         liveAnrufeRoh
@@ -256,10 +258,12 @@ export async function fahrplanLaden(datumFilter: string | undefined, ansicht: "t
         if (nummernOhneFahrt.includes(nummer)) fahrgastNachNummer.set(nummer, fg);
       }
     }
-    const anzahlFahrtenNachFahrgastId = new Map<string, number>();
-    for (const fg of bekannteFahrgaeste) {
-      anzahlFahrtenNachFahrgastId.set(fg.id, await db.ride.count({ where: { passengerId: fg.id } }));
-    }
+    const fahrtenAnzahlProFahrgast = await Promise.all(
+      bekannteFahrgaeste.map((fg) => db.ride.count({ where: { passengerId: fg.id } })),
+    );
+    const anzahlFahrtenNachFahrgastId = new Map(
+      bekannteFahrgaeste.map((fg, index) => [fg.id, fahrtenAnzahlProFahrgast[index]]),
+    );
 
     liveAnrufe = liveAnrufeRoh.map((anruf) => {
       const fahrt = anruf.rides[0];
@@ -291,7 +295,6 @@ export async function fahrplanLaden(datumFilter: string | undefined, ansicht: "t
   }
 
   const vonDisponaEingeplant = fahrten.filter((f) => f.dispatchMode === "AUTO").length;
-  const unterwegs = await db.ride.count({ where: { status: "UNTERWEGS" } });
 
   return {
     fahrten,
