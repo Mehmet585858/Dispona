@@ -1,6 +1,7 @@
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { emailOTP, magicLink } from "better-auth/plugins";
+import { emailSenden } from "./email";
 import { prisma } from "./prisma";
 
 const istEntwicklung = process.env.NODE_ENV !== "production";
@@ -34,7 +35,16 @@ export const auth = betterAuth({
           console.log(`[Entwicklung] Einmal-Code für ${email}: ${otp}`);
           return;
         }
-        // TODO Phase 1b: echten E-Mail-Versand anschließen (EMAIL_SERVER).
+        await emailSenden({
+          an: email,
+          betreff: `Ihr Anmelde-Code: ${otp}`,
+          html: `
+            <p>Ihr Anmelde-Code für Dispona lautet:</p>
+            <p style="font-size:28px;font-weight:700;letter-spacing:4px">${otp}</p>
+            <p>Der Code ist 10 Minuten gültig. Falls Sie das nicht angefordert haben, können Sie diese
+            E-Mail ignorieren.</p>
+          `,
+        });
       },
     }),
     // Fahrer: Einmal-Link, später per SMS.
