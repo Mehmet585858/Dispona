@@ -403,31 +403,33 @@ export function DispoClient({
         </Button>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-        <KpiTile label="Fahrten heute" wert={kennzahlen.fahrtenHeute} />
-        {paket === "PRO" ? <KpiTile label="Gerade unterwegs" wert={kennzahlen.unterwegs} /> : null}
-        {paket === "PRO" ? <KpiTile label="Von Dispona eingeplant" wert={kennzahlen.vonDisponaEingeplant} zusatz="heute" /> : null}
-        <KpiTile label="Braucht Sie" wert={kennzahlen.brauchtSie} warnstil={kennzahlen.brauchtSie > 0} />
-        <KpiTile label="Anrufe heute" wert={kennzahlen.anrufeHeute} />
-      </div>
-
       {erfolg ? <p className="text-sm text-accent">{erfolg}</p> : null}
 
       <div className="flex flex-wrap items-start gap-4">
-        <div className="flex min-w-0 flex-1 basis-[640px] flex-col gap-3 rounded-2xl border border-line bg-surface p-4">
-          {fahrten.length === 0 && (ansicht === "tag" ? fahrzeugZeilen.length === 0 : fahrer.length === 0) ? (
-            <p className="text-sm text-muted">{ansicht === "woche" ? "Keine Fahrten in dieser Woche." : "Keine Fahrten an diesem Tag."}</p>
-          ) : (
-            <Zeitstrahl
-              fahrten={fahrten}
-              fahrer={fahrer}
-              fahrzeugZeilen={fahrzeugZeilen}
-              suchbegriff={suche}
-              datum={datum}
-              ansicht={ansicht}
-              onFahrtKlick={setOffeneFahrtId}
-            />
-          )}
+        <div className="flex min-w-0 flex-1 basis-[640px] flex-col gap-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+            <KpiTile label="Fahrten heute" wert={kennzahlen.fahrtenHeute} />
+            {paket === "PRO" ? <KpiTile label="Gerade unterwegs" wert={kennzahlen.unterwegs} /> : null}
+            {paket === "PRO" ? <KpiTile label="Von Dispona eingeplant" wert={kennzahlen.vonDisponaEingeplant} zusatz="heute" /> : null}
+            <KpiTile label="Braucht Sie" wert={kennzahlen.brauchtSie} warnstil={kennzahlen.brauchtSie > 0} />
+            <KpiTile label="Anrufe heute" wert={kennzahlen.anrufeHeute} />
+          </div>
+
+          <div className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4">
+            {fahrten.length === 0 && (ansicht === "tag" ? fahrzeugZeilen.length === 0 : fahrer.length === 0) ? (
+              <p className="text-sm text-muted">{ansicht === "woche" ? "Keine Fahrten in dieser Woche." : "Keine Fahrten an diesem Tag."}</p>
+            ) : (
+              <Zeitstrahl
+                fahrten={fahrten}
+                fahrer={fahrer}
+                fahrzeugZeilen={fahrzeugZeilen}
+                suchbegriff={suche}
+                datum={datum}
+                ansicht={ansicht}
+                onFahrtKlick={setOffeneFahrtId}
+              />
+            )}
+          </div>
         </div>
 
         <div className="flex w-full flex-none flex-col gap-4 md:w-[380px]">
