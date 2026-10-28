@@ -12,7 +12,7 @@
 import { randomUUID } from "node:crypto";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { berlinerMitternacht, datumIso } from "../src/core/shifts/week";
+import { berlinerMitternacht, datumIso, mitUhrzeit } from "../src/core/shifts/week";
 
 async function main() {
   const connectionString = process.env.DATABASE_URL;
@@ -41,10 +41,11 @@ async function main() {
 
   const heuteIso = datumIso(new Date());
   const heuteMitternacht = berlinerMitternacht(heuteIso);
+  // mitUhrzeit rechnet die Uhrzeit explizit in Berliner Zeit um (statt der Zeitzone der Maschine,
+  // auf der dieses Script läuft) – sonst verschieben sich die Fahrzeiten auf einem Server mit
+  // UTC-Systemzeit um 1-2 Stunden.
   function uhr(stunde: number, minute: number): Date {
-    const datum = new Date(heuteMitternacht);
-    datum.setHours(stunde, minute, 0, 0);
-    return datum;
+    return mitUhrzeit(heuteMitternacht, `${String(stunde).padStart(2, "0")}:${String(minute).padStart(2, "0")}`);
   }
 
   // ---------------------------------------------------------------- Helfer, die nichts doppelt anlegen

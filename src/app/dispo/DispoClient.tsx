@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
@@ -154,9 +155,13 @@ function AnrufKarte({ anruf }: { anruf: LiveAnruf }) {
 
   useEffect(() => {
     let abgebrochen = false;
-    anrufTranskriptLaden(anruf.id).then((text) => {
-      if (!abgebrochen) setTranskript(text);
-    });
+    anrufTranskriptLaden(anruf.id)
+      .then((text) => {
+        if (!abgebrochen) setTranskript(text);
+      })
+      .catch(() => {
+        if (!abgebrochen) setTranskript(null);
+      });
     return () => {
       abgebrochen = true;
     };
@@ -453,7 +458,12 @@ export function DispoClient({
 
           <div className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4">
             {fahrten.length === 0 && (ansicht === "tag" ? fahrzeugZeilen.length === 0 : fahrer.length === 0) ? (
-              <p className="text-sm text-muted">{ansicht === "woche" ? "Keine Fahrten in dieser Woche." : "Keine Fahrten an diesem Tag."}</p>
+              <div>
+                <p className="text-sm text-muted">{ansicht === "woche" ? "Keine Fahrten in dieser Woche." : "Keine Fahrten an diesem Tag."}</p>
+                <Link href="/dispo/fahrer" className="mt-2 inline-block text-sm text-accent hover:underline">
+                  Schichten verwalten, Fahrer einladen →
+                </Link>
+              </div>
             ) : (
               <Zeitstrahl
                 fahrten={fahrten}

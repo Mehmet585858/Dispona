@@ -8,6 +8,7 @@ import { Modal } from "@/components/ui/Modal";
 import { TransportBadge } from "@/components/ui/TransportBadge";
 import { VorschlagAktion, type VorschlagOption } from "@/components/VorschlagAktion";
 import { DOC_STATUS_LABEL } from "@/core/rides/validation";
+import { datumIso } from "@/core/shifts/week";
 import { fahrtStornieren } from "./actions";
 import type { FahrtMini } from "./Zeitstrahl";
 
@@ -46,6 +47,18 @@ const SCHRITT_FUER_STATUS: Record<string, number> = {
 
 function uhrzeit(datum: Date): string {
   return new Date(datum).toLocaleTimeString("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", minute: "2-digit" });
+}
+
+/** "heute" nur, wenn die Fahrt wirklich heute ist – sonst Wochentag + Datum, sonst wirkt eine
+ * Fahrt von gestern/morgen (über die ‹/›-Pfeile im Zeitstrahl erreichbar) irreführend "heutig". */
+function tagLabel(datum: Date): string {
+  if (datumIso(datum) === datumIso(new Date())) return "heute";
+  return new Date(datum).toLocaleDateString("de-DE", {
+    timeZone: "Europe/Berlin",
+    weekday: "short",
+    day: "2-digit",
+    month: "2-digit",
+  });
 }
 
 export function TripModal({
@@ -94,7 +107,7 @@ export function TripModal({
             {fahrt.passenger.firstName} {fahrt.passenger.lastName}
           </h2>
           <p className="font-mono text-sm text-ink-soft">
-            heute {uhrzeit(fahrt.pickupAt)}–{uhrzeit(fahrt.geplantesEnde)}
+            {tagLabel(fahrt.pickupAt)} {uhrzeit(fahrt.pickupAt)}–{uhrzeit(fahrt.geplantesEnde)}
           </p>
         </div>
         <button type="button" onClick={onClose} aria-label="Schließen" className="rounded-lg border border-line px-3 py-2 text-ink">

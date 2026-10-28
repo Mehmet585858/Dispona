@@ -4,12 +4,13 @@ import { revalidatePath } from "next/cache";
 import { withTenant } from "@/lib/db";
 import { requireSession } from "@/lib/session";
 import type { FahrtEingabe, SerieEingabe } from "@/core/rides/validation";
-import { fahrtStatusAendern, minutenSeitDisponiert } from "@/core/rides/status";
+import { fahrtStatusAendern } from "@/core/rides/status";
 import { fahrtErfassen } from "@/core/rides/erfassen";
 import { serieAnlegen as serieAnlegenKern } from "@/core/rides/serie";
 import { fahrtStornieren as fahrtStornierenKern } from "@/core/rides/stornieren";
 import { fahrzeugZuweisen } from "@/core/disposition/zuweisen";
 import { fahrgaesteAehnlicheNamen, telefonNormalisieren } from "@/core/passengers/suche";
+import { telefonMaskiert } from "@/core/notify/telefonMaskierung";
 import { berlinerMitternacht, datumIso, wochenStart } from "@/core/shifts/week";
 import { geplantesEnde } from "@/core/shifts/dauer";
 import { fahrzeugLiveStatus, type FahrtFuerLiveStatus } from "@/core/shifts/liveStatus";
@@ -113,7 +114,7 @@ export async function fahrplanLaden(datumFilter: string | undefined, ansicht: "t
 
   // Zeilen je Fahrzeug für den Tages-Zeitstrahl (DISPO-SPEZ.md Abschnitt 3.3) – nur für die
   // Tagesansicht gebraucht, die Wochenansicht bleibt bei Zeilen je Fahrer (noch nicht V1, siehe
-  // DISPO-SPEZ.md Abschnitt 3.10).
+  // DISPO-SPEZ.md Abschnitt 10 "Bewusst später").
   const jetzt = new Date();
   const fahrzeugZeilen =
     ansicht === "tag"
@@ -149,8 +150,8 @@ export async function fahrplanLaden(datumFilter: string | undefined, ansicht: "t
         })
       : [];
 
-  // "Braucht Sie" (DISPO-SPEZ.md Abschnitt 3.5): echte Dispo-Ausnahmen plus operative Probleme,
-  // bei denen die Automatik nicht weiterkommt – nur für die Tagesansicht relevant.
+  // "Braucht Sie" (docs/uebergabe-v2/docs/DISPO-SPEZ.md Abschnitt 3.6): echte Dispo-Ausnahmen plus
+  // operative Probleme, bei denen die Automatik nicht weiterkommt – nur für die Tagesansicht relevant.
   let brauchtSie: { rideId: string; grund: string; beste: VorschlagOption | null }[] = [];
   let liveAnrufe: {
     id: string;
@@ -189,14 +190,32 @@ export async function fahrplanLaden(datumFilter: string | undefined, ansicht: "t
     const driverAckMinutes = settings?.driverAckMinutes ?? 5;
     const unbestaetigtKandidaten = fahrten.filter((f) => f.status === "DISPONIERT" && f.driverId && !f.driverAckAt);
     const unbestaetigt: typeof alarme = [];
-    for (const f of unbestaetigtKandidaten) {
-      const minuten = await minutenSeitDisponiert(tenantId, f.id);
-      if (minuten !== null && minuten >= driverAckMinutes) {
-        unbestaetigt.push({ rideId: f.id, grund: "Fahrer hat nicht bestätigt", beste: null });
+    if (unbestaetigtKandidaten.length > 0) {
+      const letzteDisponiertEvents = await db.rideStatusEvent.findMany({
+        where: { rideId: { in: unbestaetigtKandidaten.map((f) => f.id) }, status: "DISPONIERT" },
+        orderBy: { at: "desc" },
+        select: { rideId: true, at: true },
+      });
+      const letztesEventJeFahrt = new Map<string, Date>();
+      for (const event of letzteDisponiertEvents) {
+        if (!letztesEventJeFahrt.has(event.rideId)) letztesEventJeFahrt.set(event.rideId, event.at);
+      }
+      for (const f of unbestaetigtKandidaten) {
+        const seitWann = letztesEventJeFahrt.get(f.id);
+        const minuten = seitWann ? (jetzt.getTime() - seitWann.getTime()) / 60_000 : null;
+        if (minuten !== null && minuten >= driverAckMinutes) {
+          unbestaetigt.push({ rideId: f.id, grund: "Fahrer hat nicht bestätigt", beste: null });
+        }
       }
     }
 
-    brauchtSie = [...ausnahmen, ...alarme, ...unbestaetigt];
+    // Eine Fahrt kann mehrere Gründe gleichzeitig erfüllen (z. B. Problem gemeldet UND vom
+    // Automatikmodus übersprungen) – nie doppelt in der Liste, der erste (aussagekräftigste) Grund gewinnt.
+    const brauchtSieNachId = new Map<string, { rideId: string; grund: string; beste: VorschlagOption | null }>();
+    for (const eintrag of [...ausnahmen, ...alarme, ...unbestaetigt]) {
+      if (!brauchtSieNachId.has(eintrag.rideId)) brauchtSieNachId.set(eintrag.rideId, eintrag);
+    }
+    brauchtSie = [...brauchtSieNachId.values()];
     anrufeHeute = await db.call.count({ where: { startedAt: { gte: von, lt: bis } } });
 
     const liveAnrufeRoh = await db.call.findMany({
@@ -220,7 +239,7 @@ export async function fahrplanLaden(datumFilter: string | undefined, ansicht: "t
       return {
         id: anruf.id,
         startedAt: anruf.startedAt,
-        fromNumber: anruf.fromNumber,
+        fromNumber: anruf.fromNumber ? telefonMaskiert(anruf.fromNumber) : null,
         fahrt: fahrt
           ? {
               id: fahrt.id,

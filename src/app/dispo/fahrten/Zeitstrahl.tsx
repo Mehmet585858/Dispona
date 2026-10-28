@@ -8,6 +8,7 @@ import type { FahrzeugLiveStatus } from "@/core/shifts/liveStatus";
 import {
   berlinerMitternacht,
   datumIso,
+  minutenSeitMitternacht,
   wochenStart,
   wochenTage,
   WOCHENTAG_KURZ,
@@ -18,6 +19,16 @@ import {
   zeitstrahlBreite,
   zeitstrahlPosition,
 } from "@/core/shifts/zeitstrahl";
+
+// Die Wochenansicht hat kein Scrollen und bleibt deshalb bei einer schmaleren, festen Achse
+// (06–22 Uhr) statt der vollen 24 Std. des scrollbaren Tages-Zeitstrahls weiter unten – sonst
+// würde die reale Betriebszeit nur einen Bruchteil jeder Tagesspalte füllen.
+const WOCHE_START_STUNDE = 6;
+const WOCHE_ENDE_STUNDE = 22;
+function wochePosition(datum: Date): number {
+  const minuten = minutenSeitMitternacht(datum) - WOCHE_START_STUNDE * 60;
+  return Math.min(100, Math.max(0, (minuten / ((WOCHE_ENDE_STUNDE - WOCHE_START_STUNDE) * 60)) * 100));
+}
 
 const LIVE_PUNKT_FARBE: Record<FahrzeugLiveStatus["punkt"], string> = {
   go: "var(--live-go)",
@@ -48,7 +59,7 @@ function istAlarmFahrt(fahrt: { status: string; problems: string[] }): boolean {
   return fahrt.problems.length > 0 || fahrt.status === "PROBLEM" || fahrt.status === "NICHT_ANGETROFFEN";
 }
 
-/** Farbe = Transportart, Füllung = Zustand (docs/DESIGN-GUIDE.md Abschnitt 4.1/4.2). */
+/** Farbe = Transportart, Füllung = Zustand (docs/DISPO-SPEZ.md Abschnitt 4.1/4.2). */
 function zustandFuerFahrt(fahrt: { status: string; driverDelayMin: number | null }): Fahrtzustand {
   if (fahrt.status === "UNTERWEGS" || fahrt.status === "AN_BORD") {
     return fahrt.driverDelayMin && fahrt.driverDelayMin > 0 ? "verspaetet" : "laeuft";
@@ -113,8 +124,8 @@ function SpurKompakt({
         <div
           className="absolute inset-y-0.5 rounded-sm bg-accent-soft"
           style={{
-            left: `${zeitstrahlPosition(schicht.start)}%`,
-            width: `${zeitstrahlBreite(schicht.start, schicht.end)}%`,
+            left: `${wochePosition(schicht.start)}%`,
+            width: `${Math.max(0, wochePosition(schicht.end) - wochePosition(schicht.start))}%`,
           }}
         />
       ) : null}
@@ -127,7 +138,7 @@ function SpurKompakt({
             onClick={() => onKlick?.(fahrt.id)}
             title={`${uhrzeit(fahrt.pickupAt)} ${fahrt.passenger.firstName} ${fahrt.passenger.lastName}`}
             className={`absolute top-0.5 bottom-0.5 w-1.5 rounded-sm ${istAlarmFahrt(fahrt) ? "ring-2 ring-danger-ink" : ""}`}
-            style={{ left: `${zeitstrahlPosition(fahrt.pickupAt)}%`, ...stil }}
+            style={{ left: `${wochePosition(fahrt.pickupAt)}%`, ...stil }}
           />
         );
       })}
@@ -265,7 +276,13 @@ export function Zeitstrahl({
 
   useEffect(() => {
     const el = scrollRef.current;
-    if (!el) return;
+    if (!el) {
+      // Wochenansicht: der Tages-Zeitstrahl ist nicht im DOM. Beim nächsten Wechsel zurück zu
+      // "Tag" soll wieder frisch zu "jetzt" gesprungen werden (sonst bleibt die neue, frisch
+      // gemountete Scroll-Leiste bei 00:00 stehen, weil dieser Tag schon als "erledigt" galt).
+      letztesAutoScrollDatum.current = null;
+      return;
+    }
     if (letztesAutoScrollDatum.current === datum) return; // für diesen Tag schon eingesprungen
     // Bei "heute" erst scrollen, sobald die aktuelle Uhrzeit bekannt ist (sonst springt die
     // Ansicht kurz auf den 06-Uhr-Standardwert, bevor sie auf "jetzt" nachkorrigiert).
@@ -273,7 +290,7 @@ export function Zeitstrahl({
     const zielPx = jetztProzentHeute !== null ? Math.max(0, px(jetztProzentHeute) - el.clientWidth / 3) : 6 * PX_PRO_STUNDE;
     el.scrollLeft = zielPx;
     letztesAutoScrollDatum.current = datum;
-  }, [datum, jetzt, jetztProzentHeute, heuteIso]);
+  }, [datum, jetzt, jetztProzentHeute, heuteIso, ansicht]);
 
   const nichtZugewiesen = useMemo(() => fahrten.filter((f) => !f.vehicleId), [fahrten]);
   const suche = (suchbegriff ?? "").trim().toLowerCase();
@@ -380,7 +397,7 @@ export function Zeitstrahl({
                   className="absolute -translate-x-1/2"
                   style={{ left: (stunde - ZEITSTRAHL_START_STUNDE) * PX_PRO_STUNDE }}
                 >
-                  {String(stunde).padStart(2, "0")}
+                  {String(stunde).padStart(2, "0")}:00
                 </span>
               ))}
             </div>

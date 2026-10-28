@@ -237,7 +237,7 @@ Responsiv: `flex-wrap`. Unter ca. 1000 px rutscht das Seitenpanel nach unten, di
 
 - Tokens als CSS-Variablen in **einer** Datei (`tokens.css`). Bei Tailwind die Tokens in `tailwind.config` abbilden.
 - Transportart- und Statusfarben **nur** über Hilfsfunktionen holen, z. B. `farbeFuerArt(art)` und `chipStil(art, zustand)`, nie verstreut im Code.
-- Wiederverwendbare Komponenten: `Button`, `Pill`, `InfoTag`, `StatusDot`, `KpiTile`, `Card`, `DataTable`, `DetailModal`, `FieldGrid`, `ProgressSteps`, `LivePanel`, `EmptyState`, `TransportBadge`, `TripChip`.
+- Wiederverwendbare Komponenten: `Button`, `Pill`, `InfoTag`, `StatusDot`, `KpiTile`, `Card`, `DataTable`, `Modal` (bisher `DetailModal` genannt, jetzt als allgemeines Überlagerungs-Fenster gebaut: `src/components/ui/Modal.tsx`, genutzt für Fahrt-Details und Formulare), `FieldGrid`, `ProgressSteps`, `LivePanel`, `EmptyState`, `TransportBadge`, `TripChip`.
 - Neue Seiten werden **nur** aus diesen Komponenten gebaut. Fehlt etwas, wird zuerst die Komponente ergänzt und hier dokumentiert.
 
 ---
@@ -274,4 +274,4 @@ Ablage: `docs/DESIGN-GUIDE.md`, `docs/DISPO-SPEZ.md`, `docs/A1-Farbe-1-gedaempft
 
 ---
 
-**Status in diesem Projekt (Stand 27.10.2026):** Eingebunden als neuer Standard (Nutzer-Entscheidung: komplette Umstellung). Tokens in `src/app/globals.css`, Schrift in `src/app/layout.tsx` (IBM Plex Sans/Mono), Grundkomponenten in `src/components/ui/` auf den Guide umgestellt. Bestehende Seiten bekommen den neuen Look automatisch über die Tokens; Sprache (du-los/sachlich) und Seitenmuster (Abschnitt 6) werden nach und nach angepasst, nicht alle Seiten auf einmal. `ProgressSteps` ist jetzt gebaut (`src/components/ui/ProgressSteps.tsx`, genutzt vom Einrichtungsassistenten, Phase 9). Noch fehlende Bausteine aus Abschnitt 10 (`DetailModal`, `FieldGrid`, `LivePanel`, `TripChip`) sind weiter nicht gebaut – erst bei Bedarf ergänzen.
+**Status in diesem Projekt (Stand 27.10.2026):** Eingebunden als neuer Standard (Nutzer-Entscheidung: komplette Umstellung). Tokens in `src/app/globals.css`, Schrift in `src/app/layout.tsx` (IBM Plex Sans/Mono), Grundkomponenten in `src/components/ui/` auf den Guide umgestellt. Bestehende Seiten bekommen den neuen Look automatisch über die Tokens; Sprache (du-los/sachlich) und Seitenmuster (Abschnitt 6) werden nach und nach angepasst, nicht alle Seiten auf einmal. `ProgressSteps` ist jetzt gebaut (`src/components/ui/ProgressSteps.tsx`, genutzt vom Einrichtungsassistenten, Phase 9). `Modal` ist jetzt gebaut (`src/components/ui/Modal.tsx`, genutzt für Fahrt-Details im Dispo-Dashboard und das "Neue Fahrt"-Formular). Noch fehlende Bausteine aus Abschnitt 10 (`FieldGrid`, `LivePanel`, `TripChip`) sind weiter nicht gebaut – erst bei Bedarf ergänzen.
