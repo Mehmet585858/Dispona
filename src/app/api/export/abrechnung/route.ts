@@ -28,6 +28,11 @@ export async function GET(request: NextRequest) {
   }
 
   const db = withTenant(tenantId);
+  const tenant = await db.tenant.findUnique({ where: { id: tenantId }, select: { paket: true } });
+  if (tenant?.paket === "LITE") {
+    return NextResponse.json({ error: "Das Fahrtenbuch ist Teil des Pakets Pro." }, { status: 403 });
+  }
+
   const von = berlinerMitternacht(vonIso);
   const bis = new Date(berlinerMitternacht(bisIso));
   bis.setDate(bis.getDate() + 1);

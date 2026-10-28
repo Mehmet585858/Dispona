@@ -7,6 +7,11 @@ import { vorschlaegeBerechnen, type GeplanteFahrt } from "./vorschlagen";
 
 export async function vorschlagBerechnenUndSpeichern(tenantId: string, rideId: string, userId?: string) {
   const db = withTenant(tenantId);
+  const tenant = await db.tenant.findUnique({ where: { id: tenantId }, select: { paket: true } });
+  // Lite hat keinen Fahrzeugvorschlag und keine automatische Einplanung (DISPO-SPEZ.md Abschnitt 2) –
+  // die Fahrt bleibt bei ERFASST, der Disponent markiert sie manuell als "Angenommen".
+  if (tenant?.paket === "LITE") return;
+
   const fahrt = await db.ride.findUnique({
     where: { id: rideId },
     include: { pickupPlace: true, dropoffPlace: true },

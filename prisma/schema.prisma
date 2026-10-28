@@ -92,6 +92,7 @@ model Verification {
 model Tenant {
   id           String          @id @default(cuid())
   name         String
+  paket        TenantPaket     @default(PRO)
   street       String?
   zip          String?
   city         String?
@@ -109,6 +110,13 @@ model Tenant {
   series       RideSeries[]
   calls        Call[]
   integration  Integration?
+}
+
+// DISPO-SPEZ.md Abschnitt 2: Lite ohne Fahrzeugvorschlag/Fahrer-App (Kunde disponiert selbst
+// außerhalb des Systems), Pro mit automatischer Einplanung, Zeitstrahl und Fahrer-App.
+enum TenantPaket {
+  LITE
+  PRO
 }
 
 enum AutoMode {
