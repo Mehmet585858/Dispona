@@ -174,7 +174,11 @@ function FahrtChip({
   passt: boolean;
   fahrzeugId: string;
   onKlick?: (id: string) => void;
-  onVerschieben: (fahrtId: string, neueAbholzeit: string | undefined, neuesFahrzeugId: string | undefined) => void;
+  onVerschieben: (
+    fahrtId: string,
+    neueAbholzeit: string | undefined,
+    neuesFahrzeugId: string | undefined,
+  ) => Promise<boolean>;
 }) {
   const [verschiebungPx, setVerschiebungPx] = useState<{ dx: number; dy: number } | null>(null);
   const [zielZeit, setZielZeit] = useState<string | null>(null);
@@ -182,6 +186,21 @@ function FahrtChip({
   const verspaetet = zustandFuerFahrt(fahrt) === "verspaetet";
   const verschiebbar = !NICHT_VERSCHIEBBAR.has(fahrt.status);
   const originalLeft = px(zeitstrahlPosition(fahrt.pickupAt));
+
+  // Solange eine gerade bestätigte Verschiebung auf die frischen Server-Daten wartet (siehe
+  // unten), bleibt die Kachel optisch an ihrer Zielposition stehen – sonst würde sie beim
+  // Loslassen erst kurz auf die alte Position zurückspringen (fahrt.pickupAt ist ja noch alt)
+  // und dann, sobald router.refresh() ankommt, auf die neue springen. Ein unschönes Doppel-Springen.
+  const letzterStandRef = useRef({ pickupAt: fahrt.pickupAt.getTime(), fahrzeugId });
+  useEffect(() => {
+    const neu = { pickupAt: fahrt.pickupAt.getTime(), fahrzeugId };
+    if (neu.pickupAt !== letzterStandRef.current.pickupAt || neu.fahrzeugId !== letzterStandRef.current.fahrzeugId) {
+      // Frische Daten sind da (die Uhrzeit auf dieser Zeile hat sich wirklich geändert) –
+      // jetzt erst die optimistische Verschiebung beenden, die reale Position stimmt nun.
+      setVerschiebungPx(null);
+    }
+    letzterStandRef.current = neu;
+  }, [fahrt.pickupAt, fahrzeugId]);
 
   function aufPointerDown(event: ReactPointerEvent<HTMLButtonElement>) {
     if (!verschiebbar || event.button !== 0) return;
@@ -223,9 +242,9 @@ function FahrtChip({
       el.removeEventListener("pointerup", aufUp);
       const zielZeileAmEnde = zielZeile;
       zielZeileSetzen(null);
-      setVerschiebungPx(null);
       setZielZeit(null);
       if (!gezogen) {
+        setVerschiebungPx(null);
         onKlick?.(fahrt.id);
         return;
       }
@@ -237,7 +256,15 @@ function FahrtChip({
       // fahrtAendern) – deshalb muss hier auch beim Verschieben *innerhalb* derselben Zeile das
       // Fahrzeug erneut zugewiesen werden, sonst würde die Fahrt sonst "ohne Fahrzeug" enden.
       const neuesFahrzeugId = neueAbholzeit ? (zielFahrzeugId ?? fahrzeugId) : fahrzeugGewechselt ? zielFahrzeugId : undefined;
-      if (neueAbholzeit || neuesFahrzeugId) onVerschieben(fahrt.id, neueAbholzeit, neuesFahrzeugId);
+      if (neueAbholzeit || neuesFahrzeugId) {
+        // verschiebungPx bleibt absichtlich gesetzt (siehe useEffect oben) – kein sofortiges
+        // Zurücksetzen hier, sonst springt die Kachel kurz auf die alte Position zurück.
+        onVerschieben(fahrt.id, neueAbholzeit, neuesFahrzeugId).then((erfolgreich) => {
+          if (!erfolgreich) setVerschiebungPx(null); // fehlgeschlagen: sofort zur alten Position zurück
+        });
+      } else {
+        setVerschiebungPx(null);
+      }
     }
     el.addEventListener("pointermove", aufMove);
     el.addEventListener("pointerup", aufUp);
@@ -298,7 +325,11 @@ function SpurTag({
   fahrzeugId: string;
   passtZurSuche?: (fahrt: FahrtMini) => boolean;
   onKlick?: (id: string) => void;
-  onVerschieben: (fahrtId: string, neueAbholzeit: string | undefined, neuesFahrzeugId: string | undefined) => void;
+  onVerschieben: (
+    fahrtId: string,
+    neueAbholzeit: string | undefined,
+    neuesFahrzeugId: string | undefined,
+  ) => Promise<boolean>;
 }) {
   return (
     <div className="relative h-14 rounded-md bg-ground" style={{ width: ZEITSTRAHL_BREITE_PX }}>
@@ -495,10 +526,14 @@ export function Zeitstrahl({
     fahrtId: string,
     neueAbholzeit: string | undefined,
     neuesFahrzeugId: string | undefined,
-  ) {
+  ): Promise<boolean> {
     const ergebnis = await fahrtVerschieben(fahrtId, { neueAbholzeit, neuesFahrzeugId });
-    if (!ergebnis.ok) window.alert(ergebnis.grund);
     router.refresh();
+    if (!ergebnis.ok) {
+      window.alert(ergebnis.grund);
+      return false;
+    }
+    return true;
   }
 
   return (
