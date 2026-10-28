@@ -5,6 +5,7 @@ import { withTenant } from "@/lib/db";
 import { requireSession } from "@/lib/session";
 import type { FahrtEingabe, SerieEingabe } from "@/core/rides/validation";
 import { fahrtStatusAendern } from "@/core/rides/status";
+import { fahrtAendern } from "@/core/rides/aendern";
 import { fahrtErfassen } from "@/core/rides/erfassen";
 import { serieAnlegen as serieAnlegenKern } from "@/core/rides/serie";
 import { fahrtStornieren as fahrtStornierenKern } from "@/core/rides/stornieren";
@@ -353,6 +354,44 @@ export async function fahrzeugWaehlen(rideId: string, vehicleId: string) {
   const { tenantId, userId } = await requireSession();
   await fahrzeugZuweisen(tenantId, rideId, vehicleId, { dispatchMode: "MANUELL", userId });
   revalidatePath("/dispo");
+}
+
+const NICHT_VERSCHIEBBARE_STATUS = new Set<string>(["UNTERWEGS", "AN_BORD", "ERLEDIGT", "STORNIERT", "NICHT_ANGETROFFEN"]);
+
+/** Eine Fahrt im Zeitstrahl per Ziehen verschieben: andere Uhrzeit (gleicher Tag), anderes
+ * Fahrzeug, oder beides zusammen – z. B. auf eine andere Fahrzeug-Zeile zu einer anderen Zeit
+ * gezogen. Zeit zuerst (das setzt eine schon disponierte Fahrt zurück auf "Erfasst" und löst
+ * eine neue Vorschlagsberechnung aus, siehe fahrtAendern), danach greift die Fahrzeugwahl immer
+ * den am Ende gewünschten Stand. */
+export async function fahrtVerschieben(
+  rideId: string,
+  eingabe: { neueAbholzeit?: string; neuesFahrzeugId?: string },
+): Promise<{ ok: true } | { ok: false; grund: string }> {
+  const { tenantId, userId } = await requireSession();
+  const db = withTenant(tenantId);
+  const fahrt = await db.ride.findUnique({ where: { id: rideId }, select: { status: true } });
+  if (!fahrt) return { ok: false, grund: "Fahrt nicht gefunden." };
+  if (NICHT_VERSCHIEBBARE_STATUS.has(fahrt.status)) {
+    return { ok: false, grund: "Diese Fahrt läuft schon oder ist abgeschlossen und kann nicht mehr verschoben werden." };
+  }
+
+  if (eingabe.neueAbholzeit) {
+    const ergebnis = await fahrtAendern(tenantId, rideId, { abholzeit: eingabe.neueAbholzeit }, { userId });
+    if (!ergebnis.ok) {
+      revalidatePath("/dispo");
+      return { ok: false, grund: "Diese Fahrt kann nicht mehr verschoben werden." };
+    }
+  } else if (eingabe.neuesFahrzeugId && fahrt.status === "DISPONIERT") {
+    // Reine Fahrzeug-Umbesetzung einer schon disponierten Fahrt (keine Zeitänderung, die das schon
+    // erledigen würde): fahrzeugZuweisen setzt den Status fest auf "Disponiert" – von "Disponiert"
+    // aus ist das kein erlaubter Übergang, deshalb hier erst auf "Erfasst" zurücksetzen.
+    await fahrtStatusAendern(tenantId, rideId, "ERFASST", { userId });
+  }
+  if (eingabe.neuesFahrzeugId) {
+    await fahrzeugZuweisen(tenantId, rideId, eingabe.neuesFahrzeugId, { dispatchMode: "MANUELL", userId });
+  }
+  revalidatePath("/dispo");
+  return { ok: true };
 }
 
 export async function fahrtStatusSetzen(rideId: string, status: RideStatus) {

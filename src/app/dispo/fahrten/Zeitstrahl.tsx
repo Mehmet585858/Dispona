@@ -1,7 +1,8 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { useRouter } from "next/navigation";
+import { fahrtVerschieben } from "./actions";
 import { chipStil, farbeFuerArt, type Fahrtzustand } from "@/core/rides/transportfarbe";
 import { TRANSPORT_TYPE_LABEL, TRANSPORT_TYPES } from "@/core/rides/validation";
 import type { FahrzeugLiveStatus } from "@/core/shifts/liveStatus";
@@ -46,6 +47,17 @@ const ZEITSTRAHL_BREITE_PX = (ZEITSTRAHL_ENDE_STUNDE - ZEITSTRAHL_START_STUNDE) 
 function px(prozent: number): number {
   return (prozent / 100) * ZEITSTRAHL_BREITE_PX;
 }
+/** Pixel-Position im Zeitstrahl zurück in eine Abholzeit (HH:MM, auf 5 Minuten gerundet, an den
+ * Rand des sichtbaren Tages geklemmt) – fürs Verschieben einer Fahrt per Ziehen. */
+function pxZuAbholzeit(xPx: number): string {
+  const geklemmt = Math.max(0, Math.min(ZEITSTRAHL_BREITE_PX, xPx));
+  const gesamtMinuten = ZEITSTRAHL_START_STUNDE * 60 + (geklemmt / PX_PRO_STUNDE) * 60;
+  const gerundet = Math.round(gesamtMinuten / 5) * 5;
+  const stunde = Math.floor(gerundet / 60) % 24;
+  const minute = gerundet % 60;
+  return `${String(stunde).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+const NICHT_VERSCHIEBBAR = new Set(["UNTERWEGS", "AN_BORD", "ERLEDIGT", "STORNIERT", "NICHT_ANGETROFFEN"]);
 
 function uhrzeit(datum: Date): string {
   return new Date(datum).toLocaleTimeString("de-DE", {
@@ -148,18 +160,145 @@ function SpurKompakt({
 
 /** Zeile im Tages-Zeitstrahl: Chips sind so breit wie die geschätzte Fahrtdauer, mit Zeit und
  * Kurzname (DISPO-SPEZ.md Abschnitt 3.3) – kein Text zur Transportart, die steckt in der Farbe. */
+/** Eine Fahrt-Kachel: Klick öffnet die Details, Ziehen verschiebt die Fahrt (andere Uhrzeit
+ * und/oder – auf eine andere Fahrzeug-Zeile gezogen – ein anderes Fahrzeug). Ein kurzer Klick
+ * ohne nennenswerte Bewegung zählt als Klick, nicht als Ziehen. */
+function FahrtChip({
+  fahrt,
+  passt,
+  fahrzeugId,
+  onKlick,
+  onVerschieben,
+}: {
+  fahrt: FahrtMini;
+  passt: boolean;
+  fahrzeugId: string;
+  onKlick?: (id: string) => void;
+  onVerschieben: (fahrtId: string, neueAbholzeit: string | undefined, neuesFahrzeugId: string | undefined) => void;
+}) {
+  const [verschiebungPx, setVerschiebungPx] = useState<{ dx: number; dy: number } | null>(null);
+  const [zielZeit, setZielZeit] = useState<string | null>(null);
+  const stil = chipStil(fahrt.transportType, zustandFuerFahrt(fahrt));
+  const verspaetet = zustandFuerFahrt(fahrt) === "verspaetet";
+  const verschiebbar = !NICHT_VERSCHIEBBAR.has(fahrt.status);
+  const originalLeft = px(zeitstrahlPosition(fahrt.pickupAt));
+
+  function aufPointerDown(event: ReactPointerEvent<HTMLButtonElement>) {
+    if (!verschiebbar || event.button !== 0) return;
+    const el = event.currentTarget;
+    // Die gezogene Kachel wird per CSS-transform sichtbar unter den Mauszeiger verschoben, liegt
+    // aber im DOM weiter in ihrer alten Zeile. elementFromPoint würde sie dort selbst treffen statt
+    // der Zielzeile darunter – deshalb während der Zielermittlung kurz "durchklickbar" machen.
+    const wrapper = el.parentElement as HTMLElement | null;
+    const startX = event.clientX;
+    const startY = event.clientY;
+    let gezogen = false;
+    let zielZeile: HTMLElement | null = null;
+    el.setPointerCapture(event.pointerId);
+
+    function zielZeileUnterZeiger(x: number, y: number): HTMLElement | null {
+      if (wrapper) wrapper.style.pointerEvents = "none";
+      const element = document.elementFromPoint(x, y);
+      if (wrapper) wrapper.style.pointerEvents = "";
+      return element?.closest<HTMLElement>("[data-fahrzeug-id]") ?? null;
+    }
+    function zielZeileSetzen(neu: HTMLElement | null) {
+      if (zielZeile === neu) return;
+      zielZeile?.classList.remove("ring-2", "ring-accent", "bg-accent-soft/40");
+      neu?.classList.add("ring-2", "ring-accent", "bg-accent-soft/40");
+      zielZeile = neu;
+    }
+
+    function aufMove(ev: PointerEvent) {
+      const dx = ev.clientX - startX;
+      const dy = ev.clientY - startY;
+      if (!gezogen && Math.hypot(dx, dy) > 6) gezogen = true;
+      if (!gezogen) return;
+      setVerschiebungPx({ dx, dy });
+      setZielZeit(pxZuAbholzeit(originalLeft + dx));
+      zielZeileSetzen(zielZeileUnterZeiger(ev.clientX, ev.clientY));
+    }
+    function aufUp(ev: PointerEvent) {
+      el.removeEventListener("pointermove", aufMove);
+      el.removeEventListener("pointerup", aufUp);
+      const zielZeileAmEnde = zielZeile;
+      zielZeileSetzen(null);
+      setVerschiebungPx(null);
+      setZielZeit(null);
+      if (!gezogen) {
+        onKlick?.(fahrt.id);
+        return;
+      }
+      const neueAbholzeitRoh = pxZuAbholzeit(originalLeft + (ev.clientX - startX));
+      const neueAbholzeit = neueAbholzeitRoh !== uhrzeit(fahrt.pickupAt) ? neueAbholzeitRoh : undefined;
+      const zielFahrzeugId = zielZeileAmEnde?.dataset.fahrzeugId;
+      const fahrzeugGewechselt = !!zielFahrzeugId && zielFahrzeugId !== fahrzeugId;
+      // Eine Zeitänderung setzt eine schon disponierte Fahrt immer zurück auf "Erfasst" (siehe
+      // fahrtAendern) – deshalb muss hier auch beim Verschieben *innerhalb* derselben Zeile das
+      // Fahrzeug erneut zugewiesen werden, sonst würde die Fahrt sonst "ohne Fahrzeug" enden.
+      const neuesFahrzeugId = neueAbholzeit ? (zielFahrzeugId ?? fahrzeugId) : fahrzeugGewechselt ? zielFahrzeugId : undefined;
+      if (neueAbholzeit || neuesFahrzeugId) onVerschieben(fahrt.id, neueAbholzeit, neuesFahrzeugId);
+    }
+    el.addEventListener("pointermove", aufMove);
+    el.addEventListener("pointerup", aufUp);
+  }
+
+  return (
+    <div
+      className={`absolute top-1.5 bottom-1.5 ${verschiebungPx ? "z-20" : ""}`}
+      style={{
+        left: originalLeft,
+        width: Math.max(px(zeitstrahlBreite(fahrt.pickupAt, fahrt.geplantesEnde)), 92),
+        transform: verschiebungPx ? `translate(${verschiebungPx.dx}px, ${verschiebungPx.dy}px)` : undefined,
+      }}
+    >
+      {zielZeit ? (
+        <span className="absolute -top-6 left-0 whitespace-nowrap rounded-md bg-ink px-1.5 py-0.5 font-mono text-[11px] text-white shadow">
+          {zielZeit}
+        </span>
+      ) : null}
+      <button
+        type="button"
+        onPointerDown={aufPointerDown}
+        title={`${uhrzeit(fahrt.pickupAt)}–${uhrzeit(fahrt.geplantesEnde)} ${fahrt.passenger.firstName} ${
+          fahrt.passenger.lastName
+        } · ${TRANSPORT_TYPE_LABEL[fahrt.transportType]}${verschiebbar ? " · ziehen zum Verschieben" : ""}`}
+        className={`flex h-full w-full flex-col justify-center overflow-hidden rounded-md px-2 text-left text-xs leading-tight touch-none ${
+          istAlarmFahrt(fahrt) ? "ring-2 ring-danger-ink" : ""
+        } ${verschiebbar ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"} ${verschiebungPx ? "shadow-lg" : ""}`}
+        style={{
+          opacity: verschiebungPx ? 0.9 : passt ? 1 : 0.25,
+          ...stil,
+        }}
+      >
+        <span className="flex items-center gap-1 font-mono text-[11px]">
+          {uhrzeit(fahrt.pickupAt)}
+          {verspaetet && fahrt.driverDelayMin ? (
+            <span className="rounded bg-warn-bg px-1 text-warn-ink">+{fahrt.driverDelayMin}</span>
+          ) : null}
+        </span>
+        <span className="truncate font-semibold">{kurzname(fahrt.passenger.firstName, fahrt.passenger.lastName)}</span>
+      </button>
+    </div>
+  );
+}
+
 function SpurTag({
   schicht,
   fahrten,
   jetztProzent,
+  fahrzeugId,
   passtZurSuche,
   onKlick,
+  onVerschieben,
 }: {
   schicht: { start: Date; end: Date } | null;
   fahrten: FahrtMini[];
   jetztProzent: number | null;
+  fahrzeugId: string;
   passtZurSuche?: (fahrt: FahrtMini) => boolean;
   onKlick?: (id: string) => void;
+  onVerschieben: (fahrtId: string, neueAbholzeit: string | undefined, neuesFahrzeugId: string | undefined) => void;
 }) {
   return (
     <div className="relative h-14 rounded-md bg-ground" style={{ width: ZEITSTRAHL_BREITE_PX }}>
@@ -175,36 +314,16 @@ function SpurTag({
       {jetztProzent !== null ? (
         <div className="absolute inset-y-0 w-px bg-now" style={{ left: px(jetztProzent) }} />
       ) : null}
-      {fahrten.map((fahrt) => {
-        const stil = chipStil(fahrt.transportType, zustandFuerFahrt(fahrt));
-        const verspaetet = zustandFuerFahrt(fahrt) === "verspaetet";
-        const passt = passtZurSuche ? passtZurSuche(fahrt) : true;
-        return (
-          <button
-            key={fahrt.id}
-            type="button"
-            onClick={() => onKlick?.(fahrt.id)}
-            title={`${uhrzeit(fahrt.pickupAt)}–${uhrzeit(fahrt.geplantesEnde)} ${fahrt.passenger.firstName} ${
-              fahrt.passenger.lastName
-            } · ${TRANSPORT_TYPE_LABEL[fahrt.transportType]}`}
-            className={`absolute top-1.5 bottom-1.5 flex flex-col justify-center overflow-hidden rounded-md px-2 text-left text-xs leading-tight ${istAlarmFahrt(fahrt) ? "ring-2 ring-danger-ink" : ""}`}
-            style={{
-              left: px(zeitstrahlPosition(fahrt.pickupAt)),
-              width: Math.max(px(zeitstrahlBreite(fahrt.pickupAt, fahrt.geplantesEnde)), 92),
-              opacity: passt ? 1 : 0.25,
-              ...stil,
-            }}
-          >
-            <span className="flex items-center gap-1 font-mono text-[11px]">
-              {uhrzeit(fahrt.pickupAt)}
-              {verspaetet && fahrt.driverDelayMin ? (
-                <span className="rounded bg-warn-bg px-1 text-warn-ink">+{fahrt.driverDelayMin}</span>
-              ) : null}
-            </span>
-            <span className="truncate font-semibold">{kurzname(fahrt.passenger.firstName, fahrt.passenger.lastName)}</span>
-          </button>
-        );
-      })}
+      {fahrten.map((fahrt) => (
+        <FahrtChip
+          key={fahrt.id}
+          fahrt={fahrt}
+          passt={passtZurSuche ? passtZurSuche(fahrt) : true}
+          fahrzeugId={fahrzeugId}
+          onKlick={onKlick}
+          onVerschieben={onVerschieben}
+        />
+      ))}
     </div>
   );
 }
@@ -372,6 +491,16 @@ export function Zeitstrahl({
   const unterwegsCount = fahrten.filter((f) => f.status === "UNTERWEGS" || f.status === "AN_BORD").length;
   const verspaetetCount = fahrten.filter((f) => !!f.driverDelayMin && f.driverDelayMin > 0).length;
 
+  async function aufFahrtVerschieben(
+    fahrtId: string,
+    neueAbholzeit: string | undefined,
+    neuesFahrzeugId: string | undefined,
+  ) {
+    const ergebnis = await fahrtVerschieben(fahrtId, { neueAbholzeit, neuesFahrzeugId });
+    if (!ergebnis.ok) window.alert(ergebnis.grund);
+    router.refresh();
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2 border-b border-line pb-2 text-sm">
@@ -404,7 +533,7 @@ export function Zeitstrahl({
           </div>
 
           {fahrzeugZeilen.map((zeile) => (
-            <div key={zeile.id} className="flex items-center gap-x-2">
+            <div key={zeile.id} data-fahrzeug-id={zeile.id} className="flex items-center gap-x-2">
               <div
                 className="sticky left-0 z-10 w-[230px] flex-none bg-surface shadow-[2px_0_6px_-2px_rgba(16,24,32,0.12)]"
                 title={`${zeile.plate} · ${zeile.typ} · ${zeile.fahrerNamen || "ohne Fahrer"}`}
@@ -435,8 +564,10 @@ export function Zeitstrahl({
                 schicht={null}
                 fahrten={fahrten.filter((f) => f.vehicleId === zeile.id)}
                 jetztProzent={jetztProzentHeute}
+                fahrzeugId={zeile.id}
                 passtZurSuche={passtZurSuche}
                 onKlick={onFahrtKlick}
+                onVerschieben={aufFahrtVerschieben}
               />
             </div>
           ))}
