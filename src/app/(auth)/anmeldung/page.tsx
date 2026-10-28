@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { Logo } from "@/components/ui/Logo";
 import { TextField } from "@/components/ui/TextField";
 import { authClient } from "@/lib/auth-client";
 import { ermittleAnmeldeMethode } from "./actions";
@@ -80,8 +81,9 @@ function AnmeldungInhalt() {
   return (
     <main className="flex flex-1 items-center justify-center p-6">
       <Card className="w-full max-w-sm">
+        <Logo className="mb-6 h-7 text-ink" />
         <h1 className="mb-1 text-2xl font-semibold text-ink">Anmelden</h1>
-        <p className="mb-6 text-sm text-muted">Fahrdienst-KI – Büro und Fahrer</p>
+        <p className="mb-6 text-sm text-muted">Büro und Fahrer</p>
 
         {schritt === "email" && (
           <form onSubmit={emailAbsenden} className="flex flex-col gap-4">

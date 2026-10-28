@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
+import { Logo } from "@/components/ui/Logo";
 import { ProgressSteps } from "@/components/ui/ProgressSteps";
 import { EINRICHTUNG_SCHRITTE, LETZTER_SCHRITT } from "@/core/einrichtung/schritte";
 import { authClient } from "@/lib/auth-client";
@@ -41,7 +42,10 @@ export function EinrichtungLayout({
   return (
     <div className="flex min-h-screen flex-col">
       <header className="flex items-center justify-between border-b border-line bg-surface px-6 py-4">
-        <span className="text-lg font-semibold text-ink">Fahrdienst-KI – Einrichtung</span>
+        <span className="flex items-center gap-3">
+          <Logo className="h-6 text-ink" />
+          <span className="text-lg font-semibold text-ink">Einrichtung</span>
+        </span>
         <div className="flex items-center gap-3">
           <span className="text-sm text-muted">{firmenname}</span>
           <button

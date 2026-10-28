@@ -15,7 +15,7 @@ const ibmPlexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Fahrdienst-KI",
+  title: "Dispona",
   description: "KI am Telefon, eigene Disposition und Fahrer-App für Krankenfahrdienste.",
 };
 

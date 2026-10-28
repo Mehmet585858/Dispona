@@ -7,7 +7,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0E6E62",
+  themeColor: "#334155",
 };
 
 export default function FahrerLayout({ children }: LayoutProps<"/fahrer">) {

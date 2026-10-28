@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { SignOutButton } from "@/components/SignOutButton";
+import { Logo } from "@/components/ui/Logo";
 import { getServerSession } from "@/lib/session";
 
 const navigation = [
@@ -22,7 +23,9 @@ export default async function DispoLayout({ children }: { children: ReactNode })
       <header className="border-b border-line bg-surface">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-6 py-4">
           <div className="flex flex-wrap items-center gap-1">
-            <span className="mr-4 text-lg font-semibold text-ink">Fahrdienst-KI</span>
+            <Link href="/dispo" className="mr-4 flex items-center">
+              <Logo className="h-6 text-ink" />
+            </Link>
             {navigation.map((item) => (
               <Link
                 key={item.href}
