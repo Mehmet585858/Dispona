@@ -5,6 +5,16 @@ Claude Code soll ihn bei **jeder** neuen Seite zuerst lesen. Am besten wird er i
 
 ---
 
+## 0. Marke
+
+- **Name:** Dispona (immer mit großem D im Text; das Logo selbst ist klein geschrieben: „dispona“).
+- **Logo:** Wortmarke in **Comfortaa Bold**, in Pfade umgewandelt. Das „o“ trägt einen **grünen Live-Punkt `#5E8C6A`**, das Erkennungszeichen der Marke. Dateien in `public/brand/`, Regeln in `docs/uebergabe-v2/brand/LOGO-ANLEITUNG.md`. React-Komponenten: `src/components/ui/Logo.tsx` (`Logo`, `LogoZeichen`).
+- Comfortaa **nur im Logo**. Die Oberfläche bleibt in IBM Plex Sans.
+- App-Icon: das „o“ mit Punkt, weiß auf Schiefergrau `#334155`.
+- Tonalität: ruhig, klar, freundlich-sachlich. Dispona spricht wie eine erfahrene Kollegin in der Zentrale.
+
+---
+
 ## 1. Grundsätze
 
 1. **Ruhe zuerst.** Die Oberfläche ist grau und weiß. Farbe trägt immer eine Bedeutung, nie Dekoration.
