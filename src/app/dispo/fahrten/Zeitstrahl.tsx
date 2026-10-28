@@ -4,8 +4,9 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Chip } from "@/components/ui/Chip";
 import { VorschlagAktion, type VorschlagOption } from "@/components/VorschlagAktion";
-import { chipStil, type Fahrtzustand } from "@/core/rides/transportfarbe";
+import { chipStil, farbeFuerArt, type Fahrtzustand } from "@/core/rides/transportfarbe";
 import { TRANSPORT_TYPE_LABEL, TRANSPORT_TYPES } from "@/core/rides/validation";
+import type { FahrzeugLiveStatus } from "@/core/shifts/liveStatus";
 import {
   berlinerMitternacht,
   datumIso,
@@ -45,6 +46,14 @@ const STATUS_LABEL: Record<string, string> = {
   PROBLEM: "Problem",
 };
 
+const LIVE_PUNKT_FARBE: Record<FahrzeugLiveStatus["punkt"], string> = {
+  go: "var(--live-go)",
+  in: "var(--live-in)",
+  at: "var(--live-at)",
+  free: "var(--live-free)",
+  late: "var(--live-late)",
+};
+
 const STUNDEN_TICKS = [6, 8, 10, 12, 14, 16, 18, 20, 22];
 
 function uhrzeit(datum: Date): string {
@@ -72,10 +81,12 @@ function zustandFuerFahrt(fahrt: { status: string; driverDelayMin: number | null
 export type FahrtMini = {
   id: string;
   pickupAt: Date;
+  geplantesEnde: Date;
   status: string;
   problems: string[];
   transportType: (typeof TRANSPORT_TYPES)[number];
   driverDelayMin: number | null;
+  vehicleId: string | null;
   passenger: { firstName: string; lastName: string };
   pickupPlace: { label: string };
   dropoffPlace: { label: string };
@@ -90,23 +101,77 @@ export type FahrerZeile = {
   schichten: { start: Date; end: Date; plate: string }[];
 };
 
-function Spur({
+export type FahrzeugZeile = {
+  id: string;
+  plate: string;
+  typ: string;
+  fahrerNamen: string;
+  live: FahrzeugLiveStatus;
+};
+
+/** Kurzname für den Chip-Text, z. B. "J. Kramer" (DISPO-SPEZ.md Abschnitt 3.3). */
+function kurzname(vorname: string, nachname: string): string {
+  return `${vorname.charAt(0)}. ${nachname}`;
+}
+
+function SpurKompakt({
+  schicht,
+  fahrten,
+  ausgewaehlteId,
+  onKlick,
+}: {
+  schicht: { start: Date; end: Date } | null;
+  fahrten: FahrtMini[];
+  ausgewaehlteId: string | null;
+  onKlick?: (id: string) => void;
+}) {
+  return (
+    <div className="relative h-5 rounded-md bg-ground">
+      {schicht ? (
+        <div
+          className="absolute inset-y-0.5 rounded-sm bg-accent-soft"
+          style={{
+            left: `${zeitstrahlPosition(schicht.start)}%`,
+            width: `${zeitstrahlBreite(schicht.start, schicht.end)}%`,
+          }}
+        />
+      ) : null}
+      {fahrten.map((fahrt) => {
+        const stil = chipStil(fahrt.transportType, zustandFuerFahrt(fahrt));
+        return (
+          <button
+            key={fahrt.id}
+            type="button"
+            onClick={() => onKlick?.(fahrt.id)}
+            title={`${uhrzeit(fahrt.pickupAt)} ${fahrt.passenger.firstName} ${fahrt.passenger.lastName}`}
+            className={`absolute top-0.5 bottom-0.5 w-1.5 rounded-sm ${
+              istAlarmFahrt(fahrt) ? "ring-2 ring-danger-ink" : ausgewaehlteId === fahrt.id ? "ring-2 ring-ink" : ""
+            }`}
+            style={{ left: `${zeitstrahlPosition(fahrt.pickupAt)}%`, ...stil }}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+/** Zeile im Tages-Zeitstrahl: Chips sind so breit wie die geschätzte Fahrtdauer, mit Zeit und
+ * Kurzname (DISPO-SPEZ.md Abschnitt 3.3) – kein Text zur Transportart, die steckt in der Farbe. */
+function SpurTag({
   schicht,
   fahrten,
   jetztProzent,
-  kompakt,
   ausgewaehlteId,
   onKlick,
 }: {
   schicht: { start: Date; end: Date } | null;
   fahrten: FahrtMini[];
   jetztProzent: number | null;
-  kompakt: boolean;
   ausgewaehlteId: string | null;
   onKlick?: (id: string) => void;
 }) {
   return (
-    <div className={`relative rounded-md bg-ground ${kompakt ? "h-5" : "h-11"}`}>
+    <div className="relative h-14 rounded-md bg-ground">
       {schicht ? (
         <div
           className="absolute inset-y-0.5 rounded-sm bg-accent-soft"
@@ -121,21 +186,68 @@ function Spur({
       ) : null}
       {fahrten.map((fahrt) => {
         const stil = chipStil(fahrt.transportType, zustandFuerFahrt(fahrt));
+        const verspaetet = zustandFuerFahrt(fahrt) === "verspaetet";
         return (
           <button
             key={fahrt.id}
             type="button"
             onClick={() => onKlick?.(fahrt.id)}
-            title={`${uhrzeit(fahrt.pickupAt)} ${fahrt.passenger.firstName} ${fahrt.passenger.lastName} · ${
-              TRANSPORT_TYPE_LABEL[fahrt.transportType]
-            }`}
-            className={`absolute rounded-sm ${kompakt ? "top-0.5 bottom-0.5 w-1.5" : "top-1 bottom-1 w-9"} ${
+            title={`${uhrzeit(fahrt.pickupAt)}–${uhrzeit(fahrt.geplantesEnde)} ${fahrt.passenger.firstName} ${
+              fahrt.passenger.lastName
+            } · ${TRANSPORT_TYPE_LABEL[fahrt.transportType]}`}
+            className={`absolute top-1.5 bottom-1.5 flex flex-col justify-center overflow-hidden rounded-md px-2 text-left text-xs leading-tight ${
               istAlarmFahrt(fahrt) ? "ring-2 ring-danger-ink" : ausgewaehlteId === fahrt.id ? "ring-2 ring-ink" : ""
             }`}
-            style={{ left: `${zeitstrahlPosition(fahrt.pickupAt)}%`, ...stil }}
-          />
+            style={{
+              left: `${zeitstrahlPosition(fahrt.pickupAt)}%`,
+              width: `max(${zeitstrahlBreite(fahrt.pickupAt, fahrt.geplantesEnde)}%, 64px)`,
+              ...stil,
+            }}
+          >
+            <span className="flex items-center gap-1 font-mono text-[11px]">
+              {uhrzeit(fahrt.pickupAt)}
+              {verspaetet && fahrt.driverDelayMin ? (
+                <span className="rounded bg-warn-bg px-1 text-warn-ink">+{fahrt.driverDelayMin}</span>
+              ) : null}
+            </span>
+            <span className="truncate font-semibold">{kurzname(fahrt.passenger.firstName, fahrt.passenger.lastName)}</span>
+          </button>
         );
       })}
+    </div>
+  );
+}
+
+function Legende() {
+  const artZeile = TRANSPORT_TYPES.map((art) => (
+    <span key={art} className="inline-flex items-center gap-1.5">
+      <span className="inline-block h-3 w-4 rounded-sm" style={{ background: farbeFuerArt(art, "solid") }} />
+      {TRANSPORT_TYPE_LABEL[art]}
+    </span>
+  ));
+  const zustandZeile: { label: string; stil: ReturnType<typeof chipStil> }[] = [
+    { label: "erledigt", stil: chipStil("SITZEND", "erledigt") },
+    { label: "geplant", stil: chipStil("SITZEND", "geplant") },
+    { label: "unterwegs", stil: chipStil("SITZEND", "laeuft") },
+    { label: "verspätet", stil: chipStil("SITZEND", "verspaetet") },
+    { label: "Vorschlag, unbestätigt", stil: chipStil("SITZEND", "vorschlag") },
+  ];
+  return (
+    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-2xl border border-line bg-surface2 px-4 py-3 text-xs text-ink-soft">
+      <span className="flex flex-wrap items-center gap-3">
+        <strong className="text-ink">Transportart</strong>
+        {artZeile}
+      </span>
+      <span className="flex flex-wrap items-center gap-3">
+        <strong className="text-ink">Zustand</strong>
+        {zustandZeile.map((z) => (
+          <span key={z.label} className="inline-flex items-center gap-1.5">
+            <span className="inline-block h-3 w-4 rounded-sm" style={z.stil} />
+            {z.label}
+          </span>
+        ))}
+      </span>
+      <span className="ml-auto text-muted">Klick auf eine Fahrt zeigt alle Details.</span>
     </div>
   );
 }
@@ -143,12 +255,14 @@ function Spur({
 export function Zeitstrahl({
   fahrten,
   fahrer,
+  fahrzeugZeilen,
   fahrzeuge,
   datum,
   ansicht,
 }: {
   fahrten: FahrtMini[];
   fahrer: FahrerZeile[];
+  fahrzeugZeilen: FahrzeugZeile[];
   fahrzeuge: { id: string; plate: string }[];
   datum: string;
   ansicht: "tag" | "woche";
@@ -164,7 +278,7 @@ export function Zeitstrahl({
   }, []);
 
   const heuteIso = datumIso(new Date());
-  const nichtZugewiesen = useMemo(() => fahrten.filter((f) => !f.driverId), [fahrten]);
+  const nichtZugewiesen = useMemo(() => fahrten.filter((f) => !f.vehicleId), [fahrten]);
   const ausgewaehlteFahrt = fahrten.find((f) => f.id === ausgewaehlteId) ?? null;
 
   if (ansicht === "woche") {
@@ -199,7 +313,7 @@ export function Zeitstrahl({
 
           {nichtZugewiesen.length > 0 ? (
             <>
-              <div className="text-sm font-medium text-warn-ink">Nicht zugewiesen</div>
+              <div className="text-sm font-medium text-warn-ink">Braucht Sie</div>
               {tage.map((tag, index) => {
                 const tagesFahrten = fahrtenAmTag(null, tag);
                 return (
@@ -208,7 +322,7 @@ export function Zeitstrahl({
                     className={tagesFahrten.length > 0 ? "cursor-pointer" : ""}
                     onClick={() => tagesFahrten.length > 0 && zuTagWechseln(tag)}
                   >
-                    <Spur schicht={null} fahrten={tagesFahrten} jetztProzent={null} kompakt ausgewaehlteId={null} />
+                    <SpurKompakt schicht={null} fahrten={tagesFahrten} ausgewaehlteId={null} />
                   </div>
                 );
               })}
@@ -220,11 +334,9 @@ export function Zeitstrahl({
               <div className="text-sm text-ink">{zeile.name}</div>
               {tage.map((tag, index) => (
                 <div key={index} className="cursor-pointer" onClick={() => zuTagWechseln(tag)}>
-                  <Spur
+                  <SpurKompakt
                     schicht={schichtAmTag(zeile, tag)}
                     fahrten={fahrtenAmTag(zeile.id, tag)}
-                    jetztProzent={null}
-                    kompakt
                     ausgewaehlteId={null}
                   />
                 </div>
@@ -241,7 +353,7 @@ export function Zeitstrahl({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-[140px_minmax(0,1fr)] items-center gap-x-2 gap-y-2 rounded-2xl border border-line bg-surface p-4">
+      <div className="grid grid-cols-[230px_minmax(0,1fr)] items-center gap-x-2 gap-y-2 rounded-2xl border border-line bg-surface p-4">
         <div />
         <div className="relative h-5 text-xs text-muted">
           {STUNDEN_TICKS.map((stunde) => (
@@ -259,39 +371,54 @@ export function Zeitstrahl({
 
         {nichtZugewiesen.length > 0 ? (
           <>
-            <div className="text-sm font-medium text-warn-ink">Nicht zugewiesen</div>
-            <Spur
+            <div className="text-sm font-medium text-warn-ink">Braucht Sie</div>
+            <SpurTag
               schicht={null}
               fahrten={nichtZugewiesen}
               jetztProzent={jetztProzentHeute}
-              kompakt={false}
               ausgewaehlteId={ausgewaehlteId}
               onKlick={setAusgewaehlteId}
             />
           </>
         ) : null}
 
-        {fahrer.map((zeile) => (
+        {fahrzeugZeilen.map((zeile) => (
           <Fragment key={zeile.id}>
-            <div>
-              <p className="text-sm text-ink">{zeile.name}</p>
-              {zeile.schichten[0] ? (
-                <p className="text-xs text-muted">{zeile.schichten[0].plate}</p>
-              ) : (
-                <p className="text-xs text-muted">Keine Schicht</p>
-              )}
+            <div title={`${zeile.plate} · ${zeile.typ} · ${zeile.fahrerNamen || "ohne Fahrer"}`}>
+              <div className="flex items-center gap-2">
+                <p className="font-semibold text-ink">{zeile.plate}</p>
+                {zeile.fahrerNamen ? (
+                  <span className="truncate rounded bg-accent-soft px-1.5 py-0.5 text-xs font-medium text-ink-soft">
+                    {zeile.fahrerNamen}
+                  </span>
+                ) : null}
+              </div>
+              <p className="mt-0.5 flex items-center gap-1.5 text-xs">
+                <span
+                  className="inline-block h-2 w-2 rounded-full"
+                  style={{ background: LIVE_PUNKT_FARBE[zeile.live.punkt] }}
+                />
+                <span
+                  className="font-medium"
+                  style={{ color: zeile.live.punkt === "late" ? "var(--live-late-text)" : "var(--color-ink)" }}
+                >
+                  {zeile.live.label}
+                </span>
+                <span className="truncate text-muted">· {zeile.live.zusatz}</span>
+              </p>
             </div>
-            <Spur
-              schicht={zeile.schichten[0] ? { start: zeile.schichten[0].start, end: zeile.schichten[0].end } : null}
-              fahrten={fahrten.filter((f) => f.driverId === zeile.id)}
+            <SpurTag
+              schicht={null}
+              fahrten={fahrten.filter((f) => f.vehicleId === zeile.id)}
               jetztProzent={jetztProzentHeute}
-              kompakt={false}
               ausgewaehlteId={ausgewaehlteId}
               onKlick={setAusgewaehlteId}
             />
           </Fragment>
         ))}
       </div>
+
+      <Legende />
 
       {ausgewaehlteFahrt ? (
         <div className="rounded-2xl border border-line-strong bg-surface p-4">

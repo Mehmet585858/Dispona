@@ -20,7 +20,7 @@ import { berlinerMitternacht, datumIso, montagVerschieben, wochenStart } from "@
 import { FahrgastAuswahl } from "./FahrgastAuswahl";
 import { OrtAuswahl } from "./OrtAuswahl";
 import { fahrtAnlegen, serieAnlegen } from "./actions";
-import { Zeitstrahl, type FahrerZeile, type FahrtMini } from "./Zeitstrahl";
+import { Zeitstrahl, type FahrerZeile, type FahrtMini, type FahrzeugZeile } from "./Zeitstrahl";
 
 const AKTUALISIERUNG_MS = 10_000;
 
@@ -60,6 +60,7 @@ const LEER: FahrtEingabe = {
 export function FahrtenClient({
   fahrten,
   fahrer,
+  fahrzeugZeilen,
   karte,
   orte,
   fahrzeuge,
@@ -68,6 +69,7 @@ export function FahrtenClient({
 }: {
   fahrten: Fahrt[];
   fahrer: FahrerZeile[];
+  fahrzeugZeilen: FahrzeugZeile[];
   karte: KartenDaten | null;
   orte: Ort[];
   fahrzeuge: Fahrzeug[];
@@ -446,14 +448,21 @@ export function FahrtenClient({
         </div>
       ) : null}
 
-      {fahrten.length === 0 && fahrer.length === 0 ? (
+      {fahrten.length === 0 && (ansicht === "tag" ? fahrzeugZeilen.length === 0 : fahrer.length === 0) ? (
         <Card>
           <p className="text-sm text-muted">
             {ansicht === "woche" ? "Keine Fahrten in dieser Woche." : "Keine Fahrten an diesem Tag."}
           </p>
         </Card>
       ) : (
-        <Zeitstrahl fahrten={fahrten} fahrer={fahrer} fahrzeuge={fahrzeuge} datum={datum} ansicht={ansicht} />
+        <Zeitstrahl
+          fahrten={fahrten}
+          fahrer={fahrer}
+          fahrzeugZeilen={fahrzeugZeilen}
+          fahrzeuge={fahrzeuge}
+          datum={datum}
+          ansicht={ansicht}
+        />
       )}
     </div>
   );

@@ -11,8 +11,23 @@ import { fahrtStornieren as fahrtStornierenKern } from "@/core/rides/stornieren"
 import { fahrzeugZuweisen } from "@/core/disposition/zuweisen";
 import { fahrgaesteAehnlicheNamen, telefonNormalisieren } from "@/core/passengers/suche";
 import { berlinerMitternacht, datumIso, wochenStart } from "@/core/shifts/week";
+import { geplantesEnde } from "@/core/shifts/dauer";
+import { fahrzeugLiveStatus, type FahrtFuerLiveStatus } from "@/core/shifts/liveStatus";
 import { routingProvider, GEOCODE_SICHER_SCHWELLE } from "@/providers/routing";
 import type { RideStatus } from "@/generated/prisma/enums";
+
+function nachname(vollerName: string): string {
+  const teile = vollerName.trim().split(/\s+/);
+  return teile[teile.length - 1] ?? vollerName;
+}
+
+/** Höchste Fähigkeit zuerst (core/disposition/kandidaten.ts kennt dieselbe Reihenfolge). */
+function fahrzeugTypLabel(fahrzeug: { stretcher: boolean; carryChair: boolean; wheelchairSpots: number }): string {
+  if (fahrzeug.stretcher) return "Liegewagen";
+  if (fahrzeug.carryChair) return "Tragestuhl";
+  if (fahrzeug.wheelchairSpots > 0) return "Rollstuhl";
+  return "Taxi";
+}
 
 async function fahrtenImZeitraumLaden(tenantId: string, von: Date, bis: Date) {
   const db = withTenant(tenantId);
@@ -21,8 +36,8 @@ async function fahrtenImZeitraumLaden(tenantId: string, von: Date, bis: Date) {
     where: { pickupAt: { gte: von, lt: bis } },
     include: {
       passenger: { select: { firstName: true, lastName: true } },
-      pickupPlace: { select: { label: true } },
-      dropoffPlace: { select: { label: true } },
+      pickupPlace: { select: { label: true, lat: true, lng: true } },
+      dropoffPlace: { select: { label: true, lat: true, lng: true } },
       vehicle: { select: { plate: true } },
       suggestions: { where: { decision: "OFFEN" }, orderBy: { createdAt: "desc" }, take: 1 },
     },
@@ -34,6 +49,7 @@ async function fahrtenImZeitraumLaden(tenantId: string, von: Date, bis: Date) {
   return fahrtenRoh.map((fahrt) => ({
     ...fahrt,
     fahrerName: fahrt.driverId ? (fahrerNachId.get(fahrt.driverId) ?? null) : null,
+    geplantesEnde: geplantesEnde(fahrt.pickupAt, fahrt.transportType, fahrt.pickupPlace, fahrt.dropoffPlace),
   }));
 }
 
@@ -63,7 +79,7 @@ export async function fahrplanLaden(datumFilter: string | undefined, ansicht: "t
   });
   const schichtenRoh = await db.shift.findMany({
     where: { start: { lt: bis }, end: { gt: von } },
-    select: { driverId: true, start: true, end: true, vehicle: { select: { plate: true } } },
+    select: { driverId: true, vehicleId: true, start: true, end: true, vehicle: { select: { plate: true } } },
     orderBy: { start: "asc" },
   });
   const settings = await db.tenantSettings.findUnique({ where: { tenantId } });
@@ -76,6 +92,7 @@ export async function fahrplanLaden(datumFilter: string | undefined, ansicht: "t
     select: { vehicleId: true, lat: true, lng: true },
   });
   const positionNachFahrzeug = new Map(letztePositionen.map((p) => [p.vehicleId, p]));
+  const fahrerNameNachId = new Map(fahrerRoh.map((f) => [f.id, f.user.name]));
 
   const fahrer = fahrerRoh.map((f) => ({
     id: f.id,
@@ -85,9 +102,48 @@ export async function fahrplanLaden(datumFilter: string | undefined, ansicht: "t
       .map((s) => ({ start: s.start, end: s.end, plate: s.vehicle.plate })),
   }));
 
+  // Zeilen je Fahrzeug für den Tages-Zeitstrahl (DISPO-SPEZ.md Abschnitt 3.3) – nur für die
+  // Tagesansicht gebraucht, die Wochenansicht bleibt bei Zeilen je Fahrer (noch nicht V1, siehe
+  // DISPO-SPEZ.md Abschnitt 3.10).
+  const jetzt = new Date();
+  const fahrzeugZeilen =
+    ansicht === "tag"
+      ? fahrzeugeAktiv.map((v) => {
+          const fahrerNamenHeute = [
+            ...new Set(
+              schichtenRoh
+                .filter((s) => s.vehicleId === v.id)
+                .map((s) => fahrerNameNachId.get(s.driverId))
+                .filter((name): name is string => !!name),
+            ),
+          ];
+          const fahrtenDesFahrzeugs = fahrten.filter((f) => f.vehicleId === v.id);
+          return {
+            id: v.id,
+            plate: v.plate,
+            typ: fahrzeugTypLabel(v),
+            fahrerNamen: fahrerNamenHeute.map(nachname).join(" · "),
+            live: fahrzeugLiveStatus(
+              fahrtenDesFahrzeugs.map(
+                (f): FahrtFuerLiveStatus => ({
+                  status: f.status,
+                  pickupAt: f.pickupAt,
+                  geplantesEnde: f.geplantesEnde,
+                  completedAt: f.completedAt,
+                  driverDelayMin: f.driverDelayMin,
+                  passagierName: `${f.passenger.firstName.charAt(0)}. ${f.passenger.lastName}`,
+                }),
+              ),
+              jetzt,
+            ),
+          };
+        })
+      : [];
+
   return {
     fahrten,
     fahrer,
+    fahrzeugZeilen,
     montagIso: datumIso(montag),
     karte: settings
       ? {

@@ -80,6 +80,14 @@
   --transport-sitzend-tint: #e8f0ea;
   --transport-sitzend-faint: #f5f9f6;
   --transport-sitzend-ink: #2f4a36;
+
+  /* Live-Status-Punkt eines Fahrzeugs in der Fahrzeugspalte (DISPO-SPEZ.md Abschnitt 4.3). */
+  --live-go: #c8a15a;
+  --live-in: #5873a8;
+  --live-at: #5e8c6a;
+  --live-free: #b4bcc6;
+  --live-late: #d97706;
+  --live-late-text: #9a4a0a;
 }
 
 body {

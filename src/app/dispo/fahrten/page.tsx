@@ -22,6 +22,7 @@ export default async function FahrtenPage({
     <FahrtenClient
       fahrten={fahrplan.fahrten}
       fahrer={fahrplan.fahrer}
+      fahrzeugZeilen={fahrplan.fahrzeugZeilen}
       karte={fahrplan.karte}
       orte={orte}
       fahrzeuge={fahrzeuge}
