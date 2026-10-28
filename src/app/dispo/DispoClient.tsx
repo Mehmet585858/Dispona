@@ -61,6 +61,7 @@ type LiveAnruf = {
     dropoffPlace: { label: string };
     vehicle: { plate: string } | null;
   } | null;
+  bekannterFahrgast: { name: string; anzahlFahrten: number } | null;
 };
 
 const LEER: FahrtEingabe = {
@@ -150,7 +151,17 @@ function BrauchtSieKarte({
   );
 }
 
-function AnrufKarte({ anruf }: { anruf: LiveAnruf }) {
+function AnrufKarte({
+  anruf,
+  index,
+  gesamt,
+  onFahrtKlick,
+}: {
+  anruf: LiveAnruf;
+  index: number;
+  gesamt: number;
+  onFahrtKlick: (id: string) => void;
+}) {
   const [transkript, setTranskript] = useState<string | null | undefined>(undefined);
 
   useEffect(() => {
@@ -168,17 +179,22 @@ function AnrufKarte({ anruf }: { anruf: LiveAnruf }) {
   }, [anruf.id]);
 
   return (
-    <Card className="flex flex-col gap-3 border-line-strong">
+    <Card className="flex min-h-[22rem] flex-col gap-3 border-line-strong">
       <div className="flex items-center gap-2">
         <span className="h-2.5 w-2.5 rounded-full bg-accent" />
         <b className="text-ink">Anruf läuft</b>
+        {gesamt > 1 ? (
+          <span className="rounded-full bg-ground px-2 py-0.5 text-xs font-medium text-muted">
+            {index + 1} von {gesamt}
+          </span>
+        ) : null}
         <span className="ml-auto font-mono text-sm text-muted">seit {minutenSeit(anruf.startedAt)} Min.</span>
       </div>
       {anruf.fromNumber ? <p className="text-sm text-muted">{anruf.fromNumber}</p> : null}
 
-      <div>
+      <div className="flex-1">
         <p className="mb-1 text-xs font-medium text-muted">Transkript</p>
-        <div className="max-h-40 overflow-y-auto rounded-xl bg-surface2 p-3">
+        <div className="max-h-64 overflow-y-auto rounded-xl bg-surface2 p-3">
           {transkript === undefined ? (
             <p className="text-sm text-muted">Lädt …</p>
           ) : transkript ? (
@@ -192,7 +208,11 @@ function AnrufKarte({ anruf }: { anruf: LiveAnruf }) {
       </div>
 
       {anruf.fahrt ? (
-        <div className="grid grid-cols-2 gap-2 border-t border-line pt-2.5 text-sm">
+        <button
+          type="button"
+          onClick={() => onFahrtKlick(anruf.fahrt!.id)}
+          className="grid grid-cols-2 gap-2 rounded-xl border-t border-line pt-2.5 text-left text-sm hover:bg-accent-soft"
+        >
           <div>
             <p className="text-xs text-muted">Fahrgast</p>
             <p className="text-ink">
@@ -217,6 +237,19 @@ function AnrufKarte({ anruf }: { anruf: LiveAnruf }) {
               <p className="font-medium text-ink">{anruf.fahrt.vehicle.plate}</p>
             </div>
           ) : null}
+          <p className="col-span-2 text-xs text-accent">Details öffnen →</p>
+        </button>
+      ) : anruf.bekannterFahrgast ? (
+        <div className="border-t border-line pt-2.5 text-sm">
+          <p className="text-xs text-muted">Nummer bekannt von</p>
+          <p className="text-ink">
+            {anruf.bekannterFahrgast.name}
+            <span className="text-muted">
+              {" "}
+              · {anruf.bekannterFahrgast.anzahlFahrten}{" "}
+              {anruf.bekannterFahrgast.anzahlFahrten === 1 ? "Fahrt bisher" : "Fahrten bisher"}
+            </span>
+          </p>
         </div>
       ) : (
         <p className="text-sm text-muted">Details erscheinen hier, sobald Dispona sie aus dem Gespräch erkannt hat.</p>
@@ -503,7 +536,15 @@ export function DispoClient({
           {paket === "PRO" ? (
             <>
               {liveAnrufe.length > 0 ? (
-                liveAnrufe.map((anruf) => <AnrufKarte key={anruf.id} anruf={anruf} />)
+                liveAnrufe.map((anruf, index) => (
+                  <AnrufKarte
+                    key={anruf.id}
+                    anruf={anruf}
+                    index={index}
+                    gesamt={liveAnrufe.length}
+                    onFahrtKlick={setOffeneFahrtId}
+                  />
+                ))
               ) : (
                 <AnrufWarteKarte anrufeHeute={kennzahlen.anrufeHeute} />
               )}

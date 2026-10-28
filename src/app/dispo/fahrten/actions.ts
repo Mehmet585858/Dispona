@@ -39,9 +39,8 @@ function fahrzeugTypLabel(fahrzeug: { stretcher: boolean; carryChair: boolean; w
   return "Taxi";
 }
 
-async function fahrtenImZeitraumLaden(tenantId: string, von: Date, bis: Date) {
+async function fahrtenImZeitraumLaden(tenantId: string, von: Date, bis: Date, fahrerNameNachId: Map<string, string>) {
   const db = withTenant(tenantId);
-  // Nacheinander statt mit Promise.all, siehe fahrplanLaden weiter unten.
   const fahrtenRoh = await db.ride.findMany({
     where: { pickupAt: { gte: von, lt: bis } },
     include: {
@@ -53,12 +52,10 @@ async function fahrtenImZeitraumLaden(tenantId: string, von: Date, bis: Date) {
     },
     orderBy: { pickupAt: "asc" },
   });
-  const fahrer = await db.driver.findMany({ select: { id: true, user: { select: { name: true } } } });
 
-  const fahrerNachId = new Map(fahrer.map((f) => [f.id, f.user.name]));
   return fahrtenRoh.map((fahrt) => ({
     ...fahrt,
-    fahrerName: fahrt.driverId ? (fahrerNachId.get(fahrt.driverId) ?? null) : null,
+    fahrerName: fahrt.driverId ? (fahrerNameNachId.get(fahrt.driverId) ?? null) : null,
     geplantesEnde: geplantesEnde(fahrt.pickupAt, fahrt.transportType, fahrt.pickupPlace, fahrt.dropoffPlace),
   }));
 }
@@ -82,11 +79,12 @@ export async function fahrplanLaden(datumFilter: string | undefined, ansicht: "t
   // Nacheinander statt mit Promise.all: die lokale Entwicklungsdatenbank (npx prisma dev)
   // verträgt viele gleichzeitige Abfragen auf einer Seite schlecht (siehe src/lib/prisma.ts).
   // Diese Seite lädt ohnehin selten genug, dass die paar zusätzlichen Millisekunden nicht auffallen.
-  const fahrten = await fahrtenImZeitraumLaden(tenantId, von, bis);
   const fahrerRoh = await db.driver.findMany({
     select: { id: true, user: { select: { name: true } } },
     orderBy: { user: { name: "asc" } },
   });
+  const fahrerNameNachId = new Map(fahrerRoh.map((f) => [f.id, f.user.name]));
+  const fahrten = await fahrtenImZeitraumLaden(tenantId, von, bis, fahrerNameNachId);
   const schichtenRoh = await db.shift.findMany({
     where: { start: { lt: bis }, end: { gt: von } },
     select: { driverId: true, vehicleId: true, start: true, end: true, vehicle: { select: { plate: true } } },
@@ -103,7 +101,6 @@ export async function fahrplanLaden(datumFilter: string | undefined, ansicht: "t
     select: { vehicleId: true, lat: true, lng: true },
   });
   const positionNachFahrzeug = new Map(letztePositionen.map((p) => [p.vehicleId, p]));
-  const fahrerNameNachId = new Map(fahrerRoh.map((f) => [f.id, f.user.name]));
 
   const fahrer = fahrerRoh.map((f) => ({
     id: f.id,
@@ -167,6 +164,7 @@ export async function fahrplanLaden(datumFilter: string | undefined, ansicht: "t
       dropoffPlace: { label: string };
       vehicle: { plate: string } | null;
     } | null;
+    bekannterFahrgast: { name: string; anzahlFahrten: number } | null;
   }[] = [];
   let anrufeHeute = 0;
 
@@ -235,8 +233,38 @@ export async function fahrplanLaden(datumFilter: string | undefined, ansicht: "t
         },
       },
     });
+    // Solange die KI noch keine Fahrt erfasst hat, dem Disponenten trotzdem zeigen, ob die
+    // Nummer zu einem bekannten Fahrgast passt (erspart das manuelle Nachschlagen während des
+    // Gesprächs).
+    const nummernOhneFahrt = [
+      ...new Set(
+        liveAnrufeRoh
+          .filter((a) => a.rides.length === 0 && a.fromNumber)
+          .map((a) => telefonNormalisieren(a.fromNumber as string)),
+      ),
+    ];
+    const bekannteFahrgaeste =
+      nummernOhneFahrt.length > 0
+        ? await db.passenger.findMany({
+            where: { phones: { hasSome: nummernOhneFahrt } },
+            select: { id: true, firstName: true, lastName: true, phones: true },
+          })
+        : [];
+    const fahrgastNachNummer = new Map<string, (typeof bekannteFahrgaeste)[number]>();
+    for (const fg of bekannteFahrgaeste) {
+      for (const nummer of fg.phones) {
+        if (nummernOhneFahrt.includes(nummer)) fahrgastNachNummer.set(nummer, fg);
+      }
+    }
+    const anzahlFahrtenNachFahrgastId = new Map<string, number>();
+    for (const fg of bekannteFahrgaeste) {
+      anzahlFahrtenNachFahrgastId.set(fg.id, await db.ride.count({ where: { passengerId: fg.id } }));
+    }
+
     liveAnrufe = liveAnrufeRoh.map((anruf) => {
       const fahrt = anruf.rides[0];
+      const bekannterFahrgast =
+        !fahrt && anruf.fromNumber ? fahrgastNachNummer.get(telefonNormalisieren(anruf.fromNumber)) : undefined;
       return {
         id: anruf.id,
         startedAt: anruf.startedAt,
@@ -250,6 +278,12 @@ export async function fahrplanLaden(datumFilter: string | undefined, ansicht: "t
               pickupPlace: fahrt.pickupPlace,
               dropoffPlace: fahrt.dropoffPlace,
               vehicle: fahrt.vehicle,
+            }
+          : null,
+        bekannterFahrgast: bekannterFahrgast
+          ? {
+              name: `${bekannterFahrgast.firstName} ${bekannterFahrgast.lastName}`,
+              anzahlFahrten: anzahlFahrtenNachFahrgastId.get(bekannterFahrgast.id) ?? 0,
             }
           : null,
       };
