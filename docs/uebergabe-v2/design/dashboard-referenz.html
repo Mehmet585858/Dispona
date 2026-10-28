@@ -1,0 +1,499 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dispona Dashboard – Referenz</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+/*
+  DISPONA – DASHBOARD-REFERENZ (Design „Farbe 1 · Gedämpft“)
+  Klickbares Mockup mit Beispieldaten. Aufbau, Farben, Texte und Verhalten sind verbindlich,
+  die Technik (Vanilla-JS, ein File) nicht. Siehe docs/DISPO-SPEZ.md.
+*/
+:root{
+  --bg:#F5F6F8; --surf:#FFFFFF; --surf2:#FAFAFB; --seg:#F1F3F5;
+  --line:#E3E6EA; --line2:#EEF0F3; --grid:#F2F3F5;
+  --ink:#1F2933; --ink2:#3E4A56; --mute:#5F6B77;
+  --chip-bg:#EEF1F4; --chip-fg:#3E4A56;
+  --acc:#334155; --acc-fg:#FFFFFF; --acc-hover:#1E293B;
+  --now:#C2410C;
+  --warn-bg:#FBF3EA; --warn-bd:#EED3B4; --warn-fg:#8A4B12;
+  --late-ring:#D97706; --late-badge:#F3D9B8; --late-badge-fg:#5C2E05;
+  --ok-bg:#EEF3EF; --ok-fg:#2F4A36; --ok-dot:#5E8C6A;
+  --danger:#B42318; --hl:#F7F7FA; --overlay:rgba(31,41,51,.4);
+  --call-bd:#CBD2DA; --bubble-in:#F1F3F5; --bubble-out:#E7EAF0; --bubble-out-fg:#334155;
+  /* Transportart: main / solid / tint / faint / ink */
+  --L-main:#8B7FB8; --L-solid:#5B4F8F; --L-tint:#ECE9F5; --L-faint:#F7F6FB; --L-ink:#3D3466;
+  --T-main:#6D97A3; --T-solid:#3E6C78; --T-tint:#E4EEF1; --T-faint:#F4F8F9; --T-ink:#24434B;
+  --R-main:#7D96C2; --R-solid:#4A6597; --R-tint:#E7ECF5; --R-faint:#F5F7FB; --R-ink:#263C5E;
+  --S-main:#8CA894; --S-solid:#4E7559; --S-tint:#E8F0EA; --S-faint:#F5F9F6; --S-ink:#2F4A36;
+  /* Live-Status Fahrzeug */
+  --st-go:#C8A15A; --st-in:#5873A8; --st-at:#5E8C6A; --st-free:#B4BCC6; --st-late:#D97706; --st-late-text:#9A4A0A;
+  --sans:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.45}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+[hidden]{display:none!important}
+.mono{font-family:var(--mono)}
+
+/* Referenz-Leiste (gehört NICHT zum Produkt) */
+.refbar{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;padding:8px 24px;background:#FFF8E6;border-bottom:1px dashed #E9C877;font-size:13px;color:#5C4510}
+.refbar .seg{background:#F7EBCB}
+
+/* Kopfzeile */
+.top{display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:14px 24px;background:var(--surf);border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;margin-right:8px;color:var(--ink)}
+.seg{display:flex;align-items:center;gap:4px;background:var(--seg);border-radius:10px;padding:4px}
+.seg button{height:36px;padding:0 12px;border:0;border-radius:8px;background:transparent;color:var(--ink2)}
+.seg button[aria-pressed="true"],.seg .on{background:var(--surf);color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.seg .icon{width:36px;padding:0;font-size:16px}
+.date{padding:0 10px;font-weight:600}
+.search{flex:1 1 260px;display:flex;align-items:center;gap:8px;height:44px;padding:0 14px;border:1px solid var(--line);border-radius:10px;background:var(--surf);color:var(--mute)}
+.search input{flex:1;border:0;outline:0;font:inherit;color:var(--ink);background:transparent;min-width:0}
+.live{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 14px;border-radius:999px;background:var(--chip-bg);color:var(--acc);font-weight:600}
+.dot{width:8px;height:8px;border-radius:50%;flex:none;display:inline-block}
+.btn{height:44px;padding:0 18px;border-radius:10px;border:1px solid var(--line);background:var(--surf);color:var(--ink);font-weight:600}
+.btn-primary{background:var(--acc);border-color:var(--acc);color:var(--acc-fg)}
+.btn-primary:hover{background:var(--acc-hover)}
+.btn-sm{height:36px;padding:0 12px;font-size:13px}
+.btn-danger{border:0;background:transparent;color:var(--danger)}
+
+/* Kennzahlen */
+.kpis{display:flex;flex-wrap:wrap;gap:12px;padding:16px 24px}
+.kpi{flex:1 1 150px;background:var(--surf);border:1px solid var(--line);border-radius:12px;padding:12px 16px}
+.kpi small{display:block;font-size:12px;color:var(--mute)}
+.kpi b{font-size:24px;font-variant-numeric:tabular-nums}
+.kpi span{font-size:13px;color:var(--mute)}
+.kpi.warn{background:var(--warn-bg);border-color:var(--warn-bd)}
+.kpi.warn small,.kpi.warn b{color:var(--warn-fg)}
+
+/* Hauptbereich */
+.main{display:flex;flex-wrap:wrap;gap:16px;padding:0 24px 24px}
+.board{flex:999 1 640px;min-width:0;background:var(--surf);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.board-head{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line)}
+.board-head b{margin-right:auto}
+.board-head span{font-size:13px;color:var(--ink2)}
+.scroll{overflow-x:auto}
+.tl{min-width:900px}
+.scale{display:flex;height:32px;border-bottom:1px solid var(--line);background:var(--surf2)}
+.vcol{width:230px;flex:none;box-sizing:border-box;padding:0 14px}
+.scale .vcol{display:flex;align-items:center;font-size:12px;color:var(--mute)}
+.hours{position:relative;flex:1}
+.hours span{position:absolute;top:8px;transform:translateX(-50%);font-family:var(--mono);font-size:12px;color:var(--mute)}
+.lane{display:flex;height:58px;border-bottom:1px solid var(--line2)}
+.lane.hl{background:var(--hl)}
+.lane .vcol{display:flex;flex-direction:column;justify-content:center;gap:3px;border-right:1px solid var(--line2)}
+.vname{display:flex;align-items:center;gap:8px;min-width:0}
+.vname b{white-space:nowrap}
+.tag{font-size:11px;font-weight:600;padding:2px 6px;border-radius:6px;background:var(--chip-bg);color:var(--chip-fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vstat{display:flex;align-items:center;gap:6px;font-size:12px;white-space:nowrap;overflow:hidden}
+.vstat b{font-weight:600}
+.vstat i{font-style:normal;color:var(--mute);overflow:hidden;text-overflow:ellipsis}
+.track{position:relative;flex:1;background-image:linear-gradient(to right,var(--grid) 1px,transparent 1px);background-size:12.5% 100%}
+.trip{position:absolute;top:7px;height:44px;margin:0;border-radius:8px;padding:3px 6px;overflow:hidden;white-space:nowrap;text-align:left;font-size:12px;line-height:16px}
+.trip .t{display:flex;align-items:center;gap:4px}
+.trip .t span:first-child{font-family:var(--mono);font-size:11px}
+.trip .n{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis}
+.badge{margin-left:auto;font-size:10px;font-weight:700;line-height:14px;padding:0 4px;border-radius:4px}
+.nowline{position:absolute;top:0;bottom:0;width:2px;background:var(--now);pointer-events:none}
+.legend{display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px;padding:10px 16px;background:var(--surf2);border-top:1px solid var(--line2);font-size:12px;color:var(--ink2)}
+.legend .grp{display:inline-flex;flex-wrap:wrap;align-items:center;gap:6px 12px}
+.legend strong{color:var(--ink)}
+.sw{width:16px;height:11px;border-radius:3px;display:inline-block;box-sizing:border-box;vertical-align:-1px;margin-right:5px}
+.legend .hint{margin-left:auto}
+
+/* Lite: Anfragenliste */
+.list{width:100%;min-width:720px;border-collapse:collapse}
+.list th{background:var(--surf2);font-size:12px;color:var(--mute);font-weight:600;text-align:left;padding:10px 14px}
+.list td{padding:12px 14px;border-top:1px solid var(--line2);vertical-align:middle}
+.list .who{display:flex;align-items:center;gap:8px;font-weight:600}
+.sq{width:10px;height:10px;border-radius:3px;flex:none}
+.pill{display:inline-block;font-size:12px;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap}
+.pill.new{background:var(--warn-bg);color:var(--warn-fg)}
+.pill.ok{background:var(--chip-bg);color:var(--chip-fg)}
+
+/* Seitenpanel */
+.side{flex:1 1 340px;max-width:420px;display:flex;flex-direction:column;gap:16px}
+.card{background:var(--surf);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.call{border:1.5px solid var(--call-bd);border-radius:16px;gap:14px}
+.call-head{display:flex;align-items:center;gap:10px}
+.call-head b{font-size:16px}
+.call-head .mono{margin-left:auto;color:var(--mute)}
+.sub{font-size:13px;color:var(--mute)}
+.bubbles{display:flex;flex-direction:column;gap:8px;font-size:13px}
+.bub{max-width:88%;padding:8px 10px}
+.bub.in{align-self:flex-start;background:var(--bubble-in);border-radius:10px 10px 10px 2px}
+.bub.out{align-self:flex-end;background:var(--bubble-out);color:var(--bubble-out-fg);border-radius:10px 10px 2px 10px}
+.fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 12px;font-size:13px;border-top:1px solid var(--line2);padding-top:12px}
+.fields small{display:block;font-size:12px;color:var(--mute)}
+.result{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;padding:10px 12px;border-radius:10px;background:var(--ok-bg);color:var(--ok-fg)}
+.result b{flex:1 1 180px}
+.result .btn{border-color:#C9DCCD}
+.card h2{margin:0;font-size:15px}
+.card-head{display:flex;align-items:center;justify-content:space-between}
+.count{font-size:12px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--warn-bg);color:var(--warn-fg)}
+.need{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;border:1px solid var(--warn-bd);background:var(--surf);border-radius:10px;padding:10px 12px}
+.need div{flex:1 1 160px;min-width:0}
+.need .btn{flex:none}
+.need .why{font-size:12px;color:var(--warn-fg)}
+
+/* Modal */
+.overlay{position:fixed;inset:0;background:var(--overlay);z-index:20;display:flex;align-items:flex-start;justify-content:center;padding:80px 16px 16px;overflow:auto}
+.modal{width:620px;max-width:100%;background:var(--surf);border-radius:18px;box-shadow:0 24px 60px rgba(0,0,0,.3);overflow:hidden}
+.m-head{display:flex;align-items:flex-start;gap:14px;padding:18px 20px;border-bottom:1px solid var(--line2)}
+.m-head h2{margin:4px 0 2px;font-size:22px}
+.m-tags{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.m-tags .pill{font-size:12px}
+.x{width:40px;height:40px;border:1px solid var(--line);border-radius:10px;background:var(--surf);font-size:18px;flex:none}
+.m-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 18px;padding:16px 20px}
+.m-grid small{display:block;font-size:12px;color:var(--mute)}
+.steps{display:flex;gap:6px;padding:0 20px 16px}
+.steps div{flex:1;display:flex;flex-direction:column;gap:6px;font-size:12px}
+.steps i{height:6px;border-radius:3px;display:block}
+.note{margin:0 20px 16px;padding:12px 14px;border-radius:12px;background:var(--surf2);font-size:13px;display:flex;flex-direction:column;gap:6px}
+.m-foot{display:flex;flex-wrap:wrap;gap:8px;padding:14px 20px;border-top:1px solid var(--line2);background:var(--surf2)}
+.m-foot .btn-danger{margin-left:auto}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 18px;border-radius:12px;z-index:30;font-weight:600;max-width:calc(100% - 32px)}
+@media (max-width:640px){.top,.kpis,.main,.refbar{padding-left:16px;padding-right:16px}.m-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="wordmark" viewBox="-60 -841 4283 1135"><g fill="currentColor"><path d="M338 4Q260 4 197.5 -32.5Q135 -69 98.5 -132.0Q62 -195 62 -274Q62 -353 95.5 -415.5Q129 -478 187.0 -514.5Q245 -551 318 -551Q377 -551 427.0 -526.5Q477 -502 511 -460V-730Q511 -753 525.5 -767.0Q540 -781 562 -781Q585 -781 599.0 -767.0Q613 -753 613 -730V-274Q613 -195 576.5 -132.0Q540 -69 478.0 -32.5Q416 4 338 4ZM338 -86Q389 -86 429.0 -110.5Q469 -135 492.0 -178.0Q515 -221 515 -274Q515 -328 492.0 -370.0Q469 -412 429.0 -436.5Q389 -461 338 -461Q288 -461 247.5 -436.5Q207 -412 183.5 -370.0Q160 -328 160 -274Q160 -221 183.5 -178.0Q207 -135 247.5 -110.5Q288 -86 338 -86Z"/><path d="M834.0 0Q812.0 0 797.5 -14.5Q783.0 -29 783.0 -51V-496Q783.0 -519 797.5 -533.0Q812.0 -547 834.0 -547Q857.0 -547 871.0 -533.0Q885.0 -519 885.0 -496V-51Q885.0 -29 871.0 -14.5Q857.0 0 834.0 0ZM834.0 -636Q807.0 -636 787.5 -655.5Q768.0 -675 768.0 -702Q768.0 -729 787.5 -748.5Q807.0 -768 834.0 -768Q861.0 -768 880.5 -748.5Q900.0 -729 900.0 -702Q900.0 -675 880.5 -655.5Q861.0 -636 834.0 -636Z"/><path d="M1254.0 4Q1184.0 4 1124.5 -17.5Q1065.0 -39 1032.0 -72Q1017.0 -88 1019.5 -108.5Q1022.0 -129 1039.0 -142Q1059.0 -158 1078.5 -155.5Q1098.0 -153 1112.0 -138Q1129.0 -119 1166.5 -102.5Q1204.0 -86 1250.0 -86Q1308.0 -86 1338.5 -105.0Q1369.0 -124 1370.0 -154Q1371.0 -184 1341.5 -206.0Q1312.0 -228 1234.0 -242Q1133.0 -262 1087.5 -302.0Q1042.0 -342 1042.0 -400Q1042.0 -451 1072.0 -484.5Q1102.0 -518 1149.0 -534.5Q1196.0 -551 1247.0 -551Q1313.0 -551 1364.0 -530.0Q1415.0 -509 1445.0 -472Q1459.0 -456 1458.0 -438.5Q1457.0 -421 1441.0 -409Q1425.0 -398 1403.0 -402.0Q1381.0 -406 1366.0 -420Q1341.0 -444 1312.0 -453.0Q1283.0 -462 1245.0 -462Q1201.0 -462 1170.5 -447.0Q1140.0 -432 1140.0 -403Q1140.0 -385 1149.5 -370.5Q1159.0 -356 1187.0 -344.5Q1215.0 -333 1269.0 -322Q1344.0 -307 1387.5 -284.0Q1431.0 -261 1450.0 -230.5Q1469.0 -200 1469.0 -160Q1469.0 -114 1444.5 -77.0Q1420.0 -40 1372.5 -18.0Q1325.0 4 1254.0 4Z"/><path d="M1629.0 234Q1607.0 234 1592.5 219.5Q1578.0 205 1578.0 183V-273Q1578.9915966386554 -351.8509090909091 1615.18487394958 -415.03272727272724Q1651.3781512605042 -478.21454545454543 1713.3529411764707 -514.6072727272727Q1775.327731092437 -551.0 1852.672268907563 -551.0Q1932.0 -551 1994.0 -514.5Q2056.0 -478 2092.5 -415.2210526315789Q2129.0 -352.4421052631579 2129.0 -272.72280701754386Q2129.0 -194 2095.340740740741 -131.31658291457285Q2061.6814814814816 -68.63316582914572 2003.8444444444444 -32.31658291457286Q1946.0074074074073 4.0 1873.0 4Q1814.0 4 1764.5 -20.5Q1715.0 -45 1680.0 -87V183Q1680.0 205 1665.907894736842 219.5Q1651.8157894736842 234.0 1629.0 234ZM1852.9420849420849 -86.0Q1904.0 -86 1944.0 -110.5Q1984.0 -135 2007.5 -177.61682242990656Q2031.0 -220.2336448598131 2031.0 -273.1682242990654Q2031.0 -327 2007.5 -369.5Q1984.0 -412 1943.7777777777778 -436.5Q1903.5555555555557 -461.0 1852.840579710145 -461.0Q1803.0 -461 1762.4305555555557 -436.2705223880597Q1721.861111111111 -411.5410447761194 1698.9305555555557 -369.27611940298505Q1676.0 -327.01119402985074 1676.0 -273.0559701492537Q1676.0 -220 1698.888030888031 -177.28187919463087Q1721.7760617760619 -134.56375838926175 1762.2702702702704 -110.28187919463087Q1802.7644787644788 -86.0 1852.9420849420849 -86.0Z"/><path d="M2509.0 4Q2428.0 4 2365.9545454545455 -31.636363636363633Q2303.909090909091 -67.27272727272727 2268.4545454545455 -129.63636363636363Q2233.0 -192 2233.0 -272.99378881987576Q2233.0 -355 2268.4545454545455 -417.3636363636364Q2303.909090909091 -479.72727272727275 2365.9545454545455 -515.3636363636364Q2428.0 -551 2508.5 -551.0Q2589.0 -551 2650.8654822335025 -515.3636363636364Q2712.730964467005 -479.72727272727275 2748.3654822335025 -417.3636363636364Q2784.0 -355 2784.0 -272.99378881987576Q2784.0 -192 2749.0 -129.5Q2714.0 -67 2652.0 -31.5Q2590.0 4 2509.0 4ZM2509.0 -86Q2561.0 -86 2600.9305555555557 -110.08108108108108Q2640.8611111111113 -134.16216216216216 2663.4305555555557 -176.0810810810811Q2686.0 -218 2686.0 -273Q2686.0 -328 2663.4305555555557 -370.3993288590604Q2640.8611111111113 -412.7986577181208 2600.9305555555557 -436.8993288590604Q2561.0 -461 2509.0 -461Q2457.0 -461 2417.0275862068966 -436.8993288590604Q2377.055172413793 -412.7986577181208 2354.0275862068966 -370.3993288590604Q2331.0 -328 2331.0 -273Q2331.0 -218 2354.0275862068966 -176.0810810810811Q2377.055172413793 -134.16216216216216 2417.0275862068966 -110.08108108108108Q2457.0 -86 2509.0 -86Z"/><path d="M3378.0 1Q3356.0 1 3341.5 -13.5Q3327.0 -28 3327.0 -50V-296Q3327.0 -353 3306.0 -389.0Q3285.0 -425 3249.5 -442.5Q3214.0 -460 3168.0 -460Q3126.0 -460 3092.0 -443.0Q3058.0 -426 3038.0 -397.5Q3018.0 -369 3018.0 -332H2955.0Q2955.0 -395 2985.5 -444.5Q3016.0 -494 3069.0 -523.0Q3122.0 -552 3188.0 -552Q3257.0 -552 3311.5 -522.5Q3366.0 -493 3397.5 -436.0Q3429.0 -379 3429.0 -296V-50Q3429.0 -28 3414.5 -13.5Q3400.0 1 3378.0 1ZM2967.0 1Q2945.0 1 2930.5 -13.5Q2916.0 -28 2916.0 -50V-496Q2916.0 -519 2930.5 -533.0Q2945.0 -547 2967.0 -547Q2990.0 -547 3004.0 -533.0Q3018.0 -519 3018.0 -496V-50Q3018.0 -28 3004.0 -13.5Q2990.0 1 2967.0 1Z"/><path d="M3806.0 4Q3732.9925925925927 4.0 3675.1555555555556 -32.31658291457286Q3617.3185185185184 -68.63316582914572 3583.659259259259 -131.31658291457285Q3550.0 -194 3550.0 -272.72280701754386Q3550.0 -352.4421052631579 3586.5 -415.2210526315789Q3623.0 -478 3685.3838630806845 -514.5Q3747.767726161369 -551.0 3825.99511002445 -551.0Q3904.2224938875306 -551.0 3966.1112469437653 -514.5Q4028.0 -478 4064.5 -415.0Q4101.0 -352 4101.0 -273H4062.0Q4062.0 -194.48031496062993 4028.3686274509805 -131.7736220472441Q3994.737254901961 -69.06692913385827 3937.0117647058823 -32.53346456692913Q3879.286274509804 4.0 3806.0 4ZM3826.0048309178746 -86.0Q3877.0 -86 3917.0 -110.5Q3957.0 -135 3980.0 -177.61682242990656Q4003.0 -220.2336448598131 4003.0 -273.1682242990654Q4003.0 -327 3980.0 -369.5Q3957.0 -412 3917.021844660194 -436.5Q3877.0436893203882 -461.0 3826.0825242718447 -461.0Q3776.0 -461 3735.5 -436.5Q3695.0 -412 3671.5 -369.6338028169014Q3648.0 -327.2676056338028 3648.0 -273.1830985915493Q3648.0 -220 3671.5 -177.5Q3695.0 -135 3735.4444444444443 -110.5Q3775.8888888888887 -86.0 3826.0048309178746 -86.0ZM4050.160714285714 1.0Q4028.0 1 4013.5 -13.5Q3999.0 -28 3999.0 -50V-203L4018.0 -309L4101.0 -273V-50Q4101.0 -28 4086.660714285714 -13.5Q4072.3214285714284 1.0 4050.160714285714 1.0Z"/></g><circle cx="2508.5" cy="-273.5" r="97.5" fill="#5E8C6A"/></symbol></svg>
+
+<div class="refbar" role="region" aria-label="Referenz-Steuerung">
+  <strong>Referenz-Mockup</strong> · Beispieldaten · diese Leiste gehört nicht zum Produkt.
+  <span>Paket des Kunden:</span>
+  <div class="seg" role="group" aria-label="Paket">
+    <button type="button" id="pkg-lite" aria-pressed="false">Lite</button>
+    <button type="button" id="pkg-pro" aria-pressed="true">Pro</button>
+  </div>
+  <button type="button" class="btn btn-sm" id="simCall">Testanruf neu starten</button>
+</div>
+
+<header class="top">
+  <a class="brand" href="#" aria-label="Dispona"><svg width="118" height="31" role="img" aria-label="Dispona"><use href="#wordmark"/></svg></a>
+  <div class="seg">
+    <button type="button" class="icon" aria-label="Vorheriger Tag">‹</button>
+    <span class="date">Di, 27.10.2026</span>
+    <button type="button" class="icon" aria-label="Nächster Tag">›</button>
+    <button type="button" class="on">Heute</button>
+  </div>
+  <label class="search">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+    <input id="q" type="search" placeholder="Patient, Fahrzeug oder Telefonnummer suchen …" aria-label="Suche">
+  </label>
+  <span class="live"><span class="dot" style="background:var(--ok-dot)"></span><span id="liveTxt">Dispona · 1 Anruf läuft</span></span>
+  <button type="button" class="btn" id="logbook" data-pro>Fahrtenbuch</button>
+  <button type="button" class="btn btn-primary" id="newTrip">+ Neue Fahrt</button>
+</header>
+
+<section class="kpis" id="kpis" aria-label="Tagesüberblick"></section>
+
+<div class="main">
+  <section class="board" aria-label="Fahrten">
+    <div class="board-head"><b id="boardTitle"></b><span id="boardMeta"></span></div>
+    <div class="scroll" id="boardBody"></div>
+    <div class="legend" id="legend"></div>
+  </section>
+
+  <aside class="side" aria-label="Anruf und Aufgaben">
+    <section class="card call" aria-label="Laufender Anruf" aria-live="polite">
+      <div class="call-head"><span class="dot" style="width:10px;height:10px;background:var(--ok-dot)"></span><b>Anruf läuft</b><span class="mono">01:42</span></div>
+      <div class="sub">0240 4 · · · · · 12 · Pflegeheim St. Anna</div>
+      <div class="bubbles">
+        <div class="bub in">Wir bräuchten für Herrn Kramer eine Rückfahrt von der Uniklinik, liegend.</div>
+        <div class="bub out">Gerne. Ab wann ist Herr Kramer abholbereit?</div>
+        <div class="bub in">So gegen zehn nach drei, Station 3B.</div>
+      </div>
+      <div class="fields">
+        <div><small>Patient</small>Josef Kramer</div>
+        <div><small>Transport</small>Liegend</div>
+        <div><small>Abholung</small>Uniklinik, Stat. 3B</div>
+        <div><small>Ziel</small>St. Anna, Würselen</div>
+        <div><small>Zeit</small>heute 15:10</div>
+        <div data-pro><small>Eingeplant bei</small><b id="callCar">LMW 106</b></div>
+        <div data-lite><small>Planung</small>durch Sie</div>
+      </div>
+      <div id="callResult"></div>
+    </section>
+
+    <section class="card" data-pro aria-label="Braucht Sie">
+      <div class="card-head"><h2>Braucht Sie</h2><span class="count" id="needCount">1</span></div>
+      <div class="sub">Dispona plant alles automatisch. Hier landet nur, was es nicht allein lösen kann.</div>
+      <div id="needList"></div>
+    </section>
+  </aside>
+</div>
+
+<div class="overlay" id="overlay" hidden>
+  <section class="modal" role="dialog" aria-modal="true" aria-labelledby="mTitle" id="modal"></section>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+(function(){
+'use strict';
+/* ---------- Beispieldaten ---------- */
+var ARTS = { L:'Liegend', T:'Tragestuhl', R:'Rollstuhl', S:'Sitzend' };
+var STATE = {
+  done:  { label:'Abgeschlossen', step:3 },
+  active:{ label:'Fahrgast im Auto', step:2 },
+  plan:  { label:'Geplant', step:0 },
+  late:  { label:'Fährt zum Fahrgast · verspätet', step:1 },
+  neu:   { label:'Neu eingeplant von Dispona', step:0 }
+};
+var LIVE = {
+  go:  ['--st-go','Fährt zum Fahrgast'],
+  in:  ['--st-in','Fahrgast im Auto'],
+  at:  ['--st-at','Fahrgast am Ziel'],
+  free:['--st-free','Frei'],
+  late:['--st-late','Fährt zum Fahrgast']
+};
+var FLEET = [
+  { id:'LMW 106', typ:'Liegewagen', crew:'K. Albers · S. Brandt', live:['in','Ankunft 13:41'], trips:[[8.25,9.25,'H. Grote','done','L'],[9.75,10.75,'I. Dörr','done','L'],[11.25,12.5,'M. Haas','done','T'],[12.9,14.1,'G. Lenz','active','L'],[14.25,15,'R. Pohl','plan','L']] },
+  { id:'LMW 140', typ:'Liegewagen', crew:'T. Nowak · E. Kaya', live:['late','+12 Min.'], trips:[[8.5,9.75,'B. Sommer','done','L'],[10.25,11.5,'W. Krüger','done','L'],[12.5,13.75,'A. Feld','late','L'],[14.5,15.5,'F. Ilgen','plan','T']] },
+  { id:'TSW 108', typ:'Tragestuhl', crew:'J. Peters', live:['in','Ankunft 13:48'], trips:[[8,8.75,'C. Marx','done','T'],[9.25,10,'D. Wolf','done','R'],[10.5,11.25,'P. Hahn','done','T'],[13.1,13.8,'L. Ernst','active','T'],[14.25,15,'S. Roth','plan','R']] },
+  { id:'BTW 112', typ:'Rollstuhl', crew:'O. Schäfer', live:['go','K. Vogt, 13:30'], trips:[[8.75,9.5,'U. Beck','done','R'],[10,10.75,'N. Lang','done','S'],[11.5,12.25,'E. Kurz','done','R'],[13.5,14.25,'K. Vogt','plan','R'],[15,15.75,'U. Beck','plan','R']] },
+  { id:'BTW 115', typ:'Rollstuhl', crew:'M. Yilmaz', live:['free','in Baesweiler'], trips:[[9,9.75,'H. Simon','done','R'],[10.25,11,'R. Otto','done','S'],[12,12.75,'T. Busch','done','R'],[15.25,16,'H. Simon','plan','R']] },
+  { id:'BTW 116', typ:'Rollstuhl', crew:'D. Morina', live:['in','Ankunft 13:45'], trips:[[8,8.75,'G. Frank','done','R'],[9.5,10.25,'V. Arndt','done','R'],[11,11.75,'B. Jung','done','S'],[13,13.75,'I. Graf','active','R'],[14.25,15,'G. Frank','plan','R']] },
+  { id:'BTW 128', typ:'Tragestuhl', crew:'A. Celik', live:['late','+6 Min.'], trips:[[8.25,9,'J. Moll','done','T'],[9.5,10.5,'R. Wendt','done','T'],[12.25,13.25,'P. Stein','done','R'],[13.4,14.2,'R. Wendt','late','T'],[14.3,15,'L. Kuhn','plan','T']] },
+  { id:'BTW 129', typ:'Tragestuhl', crew:'S. Demir · F. Ott', live:['at','seit 13:20'], trips:[[8.5,9.5,'M. Rau','done','T'],[10,11,'E. Pfeil','done','R'],[11.5,12.5,'M. Rau','done','T'],[13.25,14,'A. Horn','active','T']] },
+  { id:'BTW 132', typ:'Rollstuhl', crew:'K. Becker', live:['go','C. Kraus, 13:45'], trips:[[8,8.75,'W. Seidel','done','R'],[9.25,10.25,'H. Thiel','done','R'],[11,11.75,'W. Seidel','done','R'],[13.75,14.5,'C. Kraus','plan','S'],[15,15.75,'D. Engel','plan','R']] },
+  { id:'Taxi 330', typ:'Sitzend/Taxi', crew:'W. Gerhardt', live:['at','seit 13:22'], trips:[[8.75,9.25,'I. Lorenz','done','S'],[9.75,10.25,'F. Haag','done','S'],[10.75,11.25,'I. Lorenz','done','S'],[12.75,13.5,'S. Kühn','active','S'],[14,14.5,'O. Reich','plan','S'],[15.25,15.75,'S. Kühn','plan','S']] }
+];
+var KRAMER = { car:'LMW 106', alt:'LMW 140', s:15.17, e:16, name:'J. Kramer', art:'L' };
+var NEED = [{ time:'15:45', name:'Helga Wirtz', art:'R', why:'Kein Rollstuhl-Fahrzeug frei zwischen 15:30 und 16:30' }];
+var LITE_INBOX = [
+  { in:'13:21', name:'Josef Kramer', art:'L', from:'Uniklinik Aachen, Stat. 3B', to:'Pflegeheim St. Anna, Würselen', when:'heute 15:10', live:true },
+  { in:'12:58', name:'Erika Brandes', art:'R', from:'Alsdorf, Bahnhofstr.', to:'Dialysezentrum Eschweiler', when:'heute 14:30' },
+  { in:'12:40', name:'Helga Wirtz', art:'S', from:'Merkstein', to:'Strahlentherapie Aachen', when:'morgen 08:00 · Serie' },
+  { in:'11:15', name:'Konrad Vogt', art:'R', from:'Baesweiler, Mühlenstr.', to:'Praxis Dr. Heinen, Alsdorf', when:'heute 13:30', done:true },
+  { in:'09:02', name:'Otto Reich', art:'S', from:'Augenklinik Würselen', to:'Herzogenrath', when:'heute 14:00', done:true }
+];
+var FIRST = { H:'Hannelore', I:'Ingrid', M:'Martin', G:'Gerda', R:'Rudolf', B:'Bernd', W:'Werner', A:'Anna', F:'Friedrich', C:'Christa', D:'Dieter', P:'Paula', L:'Lisa', S:'Siegfried', U:'Ursula', N:'Norbert', E:'Erich', K:'Konrad', T:'Theo', V:'Vera', J:'Josef', O:'Otto' };
+var PLACES = ['Uniklinik Aachen, Station 2A','Seniorenheim Haus Linde, Alsdorf','Dialysezentrum Eschweiler','Praxis Dr. Sauer, Herzogenrath','Krankenhaus Würselen','Wohnung, Kirchstraße 4, Merkstein','Herzzentrum Aachen','Pflegeheim St. Anna, Würselen','Strahlentherapie Aachen','Wohnung, Am Markt 9, Übach-Palenberg'];
+var PAYERS = ['AOK Rheinland/Hamburg','Techniker Krankenkasse','BARMER','IKK classic','DAK-Gesundheit'];
+var NOTES = ['Braucht Begleitung bis auf Station.','Sauerstoff mitführen, 2 l/min.','Hörgeschädigt, bitte deutlich ansprechen.','Rollator mitnehmen.','Keine Besonderheiten.'];
+
+/* ---------- Zustand ---------- */
+var S = { pkg:'pro', kramer:'planned', moved:false, lite:{}, q:'' };
+var START = 8, SPAN = 8, NOW = 13 + 23/60;
+
+/* ---------- Hilfen ---------- */
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+function fmt(x){ var h=Math.floor(x), m=Math.round((x-h)*60); return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0'); }
+function v(name){ return 'var(--'+name+')'; }
+function pct(x){ return ((x-START)/SPAN*100).toFixed(2)+'%'; }
+function surnames(crew){ return crew.split(' · ').map(function(p){ return p.split(' ').slice(1).join(' '); }).join(' · '); }
+function toast(msg){ var t=$('toast'); t.textContent=msg; t.hidden=false; clearTimeout(toast.t); toast.t=setTimeout(function(){ t.hidden=true; },2600); }
+
+/* Chip-Stil: Farbe = Transportart, Füllung = Zustand (docs/DISPO-SPEZ.md 4.1/4.2) */
+function chipStyle(state, a){
+  if(state==='done')   return 'background:'+v(a+'-faint')+';color:'+v(a+'-ink')+';border:1px solid '+v(a+'-tint');
+  if(state==='plan')   return 'background:'+v(a+'-tint')+';color:'+v(a+'-ink')+';border:1.5px solid '+v(a+'-main');
+  if(state==='active') return 'background:'+v(a+'-solid')+';color:#fff;border:1px solid '+v(a+'-solid');
+  if(state==='late')   return 'background:'+v(a+'-solid')+';color:#fff;border:1px solid '+v(a+'-solid')+';box-shadow:0 0 0 2px var(--late-ring)';
+  /* neu = frisch von Dispona eingeplant */
+  return 'background:'+v(a+'-tint')+';color:'+v(a+'-ink')+';border:1.5px solid '+v(a+'-main')+';box-shadow:0 0 0 3px rgba(94,140,106,.45)';
+}
+
+function allTrips(){
+  var out = [];
+  FLEET.forEach(function(car){
+    car.trips.forEach(function(t){ out.push({ car:car, s:t[0], e:t[1], name:t[2], state:t[3], art:t[4] }); });
+    var k = S.kramer;
+    var carId = S.moved ? KRAMER.alt : KRAMER.car;
+    if(k!=='none' && car.id===carId) out.push({ car:car, s:KRAMER.s, e:KRAMER.e, name:KRAMER.name+(k==='planned'?' · neu':''), state:k==='planned'?'neu':'plan', art:KRAMER.art, kramer:true });
+  });
+  return out;
+}
+
+/* ---------- Rendern ---------- */
+function renderKpis(){
+  var h;
+  if(S.pkg==='pro'){
+    h = '<div class="kpi"><small>Fahrten heute</small><b>'+(64+(S.kramer!=='none'?1:0))+'</b> <span>· 38 erledigt</span></div>'
+      + '<div class="kpi"><small>Gerade unterwegs</small><b>9</b></div>'
+      + '<div class="kpi"><small>Von Dispona eingeplant</small><b>'+(41+(S.kramer!=='none'?1:0))+'</b> <span>heute</span></div>'
+      + '<div class="kpi warn"><small>Braucht Sie</small><b>'+NEED.length+'</b></div>'
+      + '<div class="kpi"><small>Anrufe heute</small><b>23</b> <span>· 2 gleichzeitig max.</span></div>';
+  } else {
+    var open = LITE_INBOX.filter(function(r,i){ return !r.done && !S.lite[i]; }).length;
+    h = '<div class="kpi"><small>Anrufe heute</small><b>23</b> <span>· alle angenommen</span></div>'
+      + '<div class="kpi"><small>Neue Fahrtanfragen</small><b>'+LITE_INBOX.length+'</b></div>'
+      + '<div class="kpi warn"><small>Noch nicht übernommen</small><b>'+open+'</b></div>'
+      + '<div class="kpi"><small>Nachts / Wochenende</small><b>4</b> <span>Anrufe seit gestern 18 Uhr</span></div>';
+  }
+  $('kpis').innerHTML = h;
+}
+
+function renderTimeline(){
+  $('boardTitle').textContent = FLEET.length+' Fahrzeuge · 08–16 Uhr';
+  $('boardMeta').textContent = '64 Fahrten · 9 unterwegs · 2 verspätet';
+  var q = S.q.toLowerCase();
+  var trips = allTrips();
+  var hours = '';
+  for(var i=0;i<=SPAN;i++) hours += '<span style="left:'+(i/SPAN*100)+'%">'+String(START+i).padStart(2,'0')+':00</span>';
+  var rows = FLEET.map(function(car){
+    var lv = LIVE[car.live[0]];
+    var hl = S.kramer==='planned' && car.id===(S.moved?KRAMER.alt:KRAMER.car);
+    var chips = trips.filter(function(t){ return t.car===car; }).map(function(t){
+      var match = !q || t.name.toLowerCase().indexOf(q)>-1 || car.id.toLowerCase().indexOf(q)>-1;
+      var id = car.id+'|'+t.s;
+      return '<button type="button" class="trip" data-trip="'+esc(id)+'" style="left:'+pct(t.s)+';width:calc('+((t.e-t.s)/SPAN*100).toFixed(2)+'% - 3px);'+chipStyle(t.state,t.art)+';opacity:'+(match?1:.25)+'"'
+        + ' aria-label="'+esc(fmt(t.s)+'–'+fmt(t.e)+' '+t.name+' · '+ARTS[t.art]+' · '+STATE[t.state].label)+'" title="'+esc(fmt(t.s)+'–'+fmt(t.e)+' '+t.name+' · '+ARTS[t.art])+'">'
+        + '<span class="t"><span>'+fmt(t.s)+'</span>'+(t.state==='late'?'<span class="badge" style="background:var(--late-badge);color:var(--late-badge-fg)">+12</span>':'')+(t.state==='neu'?'<span class="badge" style="background:var(--ok-bg);color:var(--ok-fg)">neu</span>':'')+'</span>'
+        + '<span class="n">'+esc(t.name.replace(' · neu',''))+'</span></button>';
+    }).join('');
+    return '<div class="lane'+(hl?' hl':'')+'">'
+      + '<div class="vcol" title="'+esc(car.id+' · '+car.typ+' · '+car.crew)+'">'
+      +   '<div class="vname"><b>'+esc(car.id)+'</b><span class="tag">'+esc(surnames(car.crew))+'</span></div>'
+      +   '<span class="vstat"><span class="dot" style="background:'+v(lv[0].slice(2))+'"></span><b style="color:'+(car.live[0]==='late'?'var(--st-late-text)':'var(--ink)')+'">'+lv[1]+'</b><i>· '+esc(car.live[1])+'</i></span>'
+      + '</div>'
+      + '<div class="track">'+chips+'<div class="nowline" style="left:'+pct(NOW)+'"></div></div></div>';
+  }).join('');
+  $('boardBody').innerHTML = '<div class="tl"><div class="scale"><div class="vcol">Fahrzeug · Fahrer · Status</div><div class="hours">'+hours+'</div></div>'+rows+'</div>';
+
+  var sw = function(st,a){ return '<span class="sw" style="'+chipStyle(st,a)+'"></span>'; };
+  $('legend').innerHTML = '<span class="grp"><strong>Transportart</strong>'
+    + ['L','T','R','S'].map(function(a){ return '<span><span class="sw" style="background:'+v(a+'-solid')+'"></span>'+ARTS[a]+'</span>'; }).join('')
+    + '</span><span class="grp"><strong>Zustand</strong>'
+    + '<span>'+sw('done','R')+'erledigt</span><span>'+sw('plan','R')+'geplant</span><span>'+sw('active','R')+'unterwegs</span><span>'+sw('late','R')+'verspätet</span><span>'+sw('neu','R')+'neu von Dispona</span>'
+    + '</span><span class="hint">Klick auf eine Fahrt zeigt alle Details.</span>';
+}
+
+function renderLiteList(){
+  $('boardTitle').textContent = 'Fahrtanfragen von Dispona';
+  $('boardMeta').textContent = 'Lite: Dispona nimmt an und erfasst – Sie planen selbst';
+  var q = S.q.toLowerCase();
+  var rows = LITE_INBOX.filter(function(r){ return !q || r.name.toLowerCase().indexOf(q)>-1; }).map(function(r){
+    var i = LITE_INBOX.indexOf(r);
+    var taken = r.done || S.lite[i];
+    return '<tr><td class="mono">'+r.in+(r.live?' <span class="pill new" style="margin-left:4px">läuft</span>':'')+'</td>'
+      + '<td><span class="who"><span class="sq" style="background:'+v(r.art+'-solid')+'" title="'+ARTS[r.art]+'"></span>'+esc(r.name)+'</span><span class="sub">'+ARTS[r.art]+'</span></td>'
+      + '<td>'+esc(r.from)+'<br><span class="sub">→ '+esc(r.to)+'</span></td>'
+      + '<td>'+esc(r.when)+'</td>'
+      + '<td>'+(taken?'<span class="pill ok">Übernommen</span>':'<button type="button" class="btn btn-sm btn-primary" data-take="'+i+'">Übernehmen</button>')+'</td></tr>';
+  }).join('');
+  $('boardBody').innerHTML = '<table class="list"><thead><tr><th>Eingang</th><th>Fahrgast</th><th>Von → Nach</th><th>Gewünscht</th><th>Status</th></tr></thead><tbody>'+rows+'</tbody></table>';
+  $('legend').innerHTML = '<span class="grp"><strong>Transportart</strong>'
+    + ['L','T','R','S'].map(function(a){ return '<span><span class="sw" style="background:'+v(a+'-solid')+'"></span>'+ARTS[a]+'</span>'; }).join('')
+    + '</span><span class="hint">Fahrzeugvorschlag, Einplanung und Fahrer-App gibt es mit Dispona Pro.</span>';
+}
+
+function renderCall(){
+  var r = $('callResult');
+  $('callCar').textContent = S.moved ? KRAMER.alt : KRAMER.car;
+  if(S.pkg==='lite'){
+    r.innerHTML = '<div class="result"><b>Fahrt erfasst · liegt in Ihrer Liste</b></div>';
+    return;
+  }
+  if(S.kramer==='planned' || S.kramer==='fixed'){
+    r.innerHTML = '<div class="result"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>'
+      + '<b>Automatisch eingeplant bei '+(S.moved?KRAMER.alt:KRAMER.car)+' · Fahrer benachrichtigt</b>'
+      + '<button type="button" class="btn btn-sm" id="reroute">Umplanen</button>'
+      + '<button type="button" class="btn btn-sm" id="undo">Rückgängig</button></div>'
+      + '<div class="sub">Grund: frei ab 15:00 · 2 km Anfahrt · darf Liegend fahren</div>';
+  } else {
+    r.innerHTML = '<div class="result" style="background:var(--warn-bg);color:var(--warn-fg)"><b>Einplanung zurückgenommen – Fahrt liegt bei „Braucht Sie“</b></div>';
+  }
+}
+
+function renderNeed(){
+  var list = NEED.slice();
+  if(S.kramer==='none') list.unshift({ time:'15:10', name:'Josef Kramer', art:'L', why:'Einplanung rückgängig gemacht' });
+  $('needCount').textContent = list.length;
+  $('needList').innerHTML = list.map(function(n){
+    return '<div class="need"><span class="mono">'+n.time+'</span><div><div style="display:flex;align-items:center;gap:8px;font-weight:600"><span class="sq" style="background:'+v(n.art+'-solid')+'" title="'+ARTS[n.art]+'"></span>'+esc(n.name)+'</div><div class="why">'+esc(n.why)+'</div></div><button type="button" class="btn btn-sm btn-primary">Fahrzeug wählen</button></div>';
+  }).join('');
+}
+
+function render(){
+  var lite = S.pkg==='lite';
+  document.querySelectorAll('[data-pro]').forEach(function(el){ el.hidden = lite; });
+  document.querySelectorAll('[data-lite]').forEach(function(el){ el.hidden = !lite; });
+  $('pkg-lite').setAttribute('aria-pressed', lite);
+  $('pkg-pro').setAttribute('aria-pressed', !lite);
+  renderKpis();
+  if(lite) renderLiteList(); else { renderTimeline(); renderNeed(); }
+  renderCall();
+}
+
+/* ---------- Detail-Fenster ---------- */
+var lastFocus = null;
+function openTrip(key){
+  var t = allTrips().filter(function(x){ return x.car.id+'|'+x.s===key; })[0];
+  if(!t) return;
+  var i = Math.round(t.s*7) % 10;
+  var full = t.kramer ? 'Josef Kramer' : (FIRST[t.name[0]]||'')+' '+t.name.split(' ').slice(1).join(' ');
+  var st = STATE[t.state];
+  var doc = t.kramer ? ['noch offen','var(--warn-fg)'] : (i%7===3 ? ['fehlt','var(--warn-fg)'] : ['liegt vor','var(--ink)']);
+  var labels = ['Geplant','Fährt zum Fahrgast','Fahrgast im Auto','Fahrgast am Ziel'];
+  var steps = labels.map(function(l,j){
+    var col = j < st.step ? 'var(--acc)' : (j===st.step ? (t.state==='late' ? 'var(--late-ring)' : 'var(--st-in)') : 'var(--line)');
+    if(t.state==='done') col = 'var(--acc)';
+    return '<div><i style="background:'+col+'"></i><span style="color:'+(j<=st.step||t.state==='done'?'var(--ink)':'var(--mute)')+';font-weight:'+(j===st.step&&t.state!=='done'?700:400)+'">'+l+'</span></div>';
+  }).join('');
+  $('modal').innerHTML =
+    '<div class="m-head"><div style="flex:1;min-width:0"><div class="m-tags">'
+    + '<span class="pill" style="background:'+v(t.art+'-solid')+';color:#fff">'+ARTS[t.art]+'</span>'
+    + '<span class="pill" style="background:var(--chip-bg);color:var(--chip-fg)">'+st.label+'</span>'
+    + '<span class="sub">'+(t.kramer?'Rückfahrt':(i%2?'Hinfahrt':'Rückfahrt'))+'</span></div>'
+    + '<h2 id="mTitle">'+esc(full)+'</h2><div class="mono" style="color:var(--ink2)">heute '+fmt(t.s)+'–'+fmt(t.e)+'</div></div>'
+    + '<button type="button" class="x" data-close aria-label="Schließen">×</button></div>'
+    + '<div class="m-grid">'
+    + '<div><small>Abholung</small><b>'+esc(t.kramer?'Uniklinik Aachen, Station 3B':PLACES[i])+'</b></div>'
+    + '<div><small>Ziel</small><b>'+esc(t.kramer?'Pflegeheim St. Anna, Würselen':PLACES[(i+3)%10])+'</b></div>'
+    + '<div><small>Fahrzeug</small>'+esc(t.car.id+' · '+t.car.typ)+'</div>'
+    + '<div><small>Besatzung</small>'+esc(t.car.crew)+'</div>'
+    + '<div><small>Kostenträger</small>'+esc(t.kramer?'wird im Gespräch erfragt':PAYERS[i%5])+'</div>'
+    + '<div><small>Transportschein</small><b style="color:'+doc[1]+'">'+doc[0]+'</b></div>'
+    + (t.state==='neu'?'<div style="grid-column:1/-1"><small>Von Dispona eingeplant, weil</small>frei ab 15:00 · 2 km Anfahrt · darf Liegend fahren</div>':'')
+    + '</div>'
+    + '<div style="padding:0 20px 8px;font-size:12px;color:var(--mute)">Ablauf</div><div class="steps">'+steps+'</div>'
+    + '<div class="note"><span class="sub">Hinweise</span><span>'+esc(t.kramer?'Aus dem Anruf: abholbereit ca. 15:10, Station 3B. Liegend.':NOTES[i%5])+'</span>'
+    + '<span style="display:flex;align-items:center;gap:10px;color:var(--ink2)"><span style="flex:1">Kontakt: '+(t.kramer?'Pflegeheim St. Anna · 0240 4 · · · · · 12':'Station · 0241 · · · · · '+(40+i))+'</span><button type="button" class="btn btn-sm">Anrufen</button></span></div>'
+    + '<div class="m-foot"><button type="button" class="btn">Bearbeiten</button><button type="button" class="btn">Fahrzeug ändern</button><button type="button" class="btn">Rückfahrt anlegen</button><button type="button" class="btn btn-danger" id="cancelTrip">Stornieren</button></div>';
+  lastFocus = document.activeElement;
+  $('overlay').hidden = false;
+  $('modal').querySelector('[data-close]').focus();
+}
+function closeModal(){ $('overlay').hidden = true; if(lastFocus) lastFocus.focus(); }
+
+/* ---------- Ereignisse ---------- */
+document.addEventListener('click', function(e){
+  var el = e.target.closest('button,[data-close]');
+  if(e.target.id==='overlay'){ closeModal(); return; }
+  if(!el) return;
+  if(el.dataset.trip){ openTrip(el.dataset.trip); return; }
+  if(el.hasAttribute('data-close')){ closeModal(); return; }
+  if(el.dataset.take!==undefined){ S.lite[el.dataset.take]=true; render(); toast('Als übernommen markiert'); return; }
+  switch(el.id){
+    case 'pkg-lite': S.pkg='lite'; render(); break;
+    case 'pkg-pro': S.pkg='pro'; render(); break;
+    case 'simCall': S.kramer='planned'; S.moved=false; S.lite={}; render(); toast('Testanruf: Dispona hat die Fahrt eingeplant'); break;
+    case 'undo': S.kramer='none'; render(); toast('Einplanung zurückgenommen'); break;
+    case 'reroute': S.moved=!S.moved; render(); toast('Umgeplant auf '+(S.moved?KRAMER.alt:KRAMER.car)+' · Fahrer benachrichtigt'); break;
+    case 'logbook': toast('Fahrtenbuch: Zeitraum wählen → Download als Excel/CSV und PDF'); break;
+    case 'newTrip': toast('Formular „Neue Fahrt“ – siehe Spezifikation 3.7'); break;
+    case 'cancelTrip': el.textContent='Wirklich stornieren?'; el.id='cancelTrip2'; break;
+    case 'cancelTrip2': closeModal(); toast('Fahrt storniert (Mockup)'); break;
+  }
+});
+document.addEventListener('keydown', function(e){
+  if(e.key==='Escape' && !$('overlay').hidden) closeModal();
+  if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='k'){ e.preventDefault(); $('q').focus(); }
+});
+$('q').addEventListener('input', function(){ S.q=this.value; render(); });
+render();
+})();
+</script>
+</body>
+</html>

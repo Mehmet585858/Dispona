@@ -1,0 +1,541 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dispona – Telefon und Auto-Dispo für Krankenfahrdienste</title>
+<meta name="theme-color" content="#334155">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Dispona – Telefon und Auto-Dispo für Krankenfahrdienste">
+<meta property="og:description" content="Dispona nimmt die Anrufe Ihres Krankenfahrdienstes rund um die Uhr an und plant die Fahrten automatisch beim nächstbesten Fahrzeug. Ab 1,95 € pro Anruf.">
+<meta property="og:image" content="/dispona-app-icon-512.png">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon.ico" sizes="32x32">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="description" content="Dispona nimmt die Anrufe Ihres Krankenfahrdienstes rund um die Uhr an und plant die Fahrten automatisch beim nächstbesten Fahrzeug. Ab 1,95 € pro Anruf.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Ruhige Produktseite im Dispona-Stil: graue Flächen, Transportarten als gedämpfte Farben, ein Akzent in Schiefergrau */
+:root{
+  --bg:#FFFFFF; --bg2:#F5F6F8; --surf:#FFFFFF; --line:#E3E6EA; --line2:#EEF0F3;
+  --ink:#1F2933; --ink2:#3E4A56; --mute:#5F6B77;
+  --acc:#334155; --acc-fg:#FFFFFF; --acc-soft:#EEF1F4;
+  --ok:#5E8C6A; --ok-bg:#EEF3EF; --ok-fg:#2F4A36;
+  --warn-bg:#FBF3EA; --warn-bd:#EED3B4;
+  --dark:#1F2933; --dark2:#273340; --dark-fg:#FFFFFF; --dark-mute:#C3CBD6; --dark-num:#A8C2AF;
+  --bubble-in:#F1F3F5; --bubble-out:#E7EAF0;
+  --l-solid:#5B4F8F; --l-tint:#ECE9F5; --l-faint:#F7F6FB; --l-main:#8B7FB8; --l-ink:#3D3466;
+  --r-solid:#4A6597; --r-tint:#E7ECF5; --r-faint:#F5F7FB; --r-main:#7D96C2;
+  --s-solid:#4E7559; --s-tint:#E8F0EA; --s-faint:#F5F9F6; --s-main:#8CA894;
+  --sans:'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono:'IBM Plex Mono', ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#12171D; --bg2:#171D24; --surf:#1B222A; --line:#2C343E; --line2:#242B34;
+  --ink:#E6EAF0; --ink2:#C3CBD6; --mute:#9AA4B2;
+  --acc:#C9D3E0; --acc-fg:#14191F; --acc-soft:#232B35;
+  --ok:#86C59A; --ok-bg:#1C2C22; --ok-fg:#B9E2C6;
+  --warn-bg:#2A2117; --warn-bd:#4A3720;
+  --dark:#0D1116; --dark2:#1B232C; --dark-fg:#FFFFFF; --dark-mute:#B7C0CC; --dark-num:#A8C2AF;
+  --bubble-in:#232B35; --bubble-out:#2B3542;
+  --l-solid:#6F55C9; --l-tint:#2A2442; --l-faint:#1D1A2B; --l-main:#A78BFA; --l-ink:#DCD0FF;
+  --r-solid:#3D67C4; --r-tint:#1F2A40; --r-faint:#19202D; --r-main:#7AA2F7;
+  --s-solid:#3A7A50; --s-tint:#1E3226; --s-faint:#18241C; --s-main:#86C59A;
+  color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#12171D; --bg2:#171D24; --surf:#1B222A; --line:#2C343E; --line2:#242B34;
+  --ink:#E6EAF0; --ink2:#C3CBD6; --mute:#9AA4B2;
+  --acc:#C9D3E0; --acc-fg:#14191F; --acc-soft:#232B35;
+  --ok:#86C59A; --ok-bg:#1C2C22; --ok-fg:#B9E2C6;
+  --warn-bg:#2A2117; --warn-bd:#4A3720;
+  --dark:#0D1116; --dark2:#1B232C; --dark-fg:#FFFFFF; --dark-mute:#B7C0CC; --dark-num:#A8C2AF;
+  --bubble-in:#232B35; --bubble-out:#2B3542;
+  --l-solid:#6F55C9; --l-tint:#2A2442; --l-faint:#1D1A2B; --l-main:#A78BFA; --l-ink:#DCD0FF;
+  --r-solid:#3D67C4; --r-tint:#1F2A40; --r-faint:#19202D; --r-main:#7AA2F7;
+  --s-solid:#3A7A50; --s-tint:#1E3226; --s-faint:#18241C; --s-main:#86C59A;
+  color-scheme:dark;
+}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0}
+img,svg{max-width:100%}
+[hidden]{display:none!important}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:17px;line-height:1.55}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+a{color:var(--ink)}
+:focus-visible{outline:2px solid var(--acc);outline-offset:3px;border-radius:6px}
+h1,h2,h3{text-wrap:balance;margin:0}
+p{margin:0}
+.wrap{max-width:1200px;margin:0 auto;padding-left:max(24px,env(safe-area-inset-left,0px));padding-right:max(24px,env(safe-area-inset-right,0px))}
+.band{padding-block:88px}
+.band-alt{background:var(--bg2);border-block:1px solid var(--line2)}
+.eyebrow{font-size:14px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--mute)}
+.h2{font-size:clamp(28px,4vw,40px);line-height:1.15;letter-spacing:-.015em}
+.lead{color:var(--ink2);max-width:640px}
+.center{text-align:center;margin-inline:auto}
+.btn{display:inline-flex;align-items:center;justify-content:center;min-height:52px;padding:0 24px;border-radius:12px;font-weight:600;text-decoration:none;border:1px solid var(--acc);cursor:pointer;font:inherit;font-weight:600}
+.btn-primary{background:var(--acc);color:var(--acc-fg)}
+.btn-ghost{background:var(--surf);color:var(--ink);border-color:var(--line)}
+.check{flex:none;margin-top:4px;color:var(--ok)}
+.logo{display:block;color:var(--ink)}
+
+/* Kopfzeile */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:color-mix(in srgb,var(--bg) 94%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line2)}
+.top .wrap{display:flex;flex-wrap:wrap;align-items:center;gap:12px 28px;padding-block:14px}
+.nav{display:flex;flex-wrap:wrap;gap:6px 22px;font-size:15px;margin-right:auto}
+.nav a{color:var(--ink2);text-decoration:none}
+.top .btn{min-height:44px;padding:0 18px;font-size:15px}
+.login{font-size:15px;font-weight:600;text-decoration:none}
+@media (max-width:720px){.nav{display:none}.login{margin-left:auto}}
+
+/* Start */
+.hero{background:var(--bg2);border-bottom:1px solid var(--line2)}
+.hero .wrap{display:flex;flex-wrap:wrap;gap:48px;align-items:center;padding-block:64px 80px}
+.hero-text{flex:1 1 420px;min-width:0;display:flex;flex-direction:column;gap:22px}
+.pill{align-self:flex-start;display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:600;padding:6px 12px;border-radius:999px;background:var(--ok-bg);color:var(--ok-fg)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--ok);flex:none}
+.hero h1{font-size:clamp(34px,5.4vw,54px);line-height:1.08;letter-spacing:-.02em}
+.hero .lead{font-size:19px;max-width:560px}
+.actions{display:flex;flex-wrap:wrap;gap:12px}
+.ticks{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:8px 22px;font-size:15px;color:var(--ink2)}
+.ticks li{display:flex;align-items:center;gap:8px}
+.demo-ui{flex:1 1 440px;min-width:0;display:flex;flex-direction:column;gap:14px;font-size:14px}
+.call{background:var(--surf);border:1.5px solid var(--line);border-radius:18px;padding:18px;box-shadow:0 20px 50px rgba(31,41,51,.10);display:flex;flex-direction:column;gap:12px}
+.call-head{display:flex;align-items:center;gap:10px}
+.call-head .dot{width:10px;height:10px}
+.time{margin-left:auto;font-family:var(--mono);color:var(--mute)}
+.bub{max-width:86%;padding:8px 11px}
+.bub.in{align-self:flex-start;background:var(--bubble-in);border-radius:12px 12px 12px 3px}
+.bub.out{align-self:flex-end;background:var(--bubble-out);border-radius:12px 12px 3px 12px}
+.facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding-top:10px;border-top:1px solid var(--line2)}
+.facts small{display:block;font-size:12px;color:var(--mute)}
+.done{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;background:var(--ok-bg);color:var(--ok-fg);font-weight:600}
+.plan{background:var(--surf);border:1px solid var(--line);border-radius:16px;padding:12px;display:flex;flex-direction:column;gap:8px;font-size:12px}
+.lane{display:flex;align-items:center;gap:10px}
+.lane b{width:70px;flex:none}
+.track{position:relative;flex:1;height:30px}
+.chip{position:absolute;top:0;bottom:0;border-radius:6px;display:flex;align-items:center;padding-left:6px;font-weight:600;white-space:nowrap;overflow:hidden}
+
+/* Karten-Raster */
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:20px}
+.pain{padding:26px;border-radius:16px;background:var(--warn-bg);border:1px solid var(--warn-bd)}
+.pain h3{font-size:19px;margin-bottom:8px}
+.pain p{color:var(--ink2)}
+.usp{padding:28px;border-radius:18px;border:1px solid var(--line);background:var(--surf);display:flex;flex-direction:column;gap:12px}
+.usp .ico{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center}
+.usp h3{font-size:21px;line-height:1.25}
+.usp p{color:var(--ink2)}
+.usp .gain{margin-top:auto;padding-top:6px;font-size:14px;font-weight:600;color:var(--ok-fg)}
+.tag-pro{display:inline-block;vertical-align:middle;font-size:12px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--acc);color:var(--acc-fg);margin-left:6px}
+
+/* Ablauf */
+.steps-band{background:var(--dark);color:var(--dark-fg)}
+.steps-band .lead{color:var(--dark-mute)}
+.steps{list-style:none;margin:0;padding:0}
+.step{padding:28px;border-radius:18px;background:var(--dark2);display:flex;flex-direction:column;gap:10px}
+.step .n{font-family:var(--mono);font-size:15px;color:var(--dark-num)}
+.step strong{font-size:21px}
+.step span:last-child{color:var(--dark-mute)}
+
+/* Vergleich */
+.table-box{overflow-x:auto;border:1px solid var(--line);border-radius:16px;background:var(--surf)}
+table{width:100%;min-width:560px;border-collapse:collapse;font-size:16px}
+th,td{padding:16px 20px;text-align:left;vertical-align:top}
+thead th{background:var(--bg2);font-size:14px;color:var(--mute);font-weight:600}
+thead th:last-child{color:var(--ok-fg);font-weight:700}
+tbody tr{border-top:1px solid var(--line2)}
+tbody td:nth-child(2){color:var(--mute)}
+tbody td:last-child,thead th:last-child{background:var(--ok-bg)}
+tbody td:last-child{color:var(--ok-fg);font-weight:600}
+tbody td:last-child .cell{display:flex;gap:10px;align-items:flex-start}
+tbody td:last-child svg{flex:none;margin-top:3px;color:var(--ok)}
+tbody td:nth-child(2){text-decoration-color:var(--line)}
+
+/* Vertrauen */
+.trust{display:flex;flex-wrap:wrap;gap:32px}
+.trust>*{flex:1 1 400px;min-width:0}
+.list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px}
+.list li{display:flex;gap:12px}
+.quote{margin:0;padding:32px;border-radius:18px;background:var(--surf);border:1px solid var(--line);display:flex;flex-direction:column;gap:18px;justify-content:center}
+.quote blockquote{margin:0;font-size:22px;line-height:1.45;font-weight:500}
+.quote figcaption{display:flex;align-items:center;gap:12px;color:var(--mute);font-size:15px}
+.ph{color:var(--mute)}
+
+/* Preise */
+.plans{display:flex;flex-wrap:wrap;gap:20px;justify-content:center;align-items:stretch;margin-bottom:28px}
+.planc{flex:1 1 320px;max-width:520px;padding:32px;border-radius:20px;border:1px solid var(--line);background:var(--surf);display:flex;flex-direction:column;gap:18px}
+.planc.rec{border:2px solid var(--acc)}
+.planc header{display:flex;align-items:center;gap:10px}
+.planc header strong{font-size:24px}
+.rec-tag{font-size:13px;font-weight:700;padding:4px 10px;border-radius:999px;background:var(--ok-bg);color:var(--ok-fg)}
+.price{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px}
+.price b{font-size:46px;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.price span,.fine{color:var(--mute)}
+.fine{font-size:14px}
+.feats{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+.feats li{display:flex;gap:10px}
+.feats li.no{color:var(--mute)}
+.feats li.no svg{color:var(--line)}
+.feats li.strong span{font-weight:700}
+.planc .btn{margin-top:auto}
+.calc{max-width:640px;margin:0 auto;padding:32px;border-radius:20px;border:1px solid var(--line);background:var(--bg2);display:flex;flex-direction:column;gap:18px}
+.badge247{align-self:flex-start;display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;background:var(--acc);color:var(--acc-fg);font-size:14px;font-weight:700}
+.badge247 .dot{background:#8CC79F}
+.seg{display:flex;gap:4px;padding:4px;border-radius:12px;background:var(--acc-soft)}
+.seg button{flex:1;min-height:44px;border:0;border-radius:9px;background:transparent;color:var(--ink);font:inherit;font-weight:500;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--surf);font-weight:700;box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.calc label{display:flex;flex-direction:column;gap:10px;font-weight:600}
+.calc label span{display:flex;justify-content:space-between}
+.calc input[type=range]{width:100%;height:32px;accent-color:var(--acc)}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.res{display:flex;flex-direction:column;gap:8px;padding:18px;border-radius:14px;background:var(--surf);border:1px solid var(--line)}
+.row{display:flex;justify-content:space-between;gap:12px;color:var(--ink2)}
+.row.total{align-items:baseline;padding-top:10px;border-top:1px solid var(--line2);color:var(--ink)}
+.row.total strong:last-child{font-size:28px}
+.hour{display:flex;flex-direction:column;gap:6px;padding:18px;border-radius:14px;background:var(--ok-bg);border:1px solid color-mix(in srgb,var(--ok) 30%,transparent);color:var(--ok-fg)}
+.hour strong{font-size:36px;letter-spacing:-.02em;color:var(--ink)}
+
+/* Fragen */
+.faq{max-width:820px;margin:0 auto;display:flex;flex-direction:column;gap:10px}
+.faq details{background:var(--surf);border:1px solid var(--line);border-radius:14px}
+.faq summary{list-style:none;cursor:pointer;min-height:60px;display:flex;align-items:center;gap:12px;padding:14px 20px;font-weight:600}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary::after{content:"+";margin-left:auto;font-size:22px;color:var(--mute)}
+.faq details[open] summary::after{content:"−"}
+.faq details p{padding:0 20px 18px;color:var(--ink2)}
+
+/* Abschluss */
+.cta{background:#334155;color:#FFFFFF}
+.cta .wrap{display:flex;flex-wrap:wrap;gap:32px;align-items:center;padding-block:80px}
+.cta .txt{flex:1 1 420px}
+.cta .txt p{color:#DCE2EA;font-size:18px;margin-top:12px}
+.form{flex:1 1 360px;display:flex;flex-direction:column;gap:12px;background:var(--surf);color:var(--ink);padding:24px;border-radius:18px}
+.form label{display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:600}
+.form input{min-height:46px;padding:0 14px;border:1px solid var(--line);border-radius:10px;font:inherit;font-weight:400;background:var(--bg);color:var(--ink)}
+.form .btn{border-color:#334155;background:#334155;color:#FFFFFF}
+.form small{font-size:13px;color:var(--mute)}
+.form .ok-msg{padding:10px 12px;border-radius:10px;background:var(--ok-bg);color:var(--ok-fg);font-weight:600}
+
+/* Fuß */
+.foot{background:#1F2933;color:#C3CBD6;font-size:15px}
+.foot .wrap{display:flex;flex-wrap:wrap;gap:24px 48px;padding-block:48px}
+.foot a{color:#C3CBD6;text-decoration:none}
+.foot nav,.foot .col{display:flex;flex-direction:column;gap:8px}
+.foot strong{color:#FFFFFF}
+.foot .brand{flex:1 1 260px;display:flex;flex-direction:column;gap:12px}
+.copy{border-top:1px solid #2A3540;padding:16px;text-align:center;font-size:13px}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+html{scroll-behavior:smooth}
+section[id]{scroll-margin-top:84px}
+</style>
+
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="wordmark" viewBox="-60 -841 4283 1135"><g fill="currentColor"><path d="M338 4Q260 4 197.5 -32.5Q135 -69 98.5 -132.0Q62 -195 62 -274Q62 -353 95.5 -415.5Q129 -478 187.0 -514.5Q245 -551 318 -551Q377 -551 427.0 -526.5Q477 -502 511 -460V-730Q511 -753 525.5 -767.0Q540 -781 562 -781Q585 -781 599.0 -767.0Q613 -753 613 -730V-274Q613 -195 576.5 -132.0Q540 -69 478.0 -32.5Q416 4 338 4ZM338 -86Q389 -86 429.0 -110.5Q469 -135 492.0 -178.0Q515 -221 515 -274Q515 -328 492.0 -370.0Q469 -412 429.0 -436.5Q389 -461 338 -461Q288 -461 247.5 -436.5Q207 -412 183.5 -370.0Q160 -328 160 -274Q160 -221 183.5 -178.0Q207 -135 247.5 -110.5Q288 -86 338 -86Z"/><path d="M834.0 0Q812.0 0 797.5 -14.5Q783.0 -29 783.0 -51V-496Q783.0 -519 797.5 -533.0Q812.0 -547 834.0 -547Q857.0 -547 871.0 -533.0Q885.0 -519 885.0 -496V-51Q885.0 -29 871.0 -14.5Q857.0 0 834.0 0ZM834.0 -636Q807.0 -636 787.5 -655.5Q768.0 -675 768.0 -702Q768.0 -729 787.5 -748.5Q807.0 -768 834.0 -768Q861.0 -768 880.5 -748.5Q900.0 -729 900.0 -702Q900.0 -675 880.5 -655.5Q861.0 -636 834.0 -636Z"/><path d="M1254.0 4Q1184.0 4 1124.5 -17.5Q1065.0 -39 1032.0 -72Q1017.0 -88 1019.5 -108.5Q1022.0 -129 1039.0 -142Q1059.0 -158 1078.5 -155.5Q1098.0 -153 1112.0 -138Q1129.0 -119 1166.5 -102.5Q1204.0 -86 1250.0 -86Q1308.0 -86 1338.5 -105.0Q1369.0 -124 1370.0 -154Q1371.0 -184 1341.5 -206.0Q1312.0 -228 1234.0 -242Q1133.0 -262 1087.5 -302.0Q1042.0 -342 1042.0 -400Q1042.0 -451 1072.0 -484.5Q1102.0 -518 1149.0 -534.5Q1196.0 -551 1247.0 -551Q1313.0 -551 1364.0 -530.0Q1415.0 -509 1445.0 -472Q1459.0 -456 1458.0 -438.5Q1457.0 -421 1441.0 -409Q1425.0 -398 1403.0 -402.0Q1381.0 -406 1366.0 -420Q1341.0 -444 1312.0 -453.0Q1283.0 -462 1245.0 -462Q1201.0 -462 1170.5 -447.0Q1140.0 -432 1140.0 -403Q1140.0 -385 1149.5 -370.5Q1159.0 -356 1187.0 -344.5Q1215.0 -333 1269.0 -322Q1344.0 -307 1387.5 -284.0Q1431.0 -261 1450.0 -230.5Q1469.0 -200 1469.0 -160Q1469.0 -114 1444.5 -77.0Q1420.0 -40 1372.5 -18.0Q1325.0 4 1254.0 4Z"/><path d="M1629.0 234Q1607.0 234 1592.5 219.5Q1578.0 205 1578.0 183V-273Q1578.9915966386554 -351.8509090909091 1615.18487394958 -415.03272727272724Q1651.3781512605042 -478.21454545454543 1713.3529411764707 -514.6072727272727Q1775.327731092437 -551.0 1852.672268907563 -551.0Q1932.0 -551 1994.0 -514.5Q2056.0 -478 2092.5 -415.2210526315789Q2129.0 -352.4421052631579 2129.0 -272.72280701754386Q2129.0 -194 2095.340740740741 -131.31658291457285Q2061.6814814814816 -68.63316582914572 2003.8444444444444 -32.31658291457286Q1946.0074074074073 4.0 1873.0 4Q1814.0 4 1764.5 -20.5Q1715.0 -45 1680.0 -87V183Q1680.0 205 1665.907894736842 219.5Q1651.8157894736842 234.0 1629.0 234ZM1852.9420849420849 -86.0Q1904.0 -86 1944.0 -110.5Q1984.0 -135 2007.5 -177.61682242990656Q2031.0 -220.2336448598131 2031.0 -273.1682242990654Q2031.0 -327 2007.5 -369.5Q1984.0 -412 1943.7777777777778 -436.5Q1903.5555555555557 -461.0 1852.840579710145 -461.0Q1803.0 -461 1762.4305555555557 -436.2705223880597Q1721.861111111111 -411.5410447761194 1698.9305555555557 -369.27611940298505Q1676.0 -327.01119402985074 1676.0 -273.0559701492537Q1676.0 -220 1698.888030888031 -177.28187919463087Q1721.7760617760619 -134.56375838926175 1762.2702702702704 -110.28187919463087Q1802.7644787644788 -86.0 1852.9420849420849 -86.0Z"/><path d="M2509.0 4Q2428.0 4 2365.9545454545455 -31.636363636363633Q2303.909090909091 -67.27272727272727 2268.4545454545455 -129.63636363636363Q2233.0 -192 2233.0 -272.99378881987576Q2233.0 -355 2268.4545454545455 -417.3636363636364Q2303.909090909091 -479.72727272727275 2365.9545454545455 -515.3636363636364Q2428.0 -551 2508.5 -551.0Q2589.0 -551 2650.8654822335025 -515.3636363636364Q2712.730964467005 -479.72727272727275 2748.3654822335025 -417.3636363636364Q2784.0 -355 2784.0 -272.99378881987576Q2784.0 -192 2749.0 -129.5Q2714.0 -67 2652.0 -31.5Q2590.0 4 2509.0 4ZM2509.0 -86Q2561.0 -86 2600.9305555555557 -110.08108108108108Q2640.8611111111113 -134.16216216216216 2663.4305555555557 -176.0810810810811Q2686.0 -218 2686.0 -273Q2686.0 -328 2663.4305555555557 -370.3993288590604Q2640.8611111111113 -412.7986577181208 2600.9305555555557 -436.8993288590604Q2561.0 -461 2509.0 -461Q2457.0 -461 2417.0275862068966 -436.8993288590604Q2377.055172413793 -412.7986577181208 2354.0275862068966 -370.3993288590604Q2331.0 -328 2331.0 -273Q2331.0 -218 2354.0275862068966 -176.0810810810811Q2377.055172413793 -134.16216216216216 2417.0275862068966 -110.08108108108108Q2457.0 -86 2509.0 -86Z"/><path d="M3378.0 1Q3356.0 1 3341.5 -13.5Q3327.0 -28 3327.0 -50V-296Q3327.0 -353 3306.0 -389.0Q3285.0 -425 3249.5 -442.5Q3214.0 -460 3168.0 -460Q3126.0 -460 3092.0 -443.0Q3058.0 -426 3038.0 -397.5Q3018.0 -369 3018.0 -332H2955.0Q2955.0 -395 2985.5 -444.5Q3016.0 -494 3069.0 -523.0Q3122.0 -552 3188.0 -552Q3257.0 -552 3311.5 -522.5Q3366.0 -493 3397.5 -436.0Q3429.0 -379 3429.0 -296V-50Q3429.0 -28 3414.5 -13.5Q3400.0 1 3378.0 1ZM2967.0 1Q2945.0 1 2930.5 -13.5Q2916.0 -28 2916.0 -50V-496Q2916.0 -519 2930.5 -533.0Q2945.0 -547 2967.0 -547Q2990.0 -547 3004.0 -533.0Q3018.0 -519 3018.0 -496V-50Q3018.0 -28 3004.0 -13.5Q2990.0 1 2967.0 1Z"/><path d="M3806.0 4Q3732.9925925925927 4.0 3675.1555555555556 -32.31658291457286Q3617.3185185185184 -68.63316582914572 3583.659259259259 -131.31658291457285Q3550.0 -194 3550.0 -272.72280701754386Q3550.0 -352.4421052631579 3586.5 -415.2210526315789Q3623.0 -478 3685.3838630806845 -514.5Q3747.767726161369 -551.0 3825.99511002445 -551.0Q3904.2224938875306 -551.0 3966.1112469437653 -514.5Q4028.0 -478 4064.5 -415.0Q4101.0 -352 4101.0 -273H4062.0Q4062.0 -194.48031496062993 4028.3686274509805 -131.7736220472441Q3994.737254901961 -69.06692913385827 3937.0117647058823 -32.53346456692913Q3879.286274509804 4.0 3806.0 4ZM3826.0048309178746 -86.0Q3877.0 -86 3917.0 -110.5Q3957.0 -135 3980.0 -177.61682242990656Q4003.0 -220.2336448598131 4003.0 -273.1682242990654Q4003.0 -327 3980.0 -369.5Q3957.0 -412 3917.021844660194 -436.5Q3877.0436893203882 -461.0 3826.0825242718447 -461.0Q3776.0 -461 3735.5 -436.5Q3695.0 -412 3671.5 -369.6338028169014Q3648.0 -327.2676056338028 3648.0 -273.1830985915493Q3648.0 -220 3671.5 -177.5Q3695.0 -135 3735.4444444444443 -110.5Q3775.8888888888887 -86.0 3826.0048309178746 -86.0ZM4050.160714285714 1.0Q4028.0 1 4013.5 -13.5Q3999.0 -28 3999.0 -50V-203L4018.0 -309L4101.0 -273V-50Q4101.0 -28 4086.660714285714 -13.5Q4072.3214285714284 1.0 4050.160714285714 1.0Z"/></g><circle cx="2508.5" cy="-273.5" r="97.5" fill="#5E8C6A"/></symbol>
+  <symbol id="tick" viewBox="0 0 24 24"><path d="M5 12l5 5 9-10" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="dash" viewBox="0 0 24 24"><path d="M6 12h12" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></symbol>
+</svg>
+
+<header class="top">
+  <div class="wrap">
+    <a href="#top" aria-label="Dispona Startseite"><svg class="logo" width="128" height="34" role="img" aria-label="Dispona"><use href="#wordmark"/></svg></a>
+    <nav class="nav" aria-label="Hauptmenü">
+      <a href="#funktionen">Funktionen</a>
+      <a href="#ablauf">So funktioniert's</a>
+      <a href="#preise">Preise</a>
+      <a href="#faq">Fragen</a>
+    </nav>
+    <a class="login" href="#demo">Anmelden</a>
+    <a class="btn btn-primary" href="#demo">Demo buchen</a>
+  </div>
+</header>
+
+<main>
+<section id="top" class="hero">
+  <div class="wrap">
+    <div class="hero-text">
+      <span class="pill"><span class="dot"></span>Dispona: Telefon und Auto-Dispo für Krankenfahrdienste</span>
+      <h1>Kein Anruf geht mehr verloren. Jede Fahrt ist in Sekunden geplant.</h1>
+      <p class="lead">Dispona nimmt Ihre Anrufe an, auch nachts und am Wochenende, versteht, was der Anrufer braucht, und plant die Fahrt sofort beim nächstbesten Fahrzeug ein. Der Fahrer bekommt sie direkt aufs Handy – Sie müssen nichts mehr tun, behalten aber jederzeit das letzte Wort.</p>
+      <div class="actions">
+        <a class="btn btn-primary" href="#demo">Kostenlose Demo buchen</a>
+        <a class="btn btn-ghost" href="#ablauf">So funktioniert's</a>
+      </div>
+      <ul class="ticks">
+        <li><svg class="check" width="16" height="16" aria-hidden="true"><use href="#tick"/></svg>Ihre Telefonnummer bleibt</li>
+        <li><svg class="check" width="16" height="16" aria-hidden="true"><use href="#tick"/></svg>Einrichtung übernehmen wir</li>
+        <li><svg class="check" width="16" height="16" aria-hidden="true"><use href="#tick"/></svg>Ab 1,95 € pro Anruf, keine Grundgebühr</li>
+      </ul>
+    </div>
+
+    <div class="demo-ui" aria-label="Beispiel aus Dispona: ein laufender Anruf und der Tagesplan">
+      <div class="call">
+        <div class="call-head"><span class="dot"></span><strong style="font-size:16px">Anruf läuft</strong><span class="time">01:42</span></div>
+        <div class="bub in">Wir bräuchten für Herrn Kramer eine Rückfahrt von der Uniklinik, liegend.</div>
+        <div class="bub out">Gerne. Ab wann ist Herr Kramer abholbereit?</div>
+        <div class="facts">
+          <div><small>Transport</small>Liegend</div>
+          <div><small>Zeit</small>heute 15:10</div>
+          <div><small>Eingeplant bei</small><strong>LMW 106</strong></div>
+        </div>
+        <div class="done"><svg width="18" height="18" aria-hidden="true"><use href="#tick"/></svg>Automatisch eingeplant · Fahrer benachrichtigt</div>
+      </div>
+      <div class="plan" aria-hidden="true">
+        <div class="lane"><b>LMW 106</b><div class="track">
+          <span class="chip" style="left:0;width:24%;background:var(--l-faint);border:1px solid var(--l-tint)"></span>
+          <span class="chip" style="left:27%;width:26%;background:var(--l-solid)"></span>
+          <span class="chip" style="left:56%;width:18%;background:var(--l-tint);border:1.5px solid var(--l-main)"></span>
+          <span class="chip" style="left:77%;width:22%;background:var(--l-tint);border:1.5px solid var(--l-main);box-shadow:0 0 0 3px color-mix(in srgb,var(--ok) 40%,transparent);color:var(--l-ink)">J. Kramer · neu</span>
+        </div></div>
+        <div class="lane"><b>BTW 112</b><div class="track">
+          <span class="chip" style="left:5%;width:18%;background:var(--r-faint);border:1px solid var(--r-tint)"></span>
+          <span class="chip" style="left:30%;width:20%;background:var(--r-solid)"></span>
+          <span class="chip" style="left:60%;width:22%;background:var(--r-tint);border:1.5px solid var(--r-main)"></span>
+        </div></div>
+        <div class="lane"><b>Taxi 330</b><div class="track">
+          <span class="chip" style="left:0;width:14%;background:var(--s-faint);border:1px solid var(--s-tint)"></span>
+          <span class="chip" style="left:22%;width:16%;background:var(--s-solid)"></span>
+          <span class="chip" style="left:44%;width:15%;background:var(--s-tint);border:1.5px solid var(--s-main)"></span>
+          <span class="chip" style="left:66%;width:15%;background:var(--s-tint);border:1.5px solid var(--s-main)"></span>
+        </div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="band" aria-labelledby="problem-h">
+  <div class="wrap">
+    <h2 id="problem-h" class="h2 center" style="margin-bottom:10px">Kennen Sie das?</h2>
+    <p class="lead center" style="margin-bottom:40px">In vielen Fahrdiensten hängt alles an einem Telefon und einem Kopf. Jede Unterbrechung kostet Zeit – und jeder verpasste Anruf kostet eine Fahrt.</p>
+    <div class="grid">
+      <div class="pain"><h3>Das Telefon klingelt, während Sie planen</h3><p>Mitten in der Disposition kommt der nächste Anruf. Der Faden reißt, Fehler passieren.</p></div>
+      <div class="pain"><h3>Nachts und am Wochenende geht keiner ran</h3><p>Die Klinik ruft woanders an. Die Fahrt – und oft der Stammkunde – ist weg.</p></div>
+      <div class="pain"><h3>Zettel, Excel und Whiteboard</h3><p>Wer fährt wann wohin? Das Wissen steckt in Köpfen, nicht im System.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="funktionen" class="band" style="padding-top:24px" aria-labelledby="usp-h">
+  <div class="wrap">
+    <div style="max-width:720px;margin-bottom:40px;display:flex;flex-direction:column;gap:10px">
+      <div class="eyebrow">Warum Dispona</div>
+      <h2 id="usp-h" class="h2">Ihre Telefonzentrale und Disposition in einem – mit Dispona, die Krankenfahrten versteht.</h2>
+    </div>
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr))">
+      <article class="usp"><div class="ico" style="background:var(--ok-bg);color:var(--ok-fg)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg></div><h3>Nimmt jeden Anruf an – rund um die Uhr</h3><p>Dispona meldet sich unter Ihrer bestehenden Nummer, spricht natürlich und erfasst alle Fahrtdaten im Gespräch. Auch nachts, am Wochenende und bei mehreren Anrufen gleichzeitig.</p><div class="gain">Keine verpassten Fahrten mehr</div></article>
+      <article class="usp"><div class="ico" style="background:var(--r-tint);color:var(--r-solid)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg></div><h3>Auto-Dispo: plant selbst beim nächstbesten Wagen<span class="tag-pro">Pro</span></h3><p>Dispona prüft Transportart, freie Zeitfenster und Anfahrtsweg und plant die Fahrt direkt beim nächstbesten Fahrzeug ein – ohne dass jemand eingreifen muss. Sie sehen jede Entscheidung mit Begründung und können jederzeit umplanen.</p><div class="gain">Disposition läuft von allein, auch nachts</div></article>
+      <article class="usp"><div class="ico" style="background:var(--s-tint);color:var(--s-solid)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11zM12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z"/></svg></div><h3>Live-Status aus der Fahrer-App<span class="tag-pro">Pro</span></h3><p>Fährt zum Fahrgast, Fahrgast im Auto, Fahrgast am Ziel: Sie sehen jederzeit, wo jede Fahrt steht. Verspätungen werden automatisch gemeldet.</p><div class="gain">Keine Kontrollanrufe beim Fahrer</div></article>
+      <article class="usp"><div class="ico" style="background:var(--l-tint);color:var(--l-solid)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 4v16M4 12h16"/></svg></div><h3>Gemacht für Krankenfahrten</h3><p>Liegend, Tragestuhl, Rollstuhl, Sitzend. Hin- und Rückfahrten, Serienfahrten zur Dialyse oder Bestrahlung: Dispona kennt Ihren Alltag.</p><div class="gain">Kein Umweg über Taxi- oder Logistiksoftware</div></article>
+      <article class="usp"><div class="ico" style="background:var(--s-tint);color:var(--s-solid)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 5h18v14H3zM3 9h18M8 13h3"/></svg></div><h3>Buchung auch über Ihre Webseite<span class="tag-pro">Pro</span></h3><p>Ein Buchungsformular für Ihre Webseite und ein Zugang für Kliniken und Pflegeheime. Jede Anfrage wird sofort automatisch beim passenden Fahrzeug eingeplant.</p><div class="gain">Mehr Fahrten, ohne mehr Telefonate</div></article>
+      <article class="usp"><div class="ico" style="background:var(--acc-soft);color:var(--ink)"><svg width="24" height="24" aria-hidden="true"><use href="#tick"/></svg></div><h3>Startklar ohne Schulung</h3><p>Ein ruhiger, klarer Bildschirm statt Tabellenchaos. Wir richten alles für Sie ein, inklusive Fahrzeuge, Fahrer und Ihrer Telefonnummer.</p><div class="gain">In [X] Tagen live</div></article>
+    </div>
+  </div>
+</section>
+
+<section id="ablauf" class="steps-band" aria-labelledby="ablauf-h">
+  <div class="wrap band">
+    <h2 id="ablauf-h" class="h2" style="margin-bottom:12px">Vom Anruf zur geplanten Fahrt in drei Schritten</h2>
+    <p class="lead" style="margin-bottom:44px">Ohne Tippen, ohne Rückruf, ohne Zettel.</p>
+    <ol class="steps grid">
+      <li class="step"><span class="n">01</span><strong>Dispona nimmt ab</strong><span>Unter Ihrer gewohnten Nummer, freundlich und rund um die Uhr. Patient, Transportart, Abholung, Ziel und Zeit werden im Gespräch erfasst.</span></li>
+      <li class="step"><span class="n">02</span><strong>Dispona plant beim nächstbesten Wagen ein</strong><span>Passende Transportart, freies Zeitfenster, kürzeste Anfahrt: Dispona wählt das Fahrzeug und trägt die Fahrt sofort fest in Ihren Plan ein.</span></li>
+      <li class="step"><span class="n">03</span><strong>Der Fahrer weiß sofort Bescheid</strong><span>Die Fahrt landet direkt in der Fahrer-App, der Anrufer bekommt die Zusage noch am Telefon. Sie sehen alles live und können jederzeit umplanen.</span></li>
+    </ol>
+  </div>
+</section>
+
+<section class="band" aria-labelledby="vergleich-h">
+  <div class="wrap" style="max-width:1000px">
+    <h2 id="vergleich-h" class="h2 center" style="margin-bottom:32px">Ihr Tag – vorher und mit Dispona</h2>
+    <div class="table-box">
+      <table>
+        <thead><tr><th scope="col">Situation</th><th scope="col">Bisher</th><th scope="col">Mit Dispona</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Anruf während der Planung</th><td>Planung unterbrechen, Daten auf Zettel</td><td><span class="cell"><svg width="18" height="18" aria-hidden="true"><use href="#tick"/></svg>Dispona nimmt an, Fahrt erscheint im Plan</span></td></tr>
+          <tr><th scope="row">Mehrere Anrufe gleichzeitig</th><td>Besetztzeichen – der Anrufer legt auf und ruft woanders an</td><td><span class="cell"><svg width="18" height="18" aria-hidden="true"><use href="#tick"/></svg>Dispona nimmt mehrere Anrufe gleichzeitig an – kein Besetztzeichen mehr</span></td></tr>
+          <tr><th scope="row">Anruf um 22 Uhr</th><td>Anrufbeantworter oder verpasst</td><td><span class="cell"><svg width="18" height="18" aria-hidden="true"><use href="#tick"/></svg>Fahrt ist bis zum Morgen fertig geplant</span></td></tr>
+          <tr><th scope="row">Wochenende und Feiertage</th><td>Rufumleitung aufs Privathandy, keiner hat wirklich frei</td><td><span class="cell"><svg width="18" height="18" aria-hidden="true"><use href="#tick"/></svg>Dispona nimmt jeden Anruf an – Sie haben frei</span></td></tr>
+          <tr><th scope="row">Mitarbeiter in der Zentrale krank</th><td>Chef springt ein, Telefon und Planung bleiben liegen</td><td><span class="cell"><svg width="18" height="18" aria-hidden="true"><use href="#tick"/></svg>Dispona ist nie krank – Telefon und Dispo laufen weiter</span></td></tr>
+          <tr><th scope="row">Passendes Fahrzeug finden</th><td>Im Kopf oder per Rundruf</td><td><span class="cell"><svg width="18" height="18" aria-hidden="true"><use href="#tick"/></svg>Automatisch beim nächstbesten Wagen eingeplant</span></td></tr>
+          <tr><th scope="row">Wo ist der Fahrer gerade?</th><td>Anrufen und nachfragen</td><td><span class="cell"><svg width="18" height="18" aria-hidden="true"><use href="#tick"/></svg>Live-Status auf einen Blick</span></td></tr>
+          <tr><th scope="row">Neue Mitarbeiter einarbeiten</th><td>Wochen, viel Wissen im Kopf</td><td><span class="cell"><svg width="18" height="18" aria-hidden="true"><use href="#tick"/></svg>Bildschirm erklärt sich selbst</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section class="band band-alt" aria-labelledby="trust-h">
+  <div class="wrap trust">
+    <div style="display:flex;flex-direction:column;gap:18px">
+      <h2 id="trust-h" class="h2">Gesundheitsdaten in sicheren Händen</h2>
+      <p class="lead">Krankenfahrten sind sensibel. Deshalb ist Datenschutz bei Dispona kein Zusatz, sondern Grundlage.</p>
+      <ul class="list">
+        <li><svg class="check" width="20" height="20" aria-hidden="true"><use href="#tick"/></svg><span>Hosting in Deutschland <span class="ph">[bitte bestätigen]</span></span></li>
+        <li><svg class="check" width="20" height="20" aria-hidden="true"><use href="#tick"/></svg><span>DSGVO-konform mit Auftragsverarbeitungsvertrag</span></li>
+        <li><svg class="check" width="20" height="20" aria-hidden="true"><use href="#tick"/></svg><span>Verschlüsselte Übertragung und Speicherung</span></li>
+        <li><svg class="check" width="20" height="20" aria-hidden="true"><use href="#tick"/></svg><span>Klare Rollen und Rechte für Disposition, Fahrer und Verwaltung</span></li>
+      </ul>
+    </div>
+    <figure class="quote">
+      <blockquote>„[Zitat des Pilotkunden – z. B. wie viele Anrufe Dispona pro Woche übernimmt und was sich im Alltag verändert hat.]“</blockquote>
+      <figcaption><strong style="color:var(--ink)">[Name]</strong>· [Funktion], [Fahrdienst, Ort]</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section id="preise" class="band" aria-labelledby="preise-h">
+  <div class="wrap">
+    <div class="center" style="max-width:700px;margin-bottom:40px;display:flex;flex-direction:column;gap:12px">
+      <h2 id="preise-h" class="h2">Sie zahlen nur, wenn Dispona arbeitet.</h2>
+      <p style="color:var(--ink2)">Keine monatliche Grundgebühr. Einmal einrichten, danach ein fester Preis pro Anruf – egal ob tagsüber, nachts oder am Wochenende. Wechsel zwischen den Paketen jederzeit.</p>
+    </div>
+
+    <div class="plans">
+      <article class="planc">
+        <header><strong>Lite</strong></header>
+        <p style="color:var(--ink2)">Dispona übernimmt Ihr Telefon und erfasst jede Fahrt. Die Planung machen Sie selbst.</p>
+        <div class="price"><b>1,95 €</b><span>pro angenommenem Anruf</span></div>
+        <div class="fine">+ 249 € Einrichtung einmalig · alle Preise zzgl. MwSt.</div>
+        <ul class="feats">
+          <li><svg class="check" width="18" height="18" aria-hidden="true"><use href="#tick"/></svg><span>Dispona am Telefon, 24/7 unter Ihrer Nummer</span></li>
+          <li><svg class="check" width="18" height="18" aria-hidden="true"><use href="#tick"/></svg><span>Fahrtdaten im Gespräch erfasst</span></li>
+          <li><svg class="check" width="18" height="18" aria-hidden="true"><use href="#tick"/></svg><span>Dashboard: alle Anfragen und Fahrten auf einen Blick</span></li>
+          <li><svg class="check" width="18" height="18" aria-hidden="true"><use href="#tick"/></svg><span>Weiterleitung an Sie bei Bedarf</span></li>
+          <li class="no"><svg class="check" width="18" height="18" aria-label="nicht enthalten"><use href="#dash"/></svg><span>Fahrzeugvorschlag</span></li>
+          <li class="no"><svg class="check" width="18" height="18" aria-label="nicht enthalten"><use href="#dash"/></svg><span>Automatische Einplanung</span></li>
+          <li class="no"><svg class="check" width="18" height="18" aria-label="nicht enthalten"><use href="#dash"/></svg><span>Fahrer-App mit Live-Status</span></li>
+          <li class="no"><svg class="check" width="18" height="18" aria-label="nicht enthalten"><use href="#dash"/></svg><span>Buchungsformular für Ihre Webseite</span></li>
+          <li class="no"><svg class="check" width="18" height="18" aria-label="nicht enthalten"><use href="#dash"/></svg><span>Fahrtenbuch zum Herunterladen</span></li>
+        </ul>
+        <a class="btn btn-ghost" href="#demo">Lite anfragen</a>
+      </article>
+      <article class="planc rec">
+        <header><strong>Pro</strong><span class="rec-tag">Empfohlen</span></header>
+        <p style="color:var(--ink2)">Telefon und Disposition laufen von allein – rund um die Uhr.</p>
+        <div class="price"><b>2,49 €</b><span>pro angenommenem Anruf</span></div>
+        <div class="fine">+ 249 € Einrichtung einmalig · alle Preise zzgl. MwSt.</div>
+        <ul class="feats">
+          <li><svg class="check" width="18" height="18" aria-hidden="true"><use href="#tick"/></svg><span>Alles aus Lite</span></li>
+          <li class="strong"><svg class="check" width="18" height="18" aria-hidden="true"><use href="#tick"/></svg><span>Fahrer-App für alle Fahrzeuge</span></li>
+          <li class="strong"><svg class="check" width="18" height="18" aria-hidden="true"><use href="#tick"/></svg><span>Automatische Einplanung beim nächstbesten Wagen</span></li>
+          <li><svg class="check" width="18" height="18" aria-hidden="true"><use href="#tick"/></svg><span>Live-Status: fährt zum Fahrgast, im Auto, am Ziel</span></li>
+          <li><svg class="check" width="18" height="18" aria-hidden="true"><use href="#tick"/></svg><span>Wochenansicht und Serienfahrten</span></li>
+          <li><svg class="check" width="18" height="18" aria-hidden="true"><use href="#tick"/></svg><span>Buchungsformular für Ihre Webseite</span></li>
+          <li class="strong"><svg class="check" width="18" height="18" aria-hidden="true"><use href="#tick"/></svg><span>Fahrtenbuch zum Herunterladen – fertig für die Abrechnung</span></li>
+          <li><svg class="check" width="18" height="18" aria-hidden="true"><use href="#tick"/></svg><span>Support per Telefon und E-Mail</span></li>
+        </ul>
+        <a class="btn btn-primary" href="#demo">Pro anfragen</a>
+      </article>
+    </div>
+
+    <div class="calc">
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <span class="badge247"><span class="dot"></span>24 Stunden · 7 Tage · auch an Feiertagen</span>
+        <strong style="font-size:22px;line-height:1.25">Was kostet Ihre Telefonzentrale rund um die Uhr?</strong>
+      </div>
+      <div class="seg" role="group" aria-label="Paket wählen">
+        <button type="button" id="p-lite" data-rate="1.95" data-name="Lite" aria-pressed="false">Lite · 1,95 €</button>
+        <button type="button" id="p-pro" data-rate="2.49" data-name="Pro" aria-pressed="true">Pro · 2,49 €</button>
+      </div>
+      <label for="calls"><span><span>Anrufe pro Tag</span><span class="num" id="callsOut">25</span></span>
+        <input id="calls" type="range" min="5" max="80" step="1" value="25">
+      </label>
+      <div class="res">
+        <div class="row"><span>Anrufe im Monat (30 Tage)</span><span class="num" id="month">750</span></div>
+        <div class="row"><span id="rateOut">× 2,49 € (Pro)</span><span></span></div>
+        <div class="row total"><strong>Ihre Kosten pro Monat</strong><strong class="num" id="cost">1.867,50 €</strong></div>
+        <div class="fine">zzgl. MwSt. · <span id="perDay">62,25 €</span> pro Tag</div>
+      </div>
+      <div class="hour">
+        <div style="font-size:14px;font-weight:600">Erreichbar 720 Stunden im Monat – für nur</div>
+        <div style="display:flex;align-items:baseline;gap:8px"><strong class="num" id="perHour">2,59 €</strong><span>pro Stunde</span></div>
+        <div style="font-size:14px">Tag und Nacht, am Wochenende und an Feiertagen. Kein Anruf landet mehr auf dem Anrufbeantworter.</div>
+      </div>
+      <p style="font-size:15px;color:var(--ink2)">Zum Vergleich: Um Ihr Telefon 24 Stunden an 7 Tagen mit Menschen zu besetzen, bräuchten Sie rechnerisch rund <strong>4,5 Vollzeitkräfte</strong> (720 Stunden ÷ 160 Stunden je Stelle).</p>
+    </div>
+    <p class="fine center" style="max-width:760px;margin-top:24px">Abgerechnet wird jeder Anruf, den Dispona annimmt. Anrufe, die Sie selbst annehmen, kosten nichts. Monatliche Abrechnung mit Einzelnachweis.</p>
+  </div>
+</section>
+
+<section id="faq" class="band band-alt" aria-labelledby="faq-h">
+  <div class="wrap">
+    <h2 id="faq-h" class="h2 center" style="margin-bottom:28px">Häufige Fragen</h2>
+    <div class="faq">
+      <details open><summary>Kann ich meine bestehende Telefonnummer behalten?</summary><p>Ja. Ihre Nummer bleibt. Anrufe werden zu Dispona weitergeleitet – immer, nur außerhalb der Bürozeiten oder nur, wenn besetzt ist. Das entscheiden Sie.</p></details>
+      <details><summary>Merken die Anrufer, dass Dispona keine echte Person ist?</summary><p>Dispona stellt sich offen als digitale Assistentin Ihres Fahrdienstes vor und spricht natürlich und freundlich. Wünscht ein Anrufer einen Menschen, wird sofort weitergeleitet.</p></details>
+      <details><summary>Was passiert bei schwierigen Fällen?</summary><p>Unklare oder dringende Anrufe übergibt Dispona an Sie oder Ihre Rufbereitschaft – mit allen bereits erfassten Daten.</p></details>
+      <details><summary>Muss ich jede Fahrt selbst einplanen?</summary><p>Im Paket Lite planen Sie selbst – Dispona nimmt die Anrufe an und legt Ihnen alle Fahrten im Dashboard bereit. Im Paket Pro nicht: Dispona plant jede Fahrt automatisch beim nächstbesten passenden Fahrzeug ein und benachrichtigt den Fahrer. Sie sehen jede Entscheidung live, können jederzeit umplanen und auf Wunsch festlegen, welche Fälle Sie lieber selbst prüfen möchten.</p></details>
+      <details><summary>Woher weiß Dispona, welcher Wagen der beste ist?</summary><p>Dispona prüft, ob das Fahrzeug die Transportart fahren darf, ob es im Zeitfenster frei ist (mit Puffer) und welcher Wagen die kürzeste Anfahrt hat. Bei Gleichstand wird die Arbeit gleichmäßig verteilt.</p></details>
+      <details><summary>Was genau kostet Dispona?</summary><p>Einmalig 249 € für die Einrichtung, danach pro Anruf, den Dispona annimmt: 1,95 € im Paket Lite (Dispona nimmt ab, Sie planen selbst) oder 2,49 € im Paket Pro mit Fahrer-App und automatischer Einplanung (jeweils zzgl. MwSt.). Keine Grundgebühr. Bei 25 Anrufen am Tag sind das rund 1.460 € (Lite) bzw. 1.870 € (Pro) im Monat.</p></details>
+      <details><summary>Wie schnell sind wir startklar?</summary><p>Wir richten Dispona gemeinsam mit Ihnen ein: Fahrzeuge, Fahrer, Telefonnummer und Abläufe. Rechnen Sie mit [X] Tagen bis zum Start.</p></details>
+      <details><summary>Wie sicher sind die Patientendaten?</summary><p>Alle Daten werden verschlüsselt übertragen und gespeichert. Mit jedem Kunden schließen wir einen Auftragsverarbeitungsvertrag nach DSGVO.</p></details>
+    </div>
+  </div>
+</section>
+
+<section id="demo" class="cta" aria-labelledby="demo-h">
+  <div class="wrap">
+    <div class="txt">
+      <h2 id="demo-h" class="h2">Hören Sie Dispona live am Telefon.</h2>
+      <p>In 20 Minuten zeigen wir Ihnen, wie Dispona einen echten Anruf annimmt und die Fahrt in Ihren Plan bringt.</p>
+    </div>
+    <form class="form" id="demoForm" aria-label="Demo anfragen" novalidate>
+      <label for="f-name">Name des Fahrdienstes<input id="f-name" type="text" placeholder="z. B. Fahrdienst Müller" autocomplete="organization"></label>
+      <label for="f-contact">Telefon oder E-Mail<input id="f-contact" type="text" placeholder="Wie erreichen wir Sie?"></label>
+      <button class="btn" type="submit">Demo-Termin anfragen</button>
+      <div class="ok-msg" id="formMsg" hidden>Danke! Dies ist eine Vorschau – das Formular wird beim Livegang angeschlossen.</div>
+      <small>Wir melden uns innerhalb eines Werktags. Kein Abo, keine Verpflichtung.</small>
+    </form>
+  </div>
+</section>
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <div class="brand"><svg width="112" height="30" role="img" aria-label="Dispona" style="color:#FFFFFF"><use href="#wordmark"/></svg><span>Dispona nimmt Ihre Anrufe an und plant Ihre Fahrten – für Krankenfahrdienste.</span></div>
+    <nav aria-label="Produkt"><strong>Produkt</strong><a href="#funktionen">Funktionen</a><a href="#preise">Preise</a><a href="#demo">Kunden-Login</a></nav>
+    <nav aria-label="Rechtliches"><strong>Rechtliches</strong><a href="#demo">Impressum</a><a href="#demo">Datenschutz</a><a href="#demo">AGB</a><a href="#demo">AV-Vertrag</a></nav>
+    <div class="col"><strong>Kontakt</strong><span>[E-Mail]</span><span>[Telefon]</span></div>
+  </div>
+  <div class="copy">© 2026 Dispona</div>
+</footer>
+
+<script>
+(function(){
+  var rate = 2.49, name = 'Pro';
+  var calls = document.getElementById('calls');
+  var btns = [document.getElementById('p-lite'), document.getElementById('p-pro')];
+  function eur(v){ return v.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2}) + ' €'; }
+  function render(){
+    var c = Number(calls.value), m = c * 30;
+    document.getElementById('callsOut').textContent = c;
+    document.getElementById('month').textContent = m.toLocaleString('de-DE');
+    document.getElementById('rateOut').textContent = '× ' + eur(rate) + ' (' + name + ')';
+    document.getElementById('cost').textContent = eur(m * rate);
+    document.getElementById('perDay').textContent = eur(c * rate);
+    document.getElementById('perHour').textContent = eur(m * rate / 720);
+  }
+  btns.forEach(function(b){
+    b.addEventListener('click', function(){
+      rate = Number(b.dataset.rate); name = b.dataset.name;
+      btns.forEach(function(x){ x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
+      render();
+    });
+  });
+  calls.addEventListener('input', render);
+  document.getElementById('demoForm').addEventListener('submit', function(e){
+    e.preventDefault();
+    document.getElementById('formMsg').hidden = false;
+  });
+  render();
+})();
+</script>
+
+</body>
+</html>
