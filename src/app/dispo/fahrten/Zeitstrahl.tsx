@@ -389,7 +389,7 @@ export function Zeitstrahl({
          * Grid wäre ihre eigene Spalte zu schmal, um außerhalb davon noch kleben zu können. */}
         <div className="flex flex-col gap-y-2 p-4" style={{ width: 230 + ZEITSTRAHL_BREITE_PX }}>
           <div className="flex items-center gap-x-2">
-            <div className="sticky left-0 z-10 w-[230px] flex-none bg-surface" />
+            <div className="sticky left-0 z-10 w-[230px] flex-none bg-surface shadow-[2px_0_6px_-2px_rgba(16,24,32,0.12)]" />
             <div className="relative h-5 flex-none text-xs text-muted" style={{ width: ZEITSTRAHL_BREITE_PX }}>
               {STUNDEN_TICKS.map((stunde) => (
                 <span
@@ -403,25 +403,10 @@ export function Zeitstrahl({
             </div>
           </div>
 
-          {nichtZugewiesen.length > 0 ? (
-            <div className="flex items-center gap-x-2">
-              <div className="sticky left-0 z-10 w-[230px] flex-none bg-surface text-sm font-medium text-warn-ink">
-                Braucht Sie
-              </div>
-              <SpurTag
-                schicht={null}
-                fahrten={nichtZugewiesen}
-                jetztProzent={jetztProzentHeute}
-                passtZurSuche={passtZurSuche}
-                onKlick={onFahrtKlick}
-              />
-            </div>
-          ) : null}
-
           {fahrzeugZeilen.map((zeile) => (
             <div key={zeile.id} className="flex items-center gap-x-2">
               <div
-                className="sticky left-0 z-10 w-[230px] flex-none bg-surface"
+                className="sticky left-0 z-10 w-[230px] flex-none bg-surface shadow-[2px_0_6px_-2px_rgba(16,24,32,0.12)]"
                 title={`${zeile.plate} · ${zeile.typ} · ${zeile.fahrerNamen || "ohne Fahrer"}`}
               >
                 <div className="flex items-center gap-2">

@@ -106,7 +106,7 @@ function BrauchtSieKarte({
   return (
     <Card className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <h2 className="font-semibold text-ink">Braucht Sie</h2>
+        <h2 className="font-semibold text-ink">Hinweis</h2>
         {eintraege.length > 0 ? <Chip ton="warn">{eintraege.length}</Chip> : null}
       </div>
       <p className="text-sm text-muted">Dispona plant alles automatisch. Hier landet nur, was es nicht allein lösen kann.</p>
