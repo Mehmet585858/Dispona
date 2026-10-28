@@ -225,6 +225,27 @@ function AnrufKarte({ anruf }: { anruf: LiveAnruf }) {
   );
 }
 
+/** Platzhalter, solange kein Anruf läuft – an derselben Stelle wie AnrufKarte, damit das
+ * Anruf-Feld nie ganz verschwindet, sondern nur seinen Zustand wechselt. */
+function AnrufWarteKarte({ anrufeHeute }: { anrufeHeute: number }) {
+  return (
+    <Card className="flex flex-col gap-2 border-line">
+      <div className="flex items-center gap-2">
+        <span className="h-2.5 w-2.5 rounded-full bg-line-strong" />
+        <b className="text-ink">Anrufe</b>
+      </div>
+      <p className="text-sm text-muted">
+        Gerade kein Anruf aktiv. Sobald jemand anruft, erscheinen hier Transkript und erkannte Details live.
+      </p>
+      {anrufeHeute > 0 ? (
+        <p className="text-xs text-muted">
+          {anrufeHeute} {anrufeHeute === 1 ? "Anruf" : "Anrufe"} heute
+        </p>
+      ) : null}
+    </Card>
+  );
+}
+
 export function DispoClient({
   paket,
   kennzahlen,
@@ -481,9 +502,11 @@ export function DispoClient({
         <div className="flex w-full flex-none flex-col gap-4 md:w-[380px]">
           {paket === "PRO" ? (
             <>
-              {liveAnrufe.map((anruf) => (
-                <AnrufKarte key={anruf.id} anruf={anruf} />
-              ))}
+              {liveAnrufe.length > 0 ? (
+                liveAnrufe.map((anruf) => <AnrufKarte key={anruf.id} anruf={anruf} />)
+              ) : (
+                <AnrufWarteKarte anrufeHeute={kennzahlen.anrufeHeute} />
+              )}
               <BrauchtSieKarte eintraege={brauchtSie} fahrten={fahrten} fahrzeuge={fahrzeuge} onOeffnen={setOffeneFahrtId} />
             </>
           ) : (
