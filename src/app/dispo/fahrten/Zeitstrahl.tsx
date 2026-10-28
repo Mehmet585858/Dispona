@@ -4,6 +4,8 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Chip } from "@/components/ui/Chip";
 import { VorschlagAktion, type VorschlagOption } from "@/components/VorschlagAktion";
+import { chipStil, type Fahrtzustand } from "@/core/rides/transportfarbe";
+import { TRANSPORT_TYPE_LABEL, TRANSPORT_TYPES } from "@/core/rides/validation";
 import {
   berlinerMitternacht,
   datumIso,
@@ -57,11 +59,23 @@ function istAlarmFahrt(fahrt: { status: string; problems: string[] }): boolean {
   return fahrt.problems.length > 0 || fahrt.status === "PROBLEM" || fahrt.status === "NICHT_ANGETROFFEN";
 }
 
+/** Farbe = Transportart, Füllung = Zustand (docs/DESIGN-GUIDE.md Abschnitt 4.1/4.2). */
+function zustandFuerFahrt(fahrt: { status: string; driverDelayMin: number | null }): Fahrtzustand {
+  if (fahrt.status === "UNTERWEGS" || fahrt.status === "AN_BORD") {
+    return fahrt.driverDelayMin && fahrt.driverDelayMin > 0 ? "verspaetet" : "laeuft";
+  }
+  if (fahrt.status === "ERLEDIGT") return "erledigt";
+  if (fahrt.status === "VORGESCHLAGEN" || fahrt.status === "ERFASST") return "vorschlag";
+  return "geplant";
+}
+
 export type FahrtMini = {
   id: string;
   pickupAt: Date;
   status: string;
   problems: string[];
+  transportType: (typeof TRANSPORT_TYPES)[number];
+  driverDelayMin: number | null;
   passenger: { firstName: string; lastName: string };
   pickupPlace: { label: string };
   dropoffPlace: { label: string };
@@ -105,18 +119,23 @@ function Spur({
       {jetztProzent !== null ? (
         <div className="absolute inset-y-0 w-px bg-now" style={{ left: `${jetztProzent}%` }} />
       ) : null}
-      {fahrten.map((fahrt) => (
-        <button
-          key={fahrt.id}
-          type="button"
-          onClick={() => onKlick?.(fahrt.id)}
-          title={`${uhrzeit(fahrt.pickupAt)} ${fahrt.passenger.firstName} ${fahrt.passenger.lastName}`}
-          className={`absolute rounded-sm ${kompakt ? "top-0.5 bottom-0.5 w-1.5" : "top-1 bottom-1 w-9"} ${
-            istAlarmFahrt(fahrt) ? "bg-late" : "bg-accent"
-          } ${ausgewaehlteId === fahrt.id ? "ring-2 ring-ink" : ""}`}
-          style={{ left: `${zeitstrahlPosition(fahrt.pickupAt)}%` }}
-        />
-      ))}
+      {fahrten.map((fahrt) => {
+        const stil = chipStil(fahrt.transportType, zustandFuerFahrt(fahrt));
+        return (
+          <button
+            key={fahrt.id}
+            type="button"
+            onClick={() => onKlick?.(fahrt.id)}
+            title={`${uhrzeit(fahrt.pickupAt)} ${fahrt.passenger.firstName} ${fahrt.passenger.lastName} · ${
+              TRANSPORT_TYPE_LABEL[fahrt.transportType]
+            }`}
+            className={`absolute rounded-sm ${kompakt ? "top-0.5 bottom-0.5 w-1.5" : "top-1 bottom-1 w-9"} ${
+              istAlarmFahrt(fahrt) ? "ring-2 ring-danger-ink" : ausgewaehlteId === fahrt.id ? "ring-2 ring-ink" : ""
+            }`}
+            style={{ left: `${zeitstrahlPosition(fahrt.pickupAt)}%`, ...stil }}
+          />
+        );
+      })}
     </div>
   );
 }
