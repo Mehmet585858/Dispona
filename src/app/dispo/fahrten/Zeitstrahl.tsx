@@ -172,7 +172,7 @@ function SpurTag({
             className={`absolute top-1.5 bottom-1.5 flex flex-col justify-center overflow-hidden rounded-md px-2 text-left text-xs leading-tight ${istAlarmFahrt(fahrt) ? "ring-2 ring-danger-ink" : ""}`}
             style={{
               left: `${zeitstrahlPosition(fahrt.pickupAt)}%`,
-              width: `max(${zeitstrahlBreite(fahrt.pickupAt, fahrt.geplantesEnde)}%, 64px)`,
+              width: `max(${zeitstrahlBreite(fahrt.pickupAt, fahrt.geplantesEnde)}%, 92px)`,
               opacity: passt ? 1 : 0.25,
               ...stil,
             }}

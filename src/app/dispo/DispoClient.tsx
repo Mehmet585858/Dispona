@@ -413,8 +413,8 @@ export function DispoClient({
 
       {erfolg ? <p className="text-sm text-accent">{erfolg}</p> : null}
 
-      <div className="flex flex-wrap gap-4">
-        <div className="flex min-w-0 flex-[999_1_640px] flex-col gap-3 rounded-2xl border border-line bg-surface p-4">
+      <div className="flex flex-wrap items-start gap-4">
+        <div className="flex min-w-0 flex-1 basis-[640px] flex-col gap-3 rounded-2xl border border-line bg-surface p-4">
           {fahrten.length === 0 && (ansicht === "tag" ? fahrzeugZeilen.length === 0 : fahrer.length === 0) ? (
             <p className="text-sm text-muted">{ansicht === "woche" ? "Keine Fahrten in dieser Woche." : "Keine Fahrten an diesem Tag."}</p>
           ) : (
@@ -430,7 +430,7 @@ export function DispoClient({
           )}
         </div>
 
-        <div className="flex w-full flex-col gap-4 lg:max-w-sm">
+        <div className="flex w-full flex-none flex-col gap-4 md:w-[380px]">
           {paket === "PRO" ? (
             <>
               {liveAnrufe.map((anruf) => (
