@@ -4,17 +4,26 @@ import { revalidatePath } from "next/cache";
 import { withTenant } from "@/lib/db";
 import { requireSession } from "@/lib/session";
 import type { FahrtEingabe, SerieEingabe } from "@/core/rides/validation";
-import { fahrtStatusAendern } from "@/core/rides/status";
+import { fahrtStatusAendern, minutenSeitDisponiert } from "@/core/rides/status";
 import { fahrtErfassen } from "@/core/rides/erfassen";
 import { serieAnlegen as serieAnlegenKern } from "@/core/rides/serie";
 import { fahrtStornieren as fahrtStornierenKern } from "@/core/rides/stornieren";
 import { fahrzeugZuweisen } from "@/core/disposition/zuweisen";
+import { automodusStatusText } from "@/core/disposition/automodus";
 import { fahrgaesteAehnlicheNamen, telefonNormalisieren } from "@/core/passengers/suche";
 import { berlinerMitternacht, datumIso, wochenStart } from "@/core/shifts/week";
 import { geplantesEnde } from "@/core/shifts/dauer";
 import { fahrzeugLiveStatus, type FahrtFuerLiveStatus } from "@/core/shifts/liveStatus";
 import { routingProvider, GEOCODE_SICHER_SCHWELLE } from "@/providers/routing";
 import type { RideStatus } from "@/generated/prisma/enums";
+import type { VorschlagOption } from "@/components/VorschlagAktion";
+
+const LIVE_ANRUF_FENSTER_MIN = 30;
+
+const ALARM_STATUS_GRUND: Partial<Record<RideStatus, string>> = {
+  PROBLEM: "Problem gemeldet",
+  NICHT_ANGETROFFEN: "Fahrgast nicht angetroffen",
+};
 
 function nachname(vollerName: string): string {
   const teile = vollerName.trim().split(/\s+/);
@@ -35,7 +44,7 @@ async function fahrtenImZeitraumLaden(tenantId: string, von: Date, bis: Date) {
   const fahrtenRoh = await db.ride.findMany({
     where: { pickupAt: { gte: von, lt: bis } },
     include: {
-      passenger: { select: { firstName: true, lastName: true } },
+      passenger: { select: { firstName: true, lastName: true, phones: true, insurer: true } },
       pickupPlace: { select: { label: true, lat: true, lng: true } },
       dropoffPlace: { select: { label: true, lat: true, lng: true } },
       vehicle: { select: { plate: true } },
@@ -83,6 +92,7 @@ export async function fahrplanLaden(datumFilter: string | undefined, ansicht: "t
     orderBy: { start: "asc" },
   });
   const settings = await db.tenantSettings.findUnique({ where: { tenantId } });
+  const tenant = await db.tenant.findUnique({ where: { id: tenantId }, select: { paket: true } });
   const fahrzeugeAktiv = await db.vehicle.findMany({ where: { active: true }, orderBy: { plate: "asc" } });
 
   const letztePositionen = await db.vehicleLocation.findMany({
@@ -140,11 +150,112 @@ export async function fahrplanLaden(datumFilter: string | undefined, ansicht: "t
         })
       : [];
 
+  // "Braucht Sie" (DISPO-SPEZ.md Abschnitt 3.5): echte Dispo-Ausnahmen plus operative Probleme,
+  // bei denen die Automatik nicht weiterkommt – nur für die Tagesansicht relevant.
+  let brauchtSie: { rideId: string; grund: string; beste: VorschlagOption | null }[] = [];
+  let liveAnrufe: {
+    id: string;
+    startedAt: Date;
+    fromNumber: string | null;
+    fahrt: {
+      id: string;
+      pickupAt: Date;
+      transportType: (typeof fahrten)[number]["transportType"];
+      passenger: { firstName: string; lastName: string };
+      pickupPlace: { label: string };
+      dropoffPlace: { label: string };
+      vehicle: { plate: string } | null;
+    } | null;
+  }[] = [];
+  let anrufeHeute = 0;
+
+  if (ansicht === "tag") {
+    const ausnahmen = fahrten
+      .filter((f) => f.autoSkipReason && f.status === "VORGESCHLAGEN")
+      .map((f) => ({
+        rideId: f.id,
+        grund: f.autoSkipReason as string,
+        beste: (f.suggestions[0]?.options as VorschlagOption[] | undefined)?.[0] ?? null,
+      }));
+
+    const alarmFahrten = fahrten.filter(
+      (f) => f.problems.length > 0 || f.status === "PROBLEM" || f.status === "NICHT_ANGETROFFEN",
+    );
+    const alarme = alarmFahrten.map((f) => ({
+      rideId: f.id,
+      grund: f.problems.length > 0 ? f.problems.join(", ") : (ALARM_STATUS_GRUND[f.status] ?? f.status),
+      beste: null,
+    }));
+
+    const driverAckMinutes = settings?.driverAckMinutes ?? 5;
+    const unbestaetigtKandidaten = fahrten.filter((f) => f.status === "DISPONIERT" && f.driverId && !f.driverAckAt);
+    const unbestaetigt: typeof alarme = [];
+    for (const f of unbestaetigtKandidaten) {
+      const minuten = await minutenSeitDisponiert(tenantId, f.id);
+      if (minuten !== null && minuten >= driverAckMinutes) {
+        unbestaetigt.push({ rideId: f.id, grund: "Fahrer hat nicht bestätigt", beste: null });
+      }
+    }
+
+    brauchtSie = [...ausnahmen, ...alarme, ...unbestaetigt];
+    anrufeHeute = await db.call.count({ where: { startedAt: { gte: von, lt: bis } } });
+
+    const liveAnrufeRoh = await db.call.findMany({
+      where: { durationSec: null, startedAt: { gte: new Date(jetzt.getTime() - LIVE_ANRUF_FENSTER_MIN * 60_000) } },
+      orderBy: { startedAt: "desc" },
+      include: {
+        rides: {
+          take: 1,
+          orderBy: { createdAt: "desc" },
+          include: {
+            passenger: { select: { firstName: true, lastName: true } },
+            pickupPlace: { select: { label: true } },
+            dropoffPlace: { select: { label: true } },
+            vehicle: { select: { plate: true } },
+          },
+        },
+      },
+    });
+    liveAnrufe = liveAnrufeRoh.map((anruf) => {
+      const fahrt = anruf.rides[0];
+      return {
+        id: anruf.id,
+        startedAt: anruf.startedAt,
+        fromNumber: anruf.fromNumber,
+        fahrt: fahrt
+          ? {
+              id: fahrt.id,
+              pickupAt: fahrt.pickupAt,
+              transportType: fahrt.transportType,
+              passenger: fahrt.passenger,
+              pickupPlace: fahrt.pickupPlace,
+              dropoffPlace: fahrt.dropoffPlace,
+              vehicle: fahrt.vehicle,
+            }
+          : null,
+      };
+    });
+  }
+
+  const vonDisponaEingeplant = fahrten.filter((f) => f.dispatchMode === "AUTO").length;
+  const unterwegs = await db.ride.count({ where: { status: "UNTERWEGS" } });
+
   return {
     fahrten,
     fahrer,
     fahrzeugZeilen,
     montagIso: datumIso(montag),
+    paket: tenant?.paket ?? "PRO",
+    automodusText: automodusStatusText(settings?.autoMode ?? "AUS", jetzt),
+    kennzahlen: {
+      fahrtenHeute: fahrten.length,
+      unterwegs,
+      vonDisponaEingeplant,
+      brauchtSie: brauchtSie.length,
+      anrufeHeute,
+    },
+    brauchtSie,
+    liveAnrufe,
     karte: settings
       ? {
           fahrzeuge: fahrzeugeAktiv.map((f) => ({

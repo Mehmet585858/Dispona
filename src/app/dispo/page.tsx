@@ -1,7 +1,6 @@
 import { datumIso } from "@/core/shifts/week";
 import { fahrzeugeFuerAuswahl } from "./fahrer/actions";
 import { fahrplanLaden, orteFuerAuswahl } from "./fahrten/actions";
-import { dashboardLaden } from "./actions";
 import { DispoClient } from "./DispoClient";
 
 export default async function DispoPage({
@@ -13,8 +12,7 @@ export default async function DispoPage({
   const datum = datumParam ?? datumIso(new Date());
   const ansicht = ansichtParam === "woche" ? "woche" : "tag";
 
-  const [dashboard, fahrplan, orte, fahrzeuge] = await Promise.all([
-    dashboardLaden(),
+  const [fahrplan, orte, fahrzeuge] = await Promise.all([
     fahrplanLaden(datum, ansicht),
     orteFuerAuswahl(),
     fahrzeugeFuerAuswahl(),
@@ -22,11 +20,11 @@ export default async function DispoPage({
 
   return (
     <DispoClient
-      kennzahlen={dashboard.kennzahlen}
-      alarme={dashboard.alarme}
-      automodusText={dashboard.automodusText}
-      heuteNacht={dashboard.heuteNacht}
-      planFuerMorgen={dashboard.planFuerMorgen}
+      paket={fahrplan.paket}
+      automodusText={fahrplan.automodusText}
+      kennzahlen={fahrplan.kennzahlen}
+      brauchtSie={fahrplan.brauchtSie}
+      liveAnrufe={fahrplan.liveAnrufe}
       fahrten={fahrplan.fahrten}
       fahrer={fahrplan.fahrer}
       fahrzeugZeilen={fahrplan.fahrzeugZeilen}
