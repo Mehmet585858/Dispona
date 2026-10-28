@@ -39,12 +39,12 @@ const LIVE_PUNKT_FARBE: Record<FahrzeugLiveStatus["punkt"], string> = {
   late: "var(--live-late)",
 };
 
-const STUNDEN_TICKS = Array.from({ length: ZEITSTRAHL_ENDE_STUNDE - ZEITSTRAHL_START_STUNDE + 1 }, (_, i) => ZEITSTRAHL_START_STUNDE + i);
+export const STUNDEN_TICKS = Array.from({ length: ZEITSTRAHL_ENDE_STUNDE - ZEITSTRAHL_START_STUNDE + 1 }, (_, i) => ZEITSTRAHL_START_STUNDE + i);
 /** Breite einer Stunde im Tages-Zeitstrahl in Pixeln – fest statt prozentual, damit der Zeitstrahl
  * horizontal scrollbar ist (volle 24 Std. sichtbar, aber nie gequetschte Chips). */
-const PX_PRO_STUNDE = 130;
-const ZEITSTRAHL_BREITE_PX = (ZEITSTRAHL_ENDE_STUNDE - ZEITSTRAHL_START_STUNDE) * PX_PRO_STUNDE;
-function px(prozent: number): number {
+export const PX_PRO_STUNDE = 130;
+export const ZEITSTRAHL_BREITE_PX = (ZEITSTRAHL_ENDE_STUNDE - ZEITSTRAHL_START_STUNDE) * PX_PRO_STUNDE;
+export function px(prozent: number): number {
   return (prozent / 100) * ZEITSTRAHL_BREITE_PX;
 }
 /** Pixel-Position im Zeitstrahl zurück in eine Abholzeit (HH:MM, auf 5 Minuten gerundet, an den
@@ -59,7 +59,7 @@ function pxZuAbholzeit(xPx: number): string {
 }
 const NICHT_VERSCHIEBBAR = new Set(["UNTERWEGS", "AN_BORD", "ERLEDIGT", "STORNIERT", "NICHT_ANGETROFFEN"]);
 
-function uhrzeit(datum: Date): string {
+export function uhrzeit(datum: Date): string {
   return new Date(datum).toLocaleTimeString("de-DE", {
     timeZone: "Europe/Berlin",
     hour: "2-digit",
@@ -67,12 +67,12 @@ function uhrzeit(datum: Date): string {
   });
 }
 
-function istAlarmFahrt(fahrt: { status: string; problems: string[] }): boolean {
+export function istAlarmFahrt(fahrt: { status: string; problems: string[] }): boolean {
   return fahrt.problems.length > 0 || fahrt.status === "PROBLEM" || fahrt.status === "NICHT_ANGETROFFEN";
 }
 
 /** Farbe = Transportart, Füllung = Zustand (docs/DISPO-SPEZ.md Abschnitt 4.1/4.2). */
-function zustandFuerFahrt(fahrt: { status: string; driverDelayMin: number | null }): Fahrtzustand {
+export function zustandFuerFahrt(fahrt: { status: string; driverDelayMin: number | null }): Fahrtzustand {
   if (fahrt.status === "UNTERWEGS" || fahrt.status === "AN_BORD") {
     return fahrt.driverDelayMin && fahrt.driverDelayMin > 0 ? "verspaetet" : "laeuft";
   }
@@ -117,7 +117,7 @@ export type FahrzeugZeile = {
 };
 
 /** Kurzname für den Chip-Text, z. B. "J. Kramer" (DISPO-SPEZ.md Abschnitt 3.3). */
-function kurzname(vorname: string, nachname: string): string {
+export function kurzname(vorname: string, nachname: string): string {
   return `${vorname.charAt(0)}. ${nachname}`;
 }
 

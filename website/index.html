@@ -213,6 +213,9 @@ tbody td:nth-child(2){text-decoration-color:var(--line)}
 .cta .wrap{display:flex;flex-wrap:wrap;gap:32px;align-items:center;padding-block:80px}
 .cta .txt{flex:1 1 420px}
 .cta .txt p{color:#DCE2EA;font-size:18px;margin-top:12px}
+.cta .call{display:flex;flex-wrap:wrap;gap:12px;margin-top:20px}
+.cta .txt small{display:block;color:#AEB8C4;margin-top:12px}
+.cta form strong{display:block;margin-bottom:4px}
 .form{flex:1 1 360px;display:flex;flex-direction:column;gap:12px;background:var(--surf);color:var(--ink);padding:24px;border-radius:18px}
 .form label{display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:600}
 .form input{min-height:46px;padding:0 14px;border:1px solid var(--line);border-radius:10px;font:inherit;font-weight:400;background:var(--bg);color:var(--ink)}
@@ -483,9 +486,17 @@ section[id]{scroll-margin-top:84px}
   <div class="wrap">
     <div class="txt">
       <h2 id="demo-h" class="h2">Hören Sie Dispona live am Telefon.</h2>
-      <p>In 20 Minuten zeigen wir Ihnen, wie Dispona einen echten Anruf annimmt und die Fahrt in Ihren Plan bringt.</p>
+      <p>Rufen Sie jetzt unsere Demo-Nummer an, bestellen Sie eine Beispielfahrt – und sehen Sie im Live-Dashboard in Echtzeit, wie Dispona sie einplant.</p>
+      <!-- Sobald die Vapi-Demo-Nummer eingerichtet ist (siehe scripts/seed-demo-tenant.ts), hier und
+           im href durch die echte Nummer ersetzen. -->
+      <div class="call">
+        <a class="btn btn-primary" href="tel:[Demo-Telefonnummer]">[Demo-Telefonnummer] anrufen</a>
+        <a class="btn btn-ghost" href="https://app.dispona.de/live" target="_blank" rel="noopener">Live-Dashboard ansehen</a>
+      </div>
+      <small>Das Gespräch führt eine KI und wird zu Vorführzwecken aufgezeichnet.</small>
     </div>
     <form class="form" id="demoForm" aria-label="Demo anfragen" novalidate>
+      <strong>Lieber persönlich? Termin anfragen:</strong>
       <label for="f-name">Name des Fahrdienstes<input id="f-name" type="text" placeholder="z. B. Fahrdienst Müller" autocomplete="organization"></label>
       <label for="f-contact">Telefon oder E-Mail<input id="f-contact" type="text" placeholder="Wie erreichen wir Sie?"></label>
       <button class="btn" type="submit">Demo-Termin anfragen</button>

@@ -35,4 +35,20 @@ describe("voiceSystemPrompt", () => {
 
     expect(text).toContain("unbekannt");
   });
+
+  it("sagt ohne escalationNumber freundlich ab statt weiterzuleiten (z. B. Live-Demo)", () => {
+    const text = voiceSystemPrompt({
+      tenantId: "demo-tenant",
+      firmenname: "Dispona Live-Demo",
+      ort: "Aachen",
+      greeting: "Willkommen bei der Dispona-Demo.",
+      voiceId: "stimme-1",
+      escalationNumber: "",
+      bestaetigungsweg: " per SMS",
+    });
+
+    expect(text).toContain("kein Mensch erreichbar");
+    expect(text).not.toContain("an_mensch_weiterleiten.");
+    expect(text).not.toContain("{{");
+  });
 });

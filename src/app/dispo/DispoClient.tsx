@@ -48,7 +48,7 @@ type KartenDaten = {
   serviceArea: { center: { lat: number; lng: number }; radiusKm: number; depot: { lat: number; lng: number } | null };
 };
 type BrauchtSieEintrag = { rideId: string; grund: string; beste: VorschlagOption | null };
-type LiveAnruf = {
+export type LiveAnruf = {
   id: string;
   startedAt: Date;
   fromNumber: string | null;
@@ -151,22 +151,27 @@ function BrauchtSieKarte({
   );
 }
 
-function AnrufKarte({
+export function AnrufKarte({
   anruf,
   index,
   gesamt,
   onFahrtKlick,
+  transkriptLaden = anrufTranskriptLaden,
 }: {
   anruf: LiveAnruf;
   index: number;
   gesamt: number;
   onFahrtKlick: (id: string) => void;
+  /** Standardmäßig die Dispo-interne, angemeldete Variante (Audit-Log, braucht Sitzung) - die
+   * öffentliche Live-Demo (/live) übergibt stattdessen eine eigene, offene Variante ohne Login
+   * (src/app/live/actions.ts), die zusätzlich fest auf den Demo-Mandanten beschränkt ist. */
+  transkriptLaden?: (callId: string) => Promise<string | null>;
 }) {
   const [transkript, setTranskript] = useState<string | null | undefined>(undefined);
 
   useEffect(() => {
     let abgebrochen = false;
-    anrufTranskriptLaden(anruf.id)
+    transkriptLaden(anruf.id)
       .then((text) => {
         if (!abgebrochen) setTranskript(text);
       })
@@ -176,7 +181,7 @@ function AnrufKarte({
     return () => {
       abgebrochen = true;
     };
-  }, [anruf.id]);
+  }, [anruf.id, transkriptLaden]);
 
   return (
     <Card className="flex min-h-[22rem] flex-col gap-3 border-line-strong">
@@ -260,7 +265,7 @@ function AnrufKarte({
 
 /** Platzhalter, solange kein Anruf läuft – an derselben Stelle wie AnrufKarte, damit das
  * Anruf-Feld nie ganz verschwindet, sondern nur seinen Zustand wechselt. */
-function AnrufWarteKarte({ anrufeHeute }: { anrufeHeute: number }) {
+export function AnrufWarteKarte({ anrufeHeute }: { anrufeHeute: number }) {
   return (
     <Card className="flex flex-col gap-2 border-line">
       <div className="flex items-center gap-2">

@@ -46,6 +46,19 @@ function fahrzeugTypLabel(fahrzeug: { stretcher: boolean; carryChair: boolean; w
  */
 export async function fahrplanLaden(datumFilter: string | undefined, ansicht: "tag" | "woche") {
   const { tenantId } = await requireSession();
+  return fahrplanFuerMandantLaden(tenantId, datumFilter, ansicht);
+}
+
+/** Dieselbe Logik wie fahrplanLaden, aber mit einer schon bekannten tenantId statt über die
+ * Sitzung - genutzt von der öffentlichen Live-Demo (src/app/live/actions.ts), die ohne Login
+ * auskommt, aber nur den fest verdrahteten Demo-Mandanten sehen darf (DEMO_TENANT_ID). Diese
+ * Funktion selbst kennt den Unterschied nicht und ist deshalb genauso wenig/viel ein Risiko wie
+ * fahrplanLaden mit einer manipulierten Sitzung - die Absicherung passiert beim Aufrufer. */
+export async function fahrplanFuerMandantLaden(
+  tenantId: string,
+  datumFilter: string | undefined,
+  ansicht: "tag" | "woche",
+) {
   const db = withTenant(tenantId);
   const tagIso = datumFilter ?? datumIso(new Date());
   const montag = wochenStart(berlinerMitternacht(tagIso));

@@ -8,7 +8,7 @@ Du sprichst Deutsch, in der Sie-Form, ruhig, freundlich und in kurzen Sätzen.
 Viele Anrufer sind älter oder krank: Sprich langsam, wiederhole geduldig, frage nach, wenn du unsicher bist.
 
 Zu Beginn sagst du: "{{begruessung}}" Darin steht, dass eine KI spricht und das Gespräch zur Bearbeitung aufgezeichnet wird.
-Wenn der Anrufer lieber mit einem Menschen sprechen möchte: sofort an_mensch_weiterleiten.
+Wenn der Anrufer lieber mit einem Menschen sprechen möchte: {{mensch_hinweis}}
 
 NOTFALL: Wenn der Anrufer akute Beschwerden schildert (z. B. Atemnot, Brustschmerzen, Bewusstlosigkeit, starke Blutung, Unfall),
 sagst du: "Bitte legen Sie auf und rufen Sie sofort die 112 an." und rufst an_mensch_weiterleiten mit grund "Notfall" auf.
@@ -35,9 +35,15 @@ Wenn du nach drei Versuchen etwas nicht verstehst: an_mensch_weiterleiten oder r
 
 /** Füllt die Vorlage aus docs/04-voice-agent.md mit den Angaben eines Mandanten. */
 export function voiceSystemPrompt(settings: TenantVoiceSettings): string {
+  // Leere escalationNumber (z. B. bei der Live-Demo, die an niemanden weiterleiten soll statt an
+  // einen Menschen bei Dispona selbst) -> gar nicht erst anbieten, stattdessen freundlich absagen.
+  const menschHinweis = settings.escalationNumber
+    ? "sofort an_mensch_weiterleiten."
+    : "erkläre freundlich, dass gerade kein Mensch erreichbar ist.";
   return VORLAGE.replaceAll("{{firmenname}}", settings.firmenname)
     .replaceAll("{{ort}}", settings.ort)
     .replaceAll("{{begruessung}}", settings.greeting)
     .replaceAll("{{bestaetigungsweg}}", settings.bestaetigungsweg)
-    .replaceAll("{{anrufernummer}}", settings.anrufernummer ?? "unbekannt");
+    .replaceAll("{{anrufernummer}}", settings.anrufernummer ?? "unbekannt")
+    .replaceAll("{{mensch_hinweis}}", menschHinweis);
 }

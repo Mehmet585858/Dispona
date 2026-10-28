@@ -50,13 +50,19 @@ export const vapiProvider: VoiceProvider = {
         voice: { provider: "11labs", voiceId: settings.voiceId },
         transcriber: { provider: "deepgram", language: "de" },
         // "an_mensch_weiterleiten": fest hinterlegtes Ziel, kein eigener Werkzeugaufruf bei uns nötig
-        // (docs/04a-vapi-notizen.md Punkt 4).
-        tools: [
-          {
-            type: "transferCall",
-            destinations: [{ type: "number", number: settings.escalationNumber, message: "Einen Moment, ich verbinde." }],
-          },
-        ],
+        // (docs/04a-vapi-notizen.md Punkt 4). Ohne escalationNumber (z. B. Live-Demo auf der
+        // Marketing-Seite, die an niemanden weiterleiten soll) gibt es das Werkzeug gar nicht erst –
+        // voiceSystemPrompt() weist die KI dann an, stattdessen freundlich abzusagen.
+        tools: settings.escalationNumber
+          ? [
+              {
+                type: "transferCall",
+                destinations: [
+                  { type: "number", number: settings.escalationNumber, message: "Einen Moment, ich verbinde." },
+                ],
+              },
+            ]
+          : [],
       },
     };
   },

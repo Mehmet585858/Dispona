@@ -1,5 +1,33 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { vapiProvider } from "@/providers/voice/vapi";
+import type { TenantVoiceSettings } from "@/providers/voice/types";
+
+const GRUND_EINSTELLUNGEN: TenantVoiceSettings = {
+  tenantId: "t1",
+  firmenname: "Muster Krankenfahrten",
+  ort: "Baesweiler",
+  greeting: "Willkommen.",
+  voiceId: "stimme-1",
+  escalationNumber: "+4924041234",
+  bestaetigungsweg: " per SMS",
+};
+
+describe("vapiProvider.buildAssistantConfig", () => {
+  it("bietet das Weiterleiten-Werkzeug mit escalationNumber an", () => {
+    const config = vapiProvider.buildAssistantConfig(GRUND_EINSTELLUNGEN) as {
+      assistant: { tools: unknown[] };
+    };
+    expect(config.assistant.tools).toHaveLength(1);
+  });
+
+  it("bietet kein Weiterleiten-Werkzeug ohne escalationNumber an (z. B. Live-Demo)", () => {
+    const config = vapiProvider.buildAssistantConfig({
+      ...GRUND_EINSTELLUNGEN,
+      escalationNumber: "",
+    }) as { assistant: { tools: unknown[] } };
+    expect(config.assistant.tools).toHaveLength(0);
+  });
+});
 
 describe("vapiProvider.parseToolCall", () => {
   it("liest Werkzeugaufrufe aus einer tool-calls-Nachricht", () => {
