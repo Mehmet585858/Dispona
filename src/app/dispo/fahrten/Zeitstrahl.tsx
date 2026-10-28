@@ -261,16 +261,19 @@ export function Zeitstrahl({
 
   const heuteIso = datumIso(new Date());
   const jetztProzentHeute = jetzt && datum === heuteIso ? zeitstrahlPosition(jetzt) : null;
+  const letztesAutoScrollDatum = useRef<string | null>(null);
 
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
+    if (letztesAutoScrollDatum.current === datum) return; // für diesen Tag schon eingesprungen
+    // Bei "heute" erst scrollen, sobald die aktuelle Uhrzeit bekannt ist (sonst springt die
+    // Ansicht kurz auf den 06-Uhr-Standardwert, bevor sie auf "jetzt" nachkorrigiert).
+    if (datum === heuteIso && jetzt === null) return;
     const zielPx = jetztProzentHeute !== null ? Math.max(0, px(jetztProzentHeute) - el.clientWidth / 3) : 6 * PX_PRO_STUNDE;
     el.scrollLeft = zielPx;
-    // Nur beim Wechsel des Tages neu einspringen, nicht bei jedem "jetzt"-Tick (sonst reißt es
-    // den Nutzer beim Scrollen alle 30 Sekunden zurück).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [datum]);
+    letztesAutoScrollDatum.current = datum;
+  }, [datum, jetzt, jetztProzentHeute, heuteIso]);
 
   const nichtZugewiesen = useMemo(() => fahrten.filter((f) => !f.vehicleId), [fahrten]);
   const suche = (suchbegriff ?? "").trim().toLowerCase();
