@@ -1,0 +1,20 @@
+{
+  "name": "Dispona",
+  "short_name": "Dispona",
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#334155",
+  "background_color": "#F5F6F8",
+  "icons": [
+    {
+      "src": "/dispona-app-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/dispona-app-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

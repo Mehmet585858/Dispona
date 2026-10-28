@@ -1,0 +1,45 @@
+DISPONA – WEBSEITE ZUM HOCHLADEN
+================================
+
+Inhalt dieses Ordners
+---------------------
+index.html                 Die komplette Webseite (alles in einer Datei: Text, Design, Logo, Kostenrechner)
+favicon.svg / favicon.ico  Symbol im Browser-Tab
+apple-touch-icon.png       Symbol, wenn jemand die Seite auf dem iPhone-Startbildschirm ablegt
+dispona-app-icon-192.png   App-Symbol (Android) und Vorschaubild beim Teilen
+dispona-app-icon-512.png
+manifest.webmanifest       Angaben für "Zum Startbildschirm hinzufügen"
+
+
+So kommt die Seite online
+-------------------------
+1. ALLE Dateien dieses Ordners in das Hauptverzeichnis Ihrer Domain hochladen
+   (meist "public_html", "htdocs" oder "www"), z. B. per FTP oder über den Dateimanager Ihres Hosters.
+2. Fertig – die Seite ist unter https://ihre-domain.de erreichbar.
+   Die Symbole werden mit "/" vom Hauptverzeichnis geladen. Liegt die Seite in einem Unterordner,
+   in index.html bei favicon, apple-touch-icon, manifest und og:image den führenden "/" entfernen.
+
+WordPress: Diese Datei ist eine eigenständige Seite und kein WordPress-Theme. Entweder auf eine eigene
+(Sub-)Domain legen, z. B. dispona.de, oder als "Benutzerdefiniertes HTML" einbinden lassen.
+
+
+VOR DEM LIVEGANG ERSETZEN (in index.html nach "[" suchen)
+--------------------------------------------------------
+[X] Tage                 bis zum Start (2x: USP "Startklar" und FAQ)
+[Zitat ...], [Name], [Funktion], [Fahrdienst, Ort]   Stimme des Pilotkunden
+[E-Mail], [Telefon]      Kontakt im Fußbereich
+[bitte bestätigen]       beim Hosting in Deutschland – nur stehen lassen, wenn es stimmt
+
+
+NOCH ZU ERLEDIGEN
+-----------------
+- Demo-Formular: zeigt bisher nur eine Bestätigung und verschickt NICHTS.
+  Anschließen an E-Mail (z. B. per PHP-Skript beim Hoster), an ein Formular-Tool oder an Klick-Tipp.
+  Die Stelle steht ganz unten in index.html im <script> bei "demoForm".
+- Links "Anmelden" / "Kunden-Login" auf die Login-Adresse des Dashboards setzen (suchen nach href="#demo").
+- Impressum, Datenschutz, AGB, AV-Vertrag: eigene Seiten anlegen und im Fußbereich verlinken.
+  Pflicht vor dem Livegang.
+- Cookie-Banner: Die Seite lädt Schriften von Google Fonts. Für volle DSGVO-Sicherheit die Schriften
+  "IBM Plex Sans" und "IBM Plex Mono" selbst hosten (z. B. über google-webfonts-helper) und den
+  fonts.googleapis.com-Link ersetzen. Dann ist kein Cookie-/Consent-Hinweis für Schriften nötig.
+- Tracking (Google Ads, Meta-Pixel, GA4): erst nach Einwilligung laden.
