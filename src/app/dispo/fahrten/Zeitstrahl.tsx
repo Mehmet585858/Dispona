@@ -367,26 +367,30 @@ export function Zeitstrahl({
         </span>
       </div>
       <div ref={scrollRef} className="overflow-x-auto rounded-2xl border border-line bg-surface">
-        <div
-          className="grid items-center gap-x-2 gap-y-2 p-4"
-          style={{ gridTemplateColumns: `230px ${ZEITSTRAHL_BREITE_PX}px` }}
-        >
-          <div className="sticky left-0 z-10 bg-surface" />
-          <div className="relative h-5 text-xs text-muted" style={{ width: ZEITSTRAHL_BREITE_PX }}>
-            {STUNDEN_TICKS.map((stunde) => (
-              <span
-                key={stunde}
-                className="absolute -translate-x-1/2"
-                style={{ left: (stunde - ZEITSTRAHL_START_STUNDE) * PX_PRO_STUNDE }}
-              >
-                {String(stunde).padStart(2, "0")}
-              </span>
-            ))}
+        {/* Jede Zeile ein eigener Flex-Container über die volle Inhaltsbreite (nicht CSS-Grid):
+         * nur so bleibt die Fahrzeug-Spalte beim horizontalen Scrollen "sticky" stehen – in einem
+         * Grid wäre ihre eigene Spalte zu schmal, um außerhalb davon noch kleben zu können. */}
+        <div className="flex flex-col gap-y-2 p-4" style={{ width: 230 + ZEITSTRAHL_BREITE_PX }}>
+          <div className="flex items-center gap-x-2">
+            <div className="sticky left-0 z-10 w-[230px] flex-none bg-surface" />
+            <div className="relative h-5 flex-none text-xs text-muted" style={{ width: ZEITSTRAHL_BREITE_PX }}>
+              {STUNDEN_TICKS.map((stunde) => (
+                <span
+                  key={stunde}
+                  className="absolute -translate-x-1/2"
+                  style={{ left: (stunde - ZEITSTRAHL_START_STUNDE) * PX_PRO_STUNDE }}
+                >
+                  {String(stunde).padStart(2, "0")}
+                </span>
+              ))}
+            </div>
           </div>
 
           {nichtZugewiesen.length > 0 ? (
-            <>
-              <div className="sticky left-0 z-10 bg-surface text-sm font-medium text-warn-ink">Braucht Sie</div>
+            <div className="flex items-center gap-x-2">
+              <div className="sticky left-0 z-10 w-[230px] flex-none bg-surface text-sm font-medium text-warn-ink">
+                Braucht Sie
+              </div>
               <SpurTag
                 schicht={null}
                 fahrten={nichtZugewiesen}
@@ -394,13 +398,13 @@ export function Zeitstrahl({
                 passtZurSuche={passtZurSuche}
                 onKlick={onFahrtKlick}
               />
-            </>
+            </div>
           ) : null}
 
           {fahrzeugZeilen.map((zeile) => (
-            <Fragment key={zeile.id}>
+            <div key={zeile.id} className="flex items-center gap-x-2">
               <div
-                className="sticky left-0 z-10 bg-surface"
+                className="sticky left-0 z-10 w-[230px] flex-none bg-surface"
                 title={`${zeile.plate} · ${zeile.typ} · ${zeile.fahrerNamen || "ohne Fahrer"}`}
               >
                 <div className="flex items-center gap-2">
@@ -432,7 +436,7 @@ export function Zeitstrahl({
                 passtZurSuche={passtZurSuche}
                 onKlick={onFahrtKlick}
               />
-            </Fragment>
+            </div>
           ))}
         </div>
       </div>
