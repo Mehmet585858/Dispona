@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { chipStil, farbeFuerArt, type Fahrtzustand } from "@/core/rides/transportfarbe";
 import { TRANSPORT_TYPE_LABEL, TRANSPORT_TYPES } from "@/core/rides/validation";
@@ -27,7 +27,14 @@ const LIVE_PUNKT_FARBE: Record<FahrzeugLiveStatus["punkt"], string> = {
   late: "var(--live-late)",
 };
 
-const STUNDEN_TICKS = [6, 8, 10, 12, 14, 16, 18, 20, 22];
+const STUNDEN_TICKS = Array.from({ length: ZEITSTRAHL_ENDE_STUNDE - ZEITSTRAHL_START_STUNDE + 1 }, (_, i) => ZEITSTRAHL_START_STUNDE + i);
+/** Breite einer Stunde im Tages-Zeitstrahl in Pixeln – fest statt prozentual, damit der Zeitstrahl
+ * horizontal scrollbar ist (volle 24 Std. sichtbar, aber nie gequetschte Chips). */
+const PX_PRO_STUNDE = 130;
+const ZEITSTRAHL_BREITE_PX = (ZEITSTRAHL_ENDE_STUNDE - ZEITSTRAHL_START_STUNDE) * PX_PRO_STUNDE;
+function px(prozent: number): number {
+  return (prozent / 100) * ZEITSTRAHL_BREITE_PX;
+}
 
 function uhrzeit(datum: Date): string {
   return new Date(datum).toLocaleTimeString("de-DE", {
@@ -144,18 +151,18 @@ function SpurTag({
   onKlick?: (id: string) => void;
 }) {
   return (
-    <div className="relative h-14 rounded-md bg-ground">
+    <div className="relative h-14 rounded-md bg-ground" style={{ width: ZEITSTRAHL_BREITE_PX }}>
       {schicht ? (
         <div
           className="absolute inset-y-0.5 rounded-sm bg-accent-soft"
           style={{
-            left: `${zeitstrahlPosition(schicht.start)}%`,
-            width: `${zeitstrahlBreite(schicht.start, schicht.end)}%`,
+            left: px(zeitstrahlPosition(schicht.start)),
+            width: px(zeitstrahlBreite(schicht.start, schicht.end)),
           }}
         />
       ) : null}
       {jetztProzent !== null ? (
-        <div className="absolute inset-y-0 w-px bg-now" style={{ left: `${jetztProzent}%` }} />
+        <div className="absolute inset-y-0 w-px bg-now" style={{ left: px(jetztProzent) }} />
       ) : null}
       {fahrten.map((fahrt) => {
         const stil = chipStil(fahrt.transportType, zustandFuerFahrt(fahrt));
@@ -171,8 +178,8 @@ function SpurTag({
             } · ${TRANSPORT_TYPE_LABEL[fahrt.transportType]}`}
             className={`absolute top-1.5 bottom-1.5 flex flex-col justify-center overflow-hidden rounded-md px-2 text-left text-xs leading-tight ${istAlarmFahrt(fahrt) ? "ring-2 ring-danger-ink" : ""}`}
             style={{
-              left: `${zeitstrahlPosition(fahrt.pickupAt)}%`,
-              width: `max(${zeitstrahlBreite(fahrt.pickupAt, fahrt.geplantesEnde)}%, 92px)`,
+              left: px(zeitstrahlPosition(fahrt.pickupAt)),
+              width: Math.max(px(zeitstrahlBreite(fahrt.pickupAt, fahrt.geplantesEnde)), 92),
               opacity: passt ? 1 : 0.25,
               ...stil,
             }}
@@ -244,6 +251,7 @@ export function Zeitstrahl({
 }) {
   const router = useRouter();
   const [jetzt, setJetzt] = useState<Date | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     Promise.resolve().then(() => setJetzt(new Date()));
@@ -252,6 +260,18 @@ export function Zeitstrahl({
   }, []);
 
   const heuteIso = datumIso(new Date());
+  const jetztProzentHeute = jetzt && datum === heuteIso ? zeitstrahlPosition(jetzt) : null;
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const zielPx = jetztProzentHeute !== null ? Math.max(0, px(jetztProzentHeute) - el.clientWidth / 3) : 6 * PX_PRO_STUNDE;
+    el.scrollLeft = zielPx;
+    // Nur beim Wechsel des Tages neu einspringen, nicht bei jedem "jetzt"-Tick (sonst reißt es
+    // den Nutzer beim Scrollen alle 30 Sekunden zurück).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [datum]);
+
   const nichtZugewiesen = useMemo(() => fahrten.filter((f) => !f.vehicleId), [fahrten]);
   const suche = (suchbegriff ?? "").trim().toLowerCase();
   const passtZurSuche = useMemo(
@@ -329,7 +349,6 @@ export function Zeitstrahl({
     );
   }
 
-  const jetztProzentHeute = jetzt && datum === heuteIso ? zeitstrahlPosition(jetzt) : null;
   const unterwegsCount = fahrten.filter((f) => f.status === "UNTERWEGS" || f.status === "AN_BORD").length;
   const verspaetetCount = fahrten.filter((f) => !!f.driverDelayMin && f.driverDelayMin > 0).length;
 
@@ -344,69 +363,75 @@ export function Zeitstrahl({
           {fahrten.length} Fahrten · {unterwegsCount} unterwegs · {verspaetetCount} verspätet
         </span>
       </div>
-      <div className="grid grid-cols-[230px_minmax(0,1fr)] items-center gap-x-2 gap-y-2 rounded-2xl border border-line bg-surface p-4">
-        <div />
-        <div className="relative h-5 text-xs text-muted">
-          {STUNDEN_TICKS.map((stunde) => (
-            <span
-              key={stunde}
-              className="absolute -translate-x-1/2"
-              style={{
-                left: `${((stunde - ZEITSTRAHL_START_STUNDE) / (ZEITSTRAHL_ENDE_STUNDE - ZEITSTRAHL_START_STUNDE)) * 100}%`,
-              }}
-            >
-              {String(stunde).padStart(2, "0")}
-            </span>
+      <div ref={scrollRef} className="overflow-x-auto rounded-2xl border border-line bg-surface">
+        <div
+          className="grid items-center gap-x-2 gap-y-2 p-4"
+          style={{ gridTemplateColumns: `230px ${ZEITSTRAHL_BREITE_PX}px` }}
+        >
+          <div className="sticky left-0 z-10 bg-surface" />
+          <div className="relative h-5 text-xs text-muted" style={{ width: ZEITSTRAHL_BREITE_PX }}>
+            {STUNDEN_TICKS.map((stunde) => (
+              <span
+                key={stunde}
+                className="absolute -translate-x-1/2"
+                style={{ left: (stunde - ZEITSTRAHL_START_STUNDE) * PX_PRO_STUNDE }}
+              >
+                {String(stunde).padStart(2, "0")}
+              </span>
+            ))}
+          </div>
+
+          {nichtZugewiesen.length > 0 ? (
+            <>
+              <div className="sticky left-0 z-10 bg-surface text-sm font-medium text-warn-ink">Braucht Sie</div>
+              <SpurTag
+                schicht={null}
+                fahrten={nichtZugewiesen}
+                jetztProzent={jetztProzentHeute}
+                passtZurSuche={passtZurSuche}
+                onKlick={onFahrtKlick}
+              />
+            </>
+          ) : null}
+
+          {fahrzeugZeilen.map((zeile) => (
+            <Fragment key={zeile.id}>
+              <div
+                className="sticky left-0 z-10 bg-surface"
+                title={`${zeile.plate} · ${zeile.typ} · ${zeile.fahrerNamen || "ohne Fahrer"}`}
+              >
+                <div className="flex items-center gap-2">
+                  <p className="font-semibold text-ink">{zeile.plate}</p>
+                  {zeile.fahrerNamen ? (
+                    <span className="truncate rounded bg-accent-soft px-1.5 py-0.5 text-xs font-medium text-ink-soft">
+                      {zeile.fahrerNamen}
+                    </span>
+                  ) : null}
+                </div>
+                <p className="mt-0.5 flex items-center gap-1.5 text-xs">
+                  <span
+                    className="inline-block h-2 w-2 rounded-full"
+                    style={{ background: LIVE_PUNKT_FARBE[zeile.live.punkt] }}
+                  />
+                  <span
+                    className="font-medium"
+                    style={{ color: zeile.live.punkt === "late" ? "var(--live-late-text)" : "var(--color-ink)" }}
+                  >
+                    {zeile.live.label}
+                  </span>
+                  <span className="truncate text-muted">· {zeile.live.zusatz}</span>
+                </p>
+              </div>
+              <SpurTag
+                schicht={null}
+                fahrten={fahrten.filter((f) => f.vehicleId === zeile.id)}
+                jetztProzent={jetztProzentHeute}
+                passtZurSuche={passtZurSuche}
+                onKlick={onFahrtKlick}
+              />
+            </Fragment>
           ))}
         </div>
-
-        {nichtZugewiesen.length > 0 ? (
-          <>
-            <div className="text-sm font-medium text-warn-ink">Braucht Sie</div>
-            <SpurTag
-              schicht={null}
-              fahrten={nichtZugewiesen}
-              jetztProzent={jetztProzentHeute}
-              passtZurSuche={passtZurSuche}
-              onKlick={onFahrtKlick}
-            />
-          </>
-        ) : null}
-
-        {fahrzeugZeilen.map((zeile) => (
-          <Fragment key={zeile.id}>
-            <div title={`${zeile.plate} · ${zeile.typ} · ${zeile.fahrerNamen || "ohne Fahrer"}`}>
-              <div className="flex items-center gap-2">
-                <p className="font-semibold text-ink">{zeile.plate}</p>
-                {zeile.fahrerNamen ? (
-                  <span className="truncate rounded bg-accent-soft px-1.5 py-0.5 text-xs font-medium text-ink-soft">
-                    {zeile.fahrerNamen}
-                  </span>
-                ) : null}
-              </div>
-              <p className="mt-0.5 flex items-center gap-1.5 text-xs">
-                <span
-                  className="inline-block h-2 w-2 rounded-full"
-                  style={{ background: LIVE_PUNKT_FARBE[zeile.live.punkt] }}
-                />
-                <span
-                  className="font-medium"
-                  style={{ color: zeile.live.punkt === "late" ? "var(--live-late-text)" : "var(--color-ink)" }}
-                >
-                  {zeile.live.label}
-                </span>
-                <span className="truncate text-muted">· {zeile.live.zusatz}</span>
-              </p>
-            </div>
-            <SpurTag
-              schicht={null}
-              fahrten={fahrten.filter((f) => f.vehicleId === zeile.id)}
-              jetztProzent={jetztProzentHeute}
-              passtZurSuche={passtZurSuche}
-              onKlick={onFahrtKlick}
-            />
-          </Fragment>
-        ))}
       </div>
 
       <Legende />

@@ -1,10 +1,11 @@
 // Positionsrechnung für den Fahrer-Zeitstrahl auf der Fahrplan-Seite (docs/03-datenmodell.md
-// Schicht, Ride). Die sichtbare Achse ist fest 06:00–22:00 Berliner Zeit; alles davor/danach
-// wird an den Rand geklemmt statt die Achse für einzelne Ausreißer zu strecken.
+// Schicht, Ride). Die Achse deckt den vollen Tag ab (00:00–24:00 Berliner Zeit), damit auch
+// sehr frühe oder sehr späte Fahrten nie fehlen; die Seite macht daraus einen horizontal
+// scrollbaren Zeitstrahl statt alles in die Breite des Bildschirms zu quetschen.
 import { minutenSeitMitternacht } from "./week";
 
-export const ZEITSTRAHL_START_STUNDE = 6;
-export const ZEITSTRAHL_ENDE_STUNDE = 22;
+export const ZEITSTRAHL_START_STUNDE = 0;
+export const ZEITSTRAHL_ENDE_STUNDE = 24;
 
 const START_MIN = ZEITSTRAHL_START_STUNDE * 60;
 const GESAMT_MIN = (ZEITSTRAHL_ENDE_STUNDE - ZEITSTRAHL_START_STUNDE) * 60;
