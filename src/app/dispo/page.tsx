@@ -21,7 +21,6 @@ export default async function DispoPage({
   return (
     <DispoClient
       paket={fahrplan.paket}
-      automodusText={fahrplan.automodusText}
       kennzahlen={fahrplan.kennzahlen}
       brauchtSie={fahrplan.brauchtSie}
       liveAnrufe={fahrplan.liveAnrufe}

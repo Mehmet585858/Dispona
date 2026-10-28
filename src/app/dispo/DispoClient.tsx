@@ -193,7 +193,6 @@ function AnrufKarte({ anruf }: { anruf: LiveAnruf }) {
 
 export function DispoClient({
   paket,
-  automodusText,
   kennzahlen,
   brauchtSie,
   liveAnrufe,
@@ -207,7 +206,6 @@ export function DispoClient({
   ansicht,
 }: {
   paket: "LITE" | "PRO";
-  automodusText: string;
   kennzahlen: { fahrtenHeute: number; unterwegs: number; vonDisponaEingeplant: number; brauchtSie: number; anrufeHeute: number };
   brauchtSie: BrauchtSieEintrag[];
   liveAnrufe: LiveAnruf[];
@@ -391,7 +389,12 @@ export function DispoClient({
           />
         </label>
 
-        <Chip ton={automodusText.startsWith("Automodus: aus") ? "neutral" : "accent"}>{automodusText}</Chip>
+        {liveAnrufe.length > 0 ? (
+          <span className="inline-flex items-center gap-2 rounded-full bg-accent-soft px-3.5 py-2 text-sm font-semibold text-accent">
+            <span className="h-2 w-2 rounded-full bg-accent" />
+            Dispona · {liveAnrufe.length} {liveAnrufe.length === 1 ? "Anruf läuft" : "Anrufe laufen"}
+          </span>
+        ) : null}
 
         {paket === "PRO" ? (
           <a href="/dispo/auswertung" className="inline-flex min-h-11 items-center justify-center rounded-[10px] border border-line-strong bg-surface px-5 text-base font-semibold text-ink hover:bg-accent-soft">
@@ -408,7 +411,11 @@ export function DispoClient({
       <div className="flex flex-wrap items-start gap-4">
         <div className="flex min-w-0 flex-1 basis-[640px] flex-col gap-3">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-            <KpiTile label="Fahrten heute" wert={kennzahlen.fahrtenHeute} />
+            <KpiTile
+              label="Fahrten heute"
+              wert={kennzahlen.fahrtenHeute}
+              zusatz={`· ${fahrten.filter((f) => f.status === "ERLEDIGT").length} erledigt`}
+            />
             {paket === "PRO" ? <KpiTile label="Gerade unterwegs" wert={kennzahlen.unterwegs} /> : null}
             {paket === "PRO" ? <KpiTile label="Von Dispona eingeplant" wert={kennzahlen.vonDisponaEingeplant} zusatz="heute" /> : null}
             <KpiTile label="Braucht Sie" wert={kennzahlen.brauchtSie} warnstil={kennzahlen.brauchtSie > 0} />

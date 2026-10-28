@@ -9,7 +9,6 @@ import { fahrtErfassen } from "@/core/rides/erfassen";
 import { serieAnlegen as serieAnlegenKern } from "@/core/rides/serie";
 import { fahrtStornieren as fahrtStornierenKern } from "@/core/rides/stornieren";
 import { fahrzeugZuweisen } from "@/core/disposition/zuweisen";
-import { automodusStatusText } from "@/core/disposition/automodus";
 import { fahrgaesteAehnlicheNamen, telefonNormalisieren } from "@/core/passengers/suche";
 import { berlinerMitternacht, datumIso, wochenStart } from "@/core/shifts/week";
 import { geplantesEnde } from "@/core/shifts/dauer";
@@ -246,7 +245,6 @@ export async function fahrplanLaden(datumFilter: string | undefined, ansicht: "t
     fahrzeugZeilen,
     montagIso: datumIso(montag),
     paket: tenant?.paket ?? "PRO",
-    automodusText: automodusStatusText(settings?.autoMode ?? "AUS", jetzt),
     kennzahlen: {
       fahrtenHeute: fahrten.length,
       unterwegs,

@@ -330,9 +330,20 @@ export function Zeitstrahl({
   }
 
   const jetztProzentHeute = jetzt && datum === heuteIso ? zeitstrahlPosition(jetzt) : null;
+  const unterwegsCount = fahrten.filter((f) => f.status === "UNTERWEGS" || f.status === "AN_BORD").length;
+  const verspaetetCount = fahrten.filter((f) => !!f.driverDelayMin && f.driverDelayMin > 0).length;
 
   return (
     <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center gap-2 border-b border-line pb-2 text-sm">
+        <b className="text-ink">
+          {fahrzeugZeilen.length} Fahrzeuge · {String(ZEITSTRAHL_START_STUNDE).padStart(2, "0")}–
+          {String(ZEITSTRAHL_ENDE_STUNDE).padStart(2, "0")} Uhr
+        </b>
+        <span className="ml-auto text-ink-soft">
+          {fahrten.length} Fahrten · {unterwegsCount} unterwegs · {verspaetetCount} verspätet
+        </span>
+      </div>
       <div className="grid grid-cols-[230px_minmax(0,1fr)] items-center gap-x-2 gap-y-2 rounded-2xl border border-line bg-surface p-4">
         <div />
         <div className="relative h-5 text-xs text-muted">
