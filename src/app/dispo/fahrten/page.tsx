@@ -1,33 +1,15 @@
-import { datumIso } from "@/core/shifts/week";
-import { fahrzeugeFuerAuswahl } from "../fahrer/actions";
-import { fahrplanLaden, orteFuerAuswahl } from "./actions";
-import { FahrtenClient } from "./FahrtenClient";
+import { redirect } from "next/navigation";
 
+/** Fahrplan und Start sind zu einem Dashboard unter /dispo zusammengeführt. */
 export default async function FahrtenPage({
   searchParams,
 }: {
   searchParams: Promise<{ datum?: string; ansicht?: string }>;
 }) {
-  const { datum: datumParam, ansicht: ansichtParam } = await searchParams;
-  const datum = datumParam ?? datumIso(new Date());
-  const ansicht = ansichtParam === "woche" ? "woche" : "tag";
-
-  const [fahrplan, orte, fahrzeuge] = await Promise.all([
-    fahrplanLaden(datum, ansicht),
-    orteFuerAuswahl(),
-    fahrzeugeFuerAuswahl(),
-  ]);
-
-  return (
-    <FahrtenClient
-      fahrten={fahrplan.fahrten}
-      fahrer={fahrplan.fahrer}
-      fahrzeugZeilen={fahrplan.fahrzeugZeilen}
-      karte={fahrplan.karte}
-      orte={orte}
-      fahrzeuge={fahrzeuge}
-      datum={datum}
-      ansicht={ansicht}
-    />
-  );
+  const params = await searchParams;
+  const query = new URLSearchParams();
+  if (params.datum) query.set("datum", params.datum);
+  if (params.ansicht) query.set("ansicht", params.ansicht);
+  const suffix = query.toString();
+  redirect(suffix ? `/dispo?${suffix}` : "/dispo");
 }

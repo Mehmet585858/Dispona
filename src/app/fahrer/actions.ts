@@ -149,7 +149,6 @@ export async function problemMelden(rideId: string, art: ProblemArt) {
 
   revalidatePath("/fahrer");
   revalidatePath("/dispo");
-  revalidatePath("/dispo/fahrten");
 }
 
 /**
@@ -169,7 +168,6 @@ export async function fahrerFaelltAus() {
 
   revalidatePath("/fahrer");
   revalidatePath("/dispo");
-  revalidatePath("/dispo/fahrten");
 }
 
 /** "Gesehen" für eine neue oder geänderte Fahrt bestätigen (docs/06-oberflaeche.md). */

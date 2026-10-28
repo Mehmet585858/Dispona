@@ -115,7 +115,7 @@ export function AnrufeClient({ anrufe }: { anrufe: Anruf[] }) {
                               {anruf.fahrten.map((f) => (
                                 <Link
                                   key={f.id}
-                                  href={`/dispo/fahrten?datum=${new Date(f.pickupAt).toISOString().slice(0, 10)}`}
+                                  href={`/dispo?datum=${new Date(f.pickupAt).toISOString().slice(0, 10)}`}
                                   className="text-sm text-accent hover:underline"
                                 >
                                   {uhrzeit(f.pickupAt)} · {f.name}

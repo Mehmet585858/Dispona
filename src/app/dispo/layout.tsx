@@ -5,8 +5,7 @@ import { Logo } from "@/components/ui/Logo";
 import { getServerSession } from "@/lib/session";
 
 const navigation = [
-  { href: "/dispo", label: "Start" },
-  { href: "/dispo/fahrten", label: "Fahrplan" },
+  { href: "/dispo", label: "Dashboard" },
   { href: "/dispo/fahrzeuge", label: "Fahrzeuge" },
   { href: "/dispo/fahrgaeste", label: "Fahrgäste" },
   { href: "/dispo/orte", label: "Orte" },

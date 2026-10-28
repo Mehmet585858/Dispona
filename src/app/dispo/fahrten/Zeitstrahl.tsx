@@ -295,7 +295,7 @@ export function Zeitstrahl({
       return schicht ? { start: schicht.start, end: schicht.end } : null;
     }
     function zuTagWechseln(tag: Date) {
-      router.push(`/dispo/fahrten?datum=${datumIso(tag)}&ansicht=tag`);
+      router.push(`/dispo?datum=${datumIso(tag)}&ansicht=tag`);
     }
 
     return (

@@ -209,7 +209,6 @@ export async function ortAusAdresseAnlegen(eingabe: {
 export async function fahrtAnlegen(eingabe: FahrtEingabe) {
   const { tenantId, userId } = await requireSession();
   const ergebnis = await fahrtErfassen(tenantId, eingabe, { userId, source: "MANUELL" });
-  revalidatePath("/dispo/fahrten");
   revalidatePath("/dispo");
   return ergebnis;
 }
@@ -217,7 +216,6 @@ export async function fahrtAnlegen(eingabe: FahrtEingabe) {
 export async function serieAnlegen(eingabe: SerieEingabe) {
   const { tenantId, userId } = await requireSession();
   const ergebnis = await serieAnlegenKern(tenantId, eingabe, { userId, source: "MANUELL" });
-  revalidatePath("/dispo/fahrten");
   revalidatePath("/dispo");
   return ergebnis;
 }
@@ -226,20 +224,17 @@ export async function serieAnlegen(eingabe: SerieEingabe) {
 export async function fahrzeugWaehlen(rideId: string, vehicleId: string) {
   const { tenantId, userId } = await requireSession();
   await fahrzeugZuweisen(tenantId, rideId, vehicleId, { dispatchMode: "MANUELL", userId });
-  revalidatePath("/dispo/fahrten");
   revalidatePath("/dispo");
 }
 
 export async function fahrtStatusSetzen(rideId: string, status: RideStatus) {
   const { tenantId, userId } = await requireSession();
   await fahrtStatusAendern(tenantId, rideId, status, { userId });
-  revalidatePath("/dispo/fahrten");
   revalidatePath("/dispo");
 }
 
 export async function fahrtStornieren(rideId: string) {
   const { tenantId, userId } = await requireSession();
   await fahrtStornierenKern(tenantId, rideId, { userId });
-  revalidatePath("/dispo/fahrten");
   revalidatePath("/dispo");
 }
