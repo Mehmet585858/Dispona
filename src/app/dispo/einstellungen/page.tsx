@@ -8,5 +8,12 @@ export default async function EinstellungenPage() {
     einstellungenLaden(),
     exportVorlageLaden(),
   ]);
-  return <EinstellungenClient einstellungen={einstellungen} istAdmin={role === "ADMIN"} exportSpalten={exportSpalten} />;
+  return (
+    <EinstellungenClient
+      einstellungen={einstellungen}
+      datenschutzEinstellungen={einstellungen}
+      istAdmin={role === "ADMIN"}
+      exportSpalten={exportSpalten}
+    />
+  );
 }

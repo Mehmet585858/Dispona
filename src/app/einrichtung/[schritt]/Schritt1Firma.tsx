@@ -1,13 +1,20 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import { AdresseSuche, type AdressTreffer } from "@/components/AdresseSuche";
-import { EinsatzgebietKarte } from "@/components/EinsatzgebietKarte";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { NumberField } from "@/components/ui/NumberField";
 import { TextField } from "@/components/ui/TextField";
 import { adresseSuchen, firmaSpeichern, type FirmaEingabe } from "./actions";
+
+// Leaflet greift beim Modul-Laden auf window zu - per dynamic(..., { ssr: false }) statt eines
+// normalen Imports laden, sonst bricht das serverseitige Rendern dieser (clientseitigen) Seite ab.
+const EinsatzgebietKarte = dynamic(
+  () => import("@/components/EinsatzgebietKarte").then((m) => m.EinsatzgebietKarte),
+  { ssr: false },
+);
 
 export function Schritt1Firma({ initial }: { initial: FirmaEingabe }) {
   const [werte, setWerte] = useState<FirmaEingabe>(initial);

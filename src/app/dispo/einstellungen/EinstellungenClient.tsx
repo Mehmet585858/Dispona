@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { TextField } from "@/components/ui/TextField";
-import { automodusEinstellungenSpeichern, type AutomodusEingabe } from "./actions";
+import { automodusEinstellungenSpeichern, type AutomodusEingabe, type DatenschutzEingabe } from "./actions";
+import { DatenschutzEinstellungen } from "./DatenschutzEinstellungen";
 import { ExportAbrechnung } from "./ExportAbrechnung";
 import type { ExportSpalte } from "@/core/export/abrechnung";
 
@@ -17,10 +18,12 @@ const AUTOMODUS_OPTIONEN: { wert: AutomodusEingabe["autoMode"]; label: string; h
 
 export function EinstellungenClient({
   einstellungen,
+  datenschutzEinstellungen,
   istAdmin,
   exportSpalten,
 }: {
   einstellungen: AutomodusEingabe;
+  datenschutzEinstellungen: DatenschutzEingabe;
   istAdmin: boolean;
   exportSpalten: ExportSpalte[];
 }) {
@@ -137,6 +140,8 @@ export function EinstellungenClient({
           </div>
         ) : null}
       </Card>
+
+      <DatenschutzEinstellungen einstellungen={datenschutzEinstellungen} istAdmin={istAdmin} />
 
       <ExportAbrechnung anfangsSpalten={exportSpalten} />
     </div>

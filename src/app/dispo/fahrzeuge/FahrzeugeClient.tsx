@@ -63,11 +63,15 @@ export function FahrzeugeClient({ fahrzeuge }: { fahrzeuge: Fahrzeug[] }) {
     setSpeichert(true);
     setFehler(null);
     try {
-      await fahrzeugSpeichern(bearbeiteId, eingabe);
+      const ergebnis = await fahrzeugSpeichern(bearbeiteId, eingabe);
+      if (!ergebnis.ok) {
+        setFehler(ergebnis.fehler);
+        return;
+      }
       setFormularOffen(false);
       router.refresh();
     } catch {
-      setFehler("Konnte nicht gespeichert werden. Kennzeichen schon vergeben?");
+      setFehler("Unerwarteter Fehler. Bitte erneut versuchen.");
     } finally {
       setSpeichert(false);
     }

@@ -3,5 +3,12 @@ import { EinstellungenClient } from "@/app/dispo/einstellungen/EinstellungenClie
 
 export async function Schritt5Disposition() {
   const [einstellungen, exportSpalten] = await Promise.all([einstellungenLaden(), exportVorlageLaden()]);
-  return <EinstellungenClient einstellungen={einstellungen} istAdmin exportSpalten={exportSpalten} />;
+  return (
+    <EinstellungenClient
+      einstellungen={einstellungen}
+      datenschutzEinstellungen={einstellungen}
+      istAdmin
+      exportSpalten={exportSpalten}
+    />
+  );
 }

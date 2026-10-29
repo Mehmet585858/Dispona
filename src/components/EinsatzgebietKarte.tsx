@@ -1,8 +1,9 @@
 "use client";
 
+import { useEffect } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { Circle, MapContainer, Marker, TileLayer } from "react-leaflet";
+import { Circle, MapContainer, Marker, TileLayer, useMap } from "react-leaflet";
 
 const mittelpunktIcon = new L.Icon({
   iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
@@ -10,6 +11,16 @@ const mittelpunktIcon = new L.Icon({
   iconSize: [25, 41],
   iconAnchor: [12, 41],
 });
+
+/** MapContainers eigene center/zoom-Props wirken nur beim ersten Rendern (react-leaflet-Eigenart) -
+ * ohne das hier würde die Karte z. B. nach "Mittelpunkt suchen" nicht neu zentrieren. */
+function Rezentrieren({ zentrum }: { zentrum: { lat: number; lng: number } }) {
+  const map = useMap();
+  useEffect(() => {
+    map.setView([zentrum.lat, zentrum.lng]);
+  }, [map, zentrum.lat, zentrum.lng]);
+  return null;
+}
 
 /** Einsatzgebiet wählen: Mittelpunkt per Ziehen des Markers verschieben, Radius separat als Zahl. */
 export function EinsatzgebietKarte({
@@ -32,6 +43,7 @@ export function EinsatzgebietKarte({
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
+      <Rezentrieren zentrum={zentrum} />
       <Circle center={[zentrum.lat, zentrum.lng]} radius={radiusKm * 1000} pathOptions={{ color: "#0E6E62", fillOpacity: 0.05 }} />
       <Marker
         position={[zentrum.lat, zentrum.lng]}

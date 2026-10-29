@@ -90,7 +90,15 @@ p{margin:0}
 .nav a{color:var(--ink2);text-decoration:none}
 .top .btn{min-height:44px;padding:0 18px;font-size:15px}
 .login{font-size:15px;font-weight:600;text-decoration:none}
-@media (max-width:720px){.nav{display:none}.login{margin-left:auto}}
+.nav-toggle-input{position:absolute;opacity:0;pointer-events:none}
+.nav-toggle{display:none}
+@media (max-width:720px){
+  .nav-toggle{display:flex;align-items:center;justify-content:center;width:40px;height:40px;margin-right:auto;border-radius:10px;color:var(--ink);cursor:pointer}
+  .nav-toggle:hover{background:var(--bg2)}
+  .nav{display:none;flex-basis:100%;order:4;flex-direction:column;align-items:flex-start;gap:16px;padding-top:6px}
+  .nav-toggle-input:checked ~ .nav{display:flex}
+  .login{margin-left:auto}
+}
 
 /* Start */
 .hero{background:var(--bg2);border-bottom:1px solid var(--line2)}
@@ -247,6 +255,10 @@ section[id]{scroll-margin-top:84px}
 <header class="top">
   <div class="wrap">
     <a href="#top" aria-label="Dispona Startseite"><svg class="logo" width="128" height="34" role="img" aria-label="Dispona"><use href="#wordmark"/></svg></a>
+    <input type="checkbox" id="nav-toggle" class="nav-toggle-input">
+    <label for="nav-toggle" class="nav-toggle" aria-label="Menü öffnen">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+    </label>
     <nav class="nav" aria-label="Hauptmenü">
       <a href="#funktionen">Funktionen</a>
       <a href="#ablauf">So funktioniert's</a>
@@ -335,7 +347,7 @@ section[id]{scroll-margin-top:84px}
       <article class="usp"><div class="ico" style="background:var(--s-tint);color:var(--s-solid)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11zM12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z"/></svg></div><h3>Live-Status aus der Fahrer-App<span class="tag-pro">Pro</span></h3><p>Fährt zum Fahrgast, Fahrgast im Auto, Fahrgast am Ziel: Sie sehen jederzeit, wo jede Fahrt steht. Verspätungen werden automatisch gemeldet.</p><div class="gain">Keine Kontrollanrufe beim Fahrer</div></article>
       <article class="usp"><div class="ico" style="background:var(--l-tint);color:var(--l-solid)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 4v16M4 12h16"/></svg></div><h3>Gemacht für Krankenfahrten</h3><p>Liegend, Tragestuhl, Rollstuhl, Sitzend. Hin- und Rückfahrten, Serienfahrten zur Dialyse oder Bestrahlung: Dispona kennt Ihren Alltag.</p><div class="gain">Kein Umweg über Taxi- oder Logistiksoftware</div></article>
       <article class="usp"><div class="ico" style="background:var(--s-tint);color:var(--s-solid)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 5h18v14H3zM3 9h18M8 13h3"/></svg></div><h3>Buchung auch über Ihre Webseite<span class="tag-pro">Pro</span></h3><p>Ein Buchungsformular für Ihre Webseite und ein Zugang für Kliniken und Pflegeheime. Jede Anfrage wird sofort automatisch beim passenden Fahrzeug eingeplant.</p><div class="gain">Mehr Fahrten, ohne mehr Telefonate</div></article>
-      <article class="usp"><div class="ico" style="background:var(--acc-soft);color:var(--ink)"><svg width="24" height="24" aria-hidden="true"><use href="#tick"/></svg></div><h3>Startklar ohne Schulung</h3><p>Ein ruhiger, klarer Bildschirm statt Tabellenchaos. Wir richten alles für Sie ein, inklusive Fahrzeuge, Fahrer und Ihrer Telefonnummer.</p><div class="gain">In [X] Tagen live</div></article>
+      <article class="usp"><div class="ico" style="background:var(--acc-soft);color:var(--ink)"><svg width="24" height="24" aria-hidden="true"><use href="#tick"/></svg></div><h3>Startklar ohne Schulung</h3><p>Ein ruhiger, klarer Bildschirm statt Tabellenchaos. Wir richten alles für Sie ein, inklusive Fahrzeuge, Fahrer und Ihrer Telefonnummer.</p><div class="gain">Schnell startklar, ohne Umstellungsstress</div></article>
     </div>
   </div>
 </section>
@@ -379,16 +391,12 @@ section[id]{scroll-margin-top:84px}
       <h2 id="trust-h" class="h2">Gesundheitsdaten in sicheren Händen</h2>
       <p class="lead">Krankenfahrten sind sensibel. Deshalb ist Datenschutz bei Dispona kein Zusatz, sondern Grundlage.</p>
       <ul class="list">
-        <li><svg class="check" width="20" height="20" aria-hidden="true"><use href="#tick"/></svg><span>Hosting in Deutschland <span class="ph">[bitte bestätigen]</span></span></li>
+        <li><svg class="check" width="20" height="20" aria-hidden="true"><use href="#tick"/></svg><span>Datenbank in Deutschland gehostet (Frankfurt)</span></li>
         <li><svg class="check" width="20" height="20" aria-hidden="true"><use href="#tick"/></svg><span>DSGVO-konform mit Auftragsverarbeitungsvertrag</span></li>
         <li><svg class="check" width="20" height="20" aria-hidden="true"><use href="#tick"/></svg><span>Verschlüsselte Übertragung und Speicherung</span></li>
         <li><svg class="check" width="20" height="20" aria-hidden="true"><use href="#tick"/></svg><span>Klare Rollen und Rechte für Disposition, Fahrer und Verwaltung</span></li>
       </ul>
     </div>
-    <figure class="quote">
-      <blockquote>„[Zitat des Pilotkunden – z. B. wie viele Anrufe Dispona pro Woche übernimmt und was sich im Alltag verändert hat.]“</blockquote>
-      <figcaption><strong style="color:var(--ink)">[Name]</strong>· [Funktion], [Fahrdienst, Ort]</figcaption>
-    </figure>
   </div>
 </section>
 

@@ -17,6 +17,8 @@ export async function einstellungenLaden() {
     autoModeMaxDaysAhead: settings.autoModeMaxDaysAhead,
     requireDocsForAuto: settings.requireDocsForAuto,
     alertPhone: settings.alertPhone ?? "",
+    dataRetentionDays: settings.dataRetentionDays,
+    audioRetentionDays: settings.audioRetentionDays,
   };
 }
 
@@ -76,4 +78,35 @@ export async function automodusEinstellungenSpeichern(eingabe: AutomodusEingabe)
 
   revalidatePath("/dispo/einstellungen");
   revalidatePath("/dispo");
+}
+
+const datenschutzSchema = z.object({
+  // Untergrenze 30 Tage: dataRetentionDays löscht ganze Fahrten (inkl. Fahrgastbezug, siehe
+  // src/core/datenschutz/loeschfristen.ts) - ein zu niedriger Wert würde laufend echte
+  // Fahrthistorie löschen, nicht nur alte Testdaten.
+  dataRetentionDays: z.number().int().min(30).max(7300),
+  audioRetentionDays: z.number().int().min(1).max(3650),
+});
+
+export type DatenschutzEingabe = z.infer<typeof datenschutzSchema>;
+
+/** Nur ADMIN darf die Aufbewahrungsfristen ändern (docs/08-datenschutz-sicherheit.md). Änderung ins AuditLog. */
+export async function datenschutzEinstellungenSpeichern(eingabe: DatenschutzEingabe) {
+  const { tenantId, userId, role } = await requireSession();
+  if (role !== "ADMIN") {
+    throw new Error("Nur Admins dürfen die Aufbewahrungsfristen ändern.");
+  }
+  const daten = datenschutzSchema.parse(eingabe);
+  const db = withTenant(tenantId);
+
+  await db.tenantSettings.update({
+    where: { tenantId },
+    data: { dataRetentionDays: daten.dataRetentionDays, audioRetentionDays: daten.audioRetentionDays },
+  });
+
+  await db.auditLog.create({
+    data: { tenantId, userId, action: "tenantSettings.aufbewahrung_geaendert", entity: "TenantSettings", entityId: tenantId },
+  });
+
+  revalidatePath("/dispo/einstellungen");
 }

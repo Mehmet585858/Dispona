@@ -206,6 +206,8 @@ model PushSubscription {
   keys      Json
   createdAt DateTime  @default(now())
   lastOkAt  DateTime?
+
+  @@index([tenantId])
 }
 
 model Shift {
@@ -221,6 +223,8 @@ model Shift {
   endedAt     DateTime?
   onBreak     Boolean   @default(false)
   unavailable Boolean   @default(false)
+
+  @@index([tenantId])
 }
 
 model VehicleLocation {
@@ -233,6 +237,7 @@ model VehicleLocation {
   at        DateTime @default(now())
 
   @@index([vehicleId, at])
+  @@index([tenantId])
 }
 
 model Passenger {
@@ -373,6 +378,8 @@ model RideStatusEvent {
   at       DateTime   @default(now())
   lat      Float?
   lng      Float?
+
+  @@index([tenantId])
 }
 
 model RideSeries {
@@ -407,6 +414,8 @@ model Suggestion {
   decidedByUserId String?
   decidedAt       DateTime?
   createdAt       DateTime  @default(now())
+
+  @@index([tenantId])
 }
 
 enum CallOutcome {
@@ -462,6 +471,8 @@ model Notification {
   sentAt   DateTime  @default(now())
   ackAt    DateTime?
   error    String?
+
+  @@index([tenantId])
 }
 
 model AuditLog {

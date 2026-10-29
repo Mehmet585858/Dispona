@@ -71,11 +71,15 @@ export function OrteClient({ orte }: { orte: Ort[] }) {
     setSpeichert(true);
     setFehler(null);
     try {
-      await ortSpeichern(bearbeiteId, eingabe);
+      const ergebnis = await ortSpeichern(bearbeiteId, eingabe);
+      if (!ergebnis.ok) {
+        setFehler(ergebnis.fehler);
+        return;
+      }
       setFormularOffen(false);
       router.refresh();
     } catch {
-      setFehler("Konnte nicht gespeichert werden.");
+      setFehler("Unerwarteter Fehler. Bitte erneut versuchen.");
     } finally {
       setSpeichert(false);
     }

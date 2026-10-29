@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { Prisma } from "@/generated/prisma/client";
 import { withTenant } from "@/lib/db";
 import { requireSession } from "@/lib/session";
 import { fahrzeugSchema, textZuJaNein, type FahrzeugEingabe } from "@/core/vehicles/validation";
@@ -10,17 +11,36 @@ export async function fahrzeugeLaden() {
   return withTenant(tenantId).vehicle.findMany({ orderBy: { plate: "asc" } });
 }
 
-export async function fahrzeugSpeichern(id: string | null, eingabe: FahrzeugEingabe) {
+/** Gibt ein strukturiertes Ergebnis statt zu werfen - ein Server-Action-Fehler kommt beim Client
+ * nur als nichtssagende, redigierte Meldung an (Next.js verbirgt die echte Fehlermeldung in
+ * Produktion), deshalb hier die beiden erwartbaren Fehlerfälle selbst abfangen und einen klaren
+ * Text zurückgeben, statt dass die Oberfläche raten muss, was schiefging. */
+export async function fahrzeugSpeichern(
+  id: string | null,
+  eingabe: FahrzeugEingabe,
+): Promise<{ ok: true } | { ok: false; fehler: string }> {
   const { tenantId } = await requireSession();
-  const daten = fahrzeugSchema.parse(eingabe);
+  const ergebnis = fahrzeugSchema.safeParse(eingabe);
+  if (!ergebnis.success) {
+    return { ok: false, fehler: ergebnis.error.issues[0]?.message ?? "Eingabe ungültig." };
+  }
+  const daten = ergebnis.data;
   const db = withTenant(tenantId);
-  if (id) {
-    await db.vehicle.update({ where: { id }, data: daten });
-  } else {
-    // tenantId wird von withTenant() ohnehin gesetzt; hier nur für die Prisma-Typen nötig.
-    await db.vehicle.create({ data: { ...daten, tenantId } });
+  try {
+    if (id) {
+      await db.vehicle.update({ where: { id }, data: daten });
+    } else {
+      // tenantId wird von withTenant() ohnehin gesetzt; hier nur für die Prisma-Typen nötig.
+      await db.vehicle.create({ data: { ...daten, tenantId } });
+    }
+  } catch (fehler) {
+    if (fehler instanceof Prisma.PrismaClientKnownRequestError && fehler.code === "P2002") {
+      return { ok: false, fehler: "Dieses Kennzeichen ist schon vergeben." };
+    }
+    throw fehler;
   }
   revalidatePath("/dispo/fahrzeuge");
+  return { ok: true };
 }
 
 export async function fahrzeugLöschen(id: string) {

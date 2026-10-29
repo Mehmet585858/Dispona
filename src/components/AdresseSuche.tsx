@@ -49,9 +49,9 @@ export function AdresseSuche({
       {fehler ? <p className="text-sm text-danger-ink">{fehler}</p> : null}
       {treffer.length > 0 ? (
         <div className="flex flex-col gap-1">
-          {treffer.map((t) => (
+          {treffer.map((t, index) => (
             <button
-              key={t.label}
+              key={`${t.label}-${t.lat}-${t.lng}-${index}`}
               type="button"
               onClick={() => {
                 onAuswahl(t);
