@@ -1,6 +1,6 @@
 /**
  * Findet den Mandanten anhand der angerufenen Nummer (docs/04-voice-agent.md,
- * POST /api/voice/assistant-request). PhoneNumber, Tenant und TenantSettings direkt über prisma
+ * POST /api/voice/webhook). PhoneNumber, Tenant und TenantSettings direkt über prisma
  * statt withTenant(): das ist genau die Abfrage, über die wir den Mandanten erst herausfinden,
  * withTenant() setzt eine schon bekannte tenantId voraus (wie beim Cron-Job, src/app/api/cron/).
  */

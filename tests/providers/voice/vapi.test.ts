@@ -13,19 +13,35 @@ const GRUND_EINSTELLUNGEN: TenantVoiceSettings = {
 };
 
 describe("vapiProvider.buildAssistantConfig", () => {
-  it("bietet das Weiterleiten-Werkzeug mit escalationNumber an", () => {
+  it("bietet die Werkzeuge aus werkzeugAusfuehren() plus das Weiterleiten-Werkzeug mit escalationNumber an", () => {
     const config = vapiProvider.buildAssistantConfig(GRUND_EINSTELLUNGEN) as {
-      assistant: { tools: unknown[] };
+      assistant: { tools: { type: string; function?: { name: string } }[] };
     };
-    expect(config.assistant.tools).toHaveLength(1);
+    const namen = config.assistant.tools.map((t) => t.function?.name ?? t.type);
+    expect(namen).toEqual(
+      expect.arrayContaining([
+        "fahrgast_suchen",
+        "ort_suchen",
+        "fahrt_anlegen",
+        "serie_anlegen",
+        "fahrt_finden",
+        "fahrt_aendern",
+        "fahrt_stornieren",
+        "abholzeit_auskunft",
+        "rueckruf_anlegen",
+        "transferCall",
+      ]),
+    );
+    expect(config.assistant.tools).toHaveLength(10);
   });
 
-  it("bietet kein Weiterleiten-Werkzeug ohne escalationNumber an (z. B. Live-Demo)", () => {
+  it("bietet kein Weiterleiten-Werkzeug ohne escalationNumber an (z. B. Live-Demo), die übrigen Werkzeuge bleiben", () => {
     const config = vapiProvider.buildAssistantConfig({
       ...GRUND_EINSTELLUNGEN,
       escalationNumber: "",
-    }) as { assistant: { tools: unknown[] } };
-    expect(config.assistant.tools).toHaveLength(0);
+    }) as { assistant: { tools: { type: string }[] } };
+    expect(config.assistant.tools).toHaveLength(9);
+    expect(config.assistant.tools.some((t) => t.type === "transferCall")).toBe(false);
   });
 });
 

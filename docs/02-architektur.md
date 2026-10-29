@@ -27,8 +27,8 @@ Abrechnung: Export CSV/Excel  (später: adapters/dmrz u. a.)
 ## Ablauf einer Bestellung per Telefon
 
 1. Anruf kommt bei der Nummer des Fahrdienstes an (Rufumleitung) → VoiceProvider.
-2. VoiceProvider ruft `POST /api/voice/assistant-request` auf: Wir liefern je nach angerufener Nummer den passenden Mandanten, Begrüßung, Stimme, Anweisungen (`docs/04-voice-agent.md`).
-3. Während des Gesprächs ruft die KI unsere Werkzeuge auf (`/api/voice/tools`): Fahrgast suchen, Adresse prüfen, Fahrt anlegen, an Menschen weiterleiten.
+2. VoiceProvider ruft `POST /api/voice/webhook` auf: Wir liefern je nach angerufener Nummer den passenden Mandanten, Begrüßung, Stimme, Anweisungen (`docs/04-voice-agent.md`).
+3. Während des Gesprächs ruft die KI über denselben Endpunkt unsere Werkzeuge auf: Fahrgast suchen, Adresse prüfen, Fahrt anlegen, an Menschen weiterleiten.
 4. Fahrt wird als `Ride` mit Status `ENTWURF` → nach Bestätigung im Gespräch `ERFASST` gespeichert.
 5. `core/disposition` berechnet sofort bis zu 3 Fahrzeugvorschläge (`Suggestion`), Status `VORGESCHLAGEN`.
 6. **Automodus aktiv und alle Sicherheitsbedingungen erfüllt** → Fahrt wird automatisch disponiert. **Sonst** erscheint sie beim Disponenten unter „Bitte bestätigen“; er bestätigt mit einem Klick oder wählt ein anderes Fahrzeug.

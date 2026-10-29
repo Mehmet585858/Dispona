@@ -8,15 +8,15 @@ Vor dem Bau: aktuelle Vapi-Doku lesen (Assistant-Konfiguration, Server-URL/Webho
 
 Einstellungen für Deutsch: deutsche Spracherkennung (Modell mit gutem Deutsch, Zahlen und Adressen), deutsche Stimme, ruhiges Sprechtempo, Unterbrechen erlauben, Stille bis zu 5 Sekunden tolerieren (ältere Anrufer).
 
-## Endpunkte
+## Endpunkt
+
+Vapi schickt alle Nachrichtentypen an **eine** Server-URL auf Organisationsebene (docs/04a-vapi-notizen.md Punkt 2 und 6) - deshalb **ein** Endpunkt statt separater URLs je Nachrichtentyp:
 
 | Endpunkt | Zweck |
 | --- | --- |
-| `POST /api/voice/assistant-request` | Anruf kommt rein → Mandant anhand der angerufenen Nummer finden, Konfiguration zurückgeben (Begrüßung, Stimme, Anweisungen, Werkzeuge). KI aus (`aiActive=false` oder außerhalb Zeitplan) → sofort an `escalationNumber` weiterleiten. |
-| `POST /api/voice/tools` | Werkzeugaufrufe während des Gesprächs (siehe unten) |
-| `POST /api/voice/events` | Statusmeldungen, End-of-Call-Bericht → `Call` speichern, Zusammenfassung erzeugen |
+| `POST /api/voice/webhook` | Verzweigt nach `message.type`: `assistant-request` (Anruf kommt rein → Mandant anhand der angerufenen Nummer finden, Konfiguration inkl. Werkzeuge zurückgeben; KI aus → sofort an `escalationNumber` weiterleiten), `tool-calls` (Werkzeugaufrufe während des Gesprächs, siehe unten), `end-of-call-report` (`Call` speichern, Zusammenfassung erzeugen); alles andere wird nur bestätigt. |
 
-Jeder Endpunkt prüft zuerst die Signatur (`verifyWebhook`). Antwortzeit der Werkzeuge unter 1,5 Sekunden, sonst entsteht eine Pause im Gespräch.
+Diese URL im Vapi-Dashboard unter Organisationsebene (Integrations → Server Configuration) hinterlegen, nicht nur per API setzen - nur so hängt Vapi den Auth-Header an (docs/04a-vapi-notizen.md Punkt 6). Prüft zuerst die Signatur (`verifyWebhook`). Antwortzeit der Werkzeuge unter 1,5 Sekunden, sonst entsteht eine Pause im Gespräch.
 
 ## Werkzeuge der KI
 
