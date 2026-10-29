@@ -59,7 +59,7 @@ const fahrgastSuchenSchema = z.object({
   geburtsdatum: z.string().optional(),
 });
 
-async function fahrgastSuchen(tenantId: string, args: unknown): Promise<string> {
+async function fahrgastSuchen(tenantId: string, callId: string, args: unknown): Promise<string> {
   const { telefon, nachname, geburtsdatum } = fahrgastSuchenSchema.parse(args);
   const db = withTenant(tenantId);
 
@@ -69,11 +69,23 @@ async function fahrgastSuchen(tenantId: string, args: unknown): Promise<string> 
   }
   if (treffer.length === 0 && nachname) {
     const alle = await db.passenger.findMany({ take: 300 });
-    let gefunden = fahrgaesteAehnlicheNamen(alle, nachname);
-    if (geburtsdatum) {
-      gefunden = gefunden.filter((f) => f.birthDate && datumIso(f.birthDate) === geburtsdatum);
+    const gefunden = fahrgaesteAehnlicheNamen(alle, nachname);
+
+    // Ohne Treffer über die genannte Telefonnummer darf der Nachname allein keine fremden
+    // Personendaten herausgeben (Vapi prüft die Anrufer-ID nicht) - zuerst auf die tatsächliche
+    // Rufnummer dieses Anrufs einschränken; findet sich darüber niemand, zusätzlich das
+    // Geburtsdatum als zweites Merkmal verlangen statt den Nachnamen allein genügen zu lassen.
+    const anruf = await db.call.findUnique({ where: { id: callId }, select: { fromNumber: true } });
+    const eigeneNummer = anruf?.fromNumber ? telefonNormalisieren(anruf.fromNumber) : null;
+    const perAnruferNummer = eigeneNummer ? gefunden.filter((f) => f.phones.includes(eigeneNummer)) : [];
+
+    if (perAnruferNummer.length > 0) {
+      treffer = perAnruferNummer.slice(0, 3);
+    } else if (geburtsdatum) {
+      treffer = gefunden.filter((f) => f.birthDate && datumIso(f.birthDate) === geburtsdatum).slice(0, 3);
+    } else {
+      return "Zur Sicherheit brauche ich noch das Geburtsdatum, um die richtige Person zu finden.";
     }
-    treffer = gefunden.slice(0, 3);
   }
 
   if (treffer.length === 0) return "Keine passenden Fahrgäste gefunden.";
@@ -332,7 +344,7 @@ export async function werkzeugAusfuehren(tenantId: string, callId: string, toolC
     let result: string;
     switch (toolCall.name) {
       case "fahrgast_suchen":
-        result = await fahrgastSuchen(tenantId, toolCall.arguments);
+        result = await fahrgastSuchen(tenantId, callId, toolCall.arguments);
         break;
       case "ort_suchen":
         result = await ortSuchen(tenantId, toolCall.arguments);

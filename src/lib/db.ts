@@ -35,7 +35,9 @@ const READ_MANY_OPS = new Set([
 ]);
 const READ_UNIQUE_OPS = new Set(["findUnique", "findUniqueOrThrow"]);
 const WRITE_MANY_OPS = new Set(["updateMany", "deleteMany"]);
-const WRITE_UNIQUE_OPS = new Set(["update", "delete", "upsert"]);
+// upsert wird unten eigenständig behandelt (nicht hier), weil die Zeile bei einem Upsert noch gar
+// nicht existieren muss.
+const WRITE_UNIQUE_OPS = new Set(["update", "delete"]);
 
 type Args = { where?: Record<string, unknown>; data?: unknown } & Record<string, unknown>;
 
@@ -67,6 +69,29 @@ export function withTenant(tenantId: string) {
           if (operation === "createMany") {
             const items = typedArgs.data as Record<string, unknown>[];
             typedArgs.data = items.map((item) => ({ ...item, tenantId }));
+            return query(typedArgs);
+          }
+
+          if (operation === "upsert") {
+            // Die sonstige Eigentums-Prüfung unten (findFirst mit tenantId im where) würde bei
+            // einem Upsert immer "nicht gefunden" ergeben, solange die Zeile noch nicht existiert
+            // (z. B. erstmalige Push-Registrierung eines Geräts) - der Datensatz könnte dann nie
+            // angelegt werden. Deshalb hier stattdessen: irgendeine Zeile mit diesem where suchen
+            // (egal welcher Mandant), und nur ablehnen, wenn sie einem ANDEREN Mandanten gehört.
+            // Gehört sie niemandem, darf der Upsert anlegen - create() verlangt ohnehin tenantId
+            // im data.create, genau wie der normale create-Fall oben.
+            const client = prisma as unknown as Record<
+              string,
+              { findFirst: (a: unknown) => Promise<{ tenantId: string } | null> }
+            >;
+            const modelKey = model.charAt(0).toLowerCase() + model.slice(1);
+            const bestehend = await client[modelKey]?.findFirst({
+              where: typedArgs.where ?? {},
+              select: { tenantId: true },
+            });
+            if (bestehend && bestehend.tenantId !== tenantId) {
+              throw new Error("Nicht gefunden.");
+            }
             return query(typedArgs);
           }
 

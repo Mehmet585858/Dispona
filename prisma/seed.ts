@@ -2,6 +2,7 @@ import "dotenv/config";
 import { randomUUID } from "node:crypto";
 import { berlinerMitternacht, datumIso, mitUhrzeit, tagVerschieben } from "../src/core/shifts/week";
 import { prisma } from "../src/lib/prisma";
+import { fahrtErfassen } from "../src/core/rides/erfassen";
 
 const heute = berlinerMitternacht(datumIso(new Date()));
 
@@ -294,26 +295,32 @@ async function main() {
     );
   }
 
+  // Über fahrtErfassen() statt direkt prisma.ride.create(), damit (wie bei einer echten Buchung)
+  // auch der Fahrzeugvorschlag berechnet wird und die Fahrt VORGESCHLAGEN statt für immer bei
+  // ERFASST stehen bleibt - sonst sieht der Automatikmodus/die Dispo-Liste diese Testfahrten nie
+  // als zuweisbar an.
   console.log("Lege 10 Fahrten heute an …");
   const transportarten = ["SITZEND", "SITZEND", "ROLLSTUHL", "SITZEND", "TRAGESTUHL"] as const;
   for (let i = 0; i < 10; i += 1) {
     const fahrgast = fahrgaeste[i % fahrgaeste.length];
     const abholort = orte[i % orte.length];
     const zielort = orte[(i + 3) % orte.length];
-    await prisma.ride.create({
-      data: {
-        tenantId: tenant.id,
+    await fahrtErfassen(
+      tenant.id,
+      {
         passengerId: fahrgast.id,
         pickupPlaceId: abholort.id,
         dropoffPlaceId: zielort.id,
-        pickupAt: uhrzeit(heute, 8 + i, (i % 4) * 15),
+        datum: datumIso(heute),
+        abholzeit: `${String(8 + i).padStart(2, "0")}:${String((i % 4) * 15).padStart(2, "0")}`,
+        rueckfahrt: false,
         transportType: transportarten[i % transportarten.length],
+        companion: false,
         prescription: "JA",
         approval: "NICHT_NOETIG",
-        status: "ERFASST",
-        source: "MANUELL",
       },
-    });
+      { source: "MANUELL" },
+    );
   }
 
   console.log("");

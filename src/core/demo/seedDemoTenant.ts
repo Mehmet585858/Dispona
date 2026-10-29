@@ -36,9 +36,10 @@ export async function seedDemoTenant() {
       tenantId: DEMO_TENANT_ID,
       aiActive: true,
       greeting:
-        "Willkommen bei Mediway Krankenfahrdienst! Dies ist eine Dispona-Live-Demo: Das Gespräch führt eine KI " +
-        "und wird zu Vorführzwecken aufgezeichnet. Bestellen Sie gerne eine Beispielfahrt – im Dashboard auf " +
-        "dispona.de sehen Sie direkt, wie Dispona sie einplant.",
+        "Willkommen bei Mediway Krankenfahrdienst! Dies ist eine Dispona-Live-Demo: Das Gespräch führt eine KI, " +
+        "wird zu Vorführzwecken aufgezeichnet und der Gesprächsverlauf läuft live und für jeden Besucher sichtbar " +
+        "auf dispona.de/live mit. Bitte nennen Sie keine echten persönlichen Daten. Bestellen Sie gerne eine " +
+        "Beispielfahrt – im Dashboard auf dispona.de sehen Sie direkt, wie Dispona sie einplant.",
       // Echter Name aus Vapis eigenem Sprachanbieter ("Vapi Voices"), nicht länger ein
       // erfundener Platzhalter - siehe src/providers/voice/vapi.ts.
       voiceId: "Clara",
@@ -70,9 +71,10 @@ export async function seedDemoTenant() {
       autoModeMinMargin: 0,
       voiceId: "Clara",
       greeting:
-        "Willkommen bei Mediway Krankenfahrdienst! Dies ist eine Dispona-Live-Demo: Das Gespräch führt eine KI " +
-        "und wird zu Vorführzwecken aufgezeichnet. Bestellen Sie gerne eine Beispielfahrt – im Dashboard auf " +
-        "dispona.de sehen Sie direkt, wie Dispona sie einplant.",
+        "Willkommen bei Mediway Krankenfahrdienst! Dies ist eine Dispona-Live-Demo: Das Gespräch führt eine KI, " +
+        "wird zu Vorführzwecken aufgezeichnet und der Gesprächsverlauf läuft live und für jeden Besucher sichtbar " +
+        "auf dispona.de/live mit. Bitte nennen Sie keine echten persönlichen Daten. Bestellen Sie gerne eine " +
+        "Beispielfahrt – im Dashboard auf dispona.de sehen Sie direkt, wie Dispona sie einplant.",
     },
   });
 
