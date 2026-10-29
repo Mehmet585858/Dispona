@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { KpiTile } from "@/components/ui/KpiTile";
+import { Logo } from "@/components/ui/Logo";
 import { AnrufKarte, AnrufWarteKarte } from "@/app/dispo/DispoClient";
 import { zeitstrahlPosition } from "@/core/shifts/zeitstrahl";
 import { liveDemoLaden, liveTranskriptLaden } from "./actions";
@@ -37,8 +38,8 @@ export function LiveClient({ initialDaten }: { initialDaten: LiveDaten }) {
     <div className="min-h-screen bg-ground">
       <header className="border-b border-line bg-surface">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-4">
-          <a href="https://dispona.de" className="text-lg font-bold text-ink">
-            dispona
+          <a href="https://dispona.de" className="flex items-center">
+            <Logo className="h-6 text-ink" />
           </a>
           <a href="https://dispona.de#demo" className="text-sm font-medium text-accent hover:underline">
             ← Zurück zu dispona.de
@@ -47,7 +48,7 @@ export function LiveClient({ initialDaten }: { initialDaten: LiveDaten }) {
       </header>
 
       <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6">
-        <Card className="flex flex-col gap-2 border-line-strong bg-accent-soft">
+        <Card className="flex flex-col gap-2 border-line-strong">
           <h1 className="text-xl font-bold text-ink">So arbeitet Dispona – live</h1>
           {DEMO_TELEFONNUMMER ? (
             <p className="text-sm text-ink-soft">
