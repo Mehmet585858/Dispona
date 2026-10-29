@@ -17,13 +17,17 @@ export async function seedDemoTenant() {
     where: { id: DEMO_TENANT_ID },
     create: {
       id: DEMO_TENANT_ID,
-      name: "Dispona Live-Demo",
+      // Ein erfundener, aber konkreter Firmenname wirkt für Demo-Anrufer glaubwürdiger als
+      // "Dispona Live-Demo" (Nutzerwunsch) - siehe DEMO_TENANT_ID in const.ts.
+      name: "Mediway Krankenfahrdienst",
       street: "Musterstraße 1",
       zip: "52062",
       city: "Aachen",
       paket: "PRO",
     },
-    update: {},
+    // Name auch bei erneutem Lauf setzen (self-healing), falls der Mandant vor der Umbenennung
+    // angelegt wurde.
+    update: { name: "Mediway Krankenfahrdienst" },
   });
 
   await db.tenantSettings.upsert({
@@ -32,9 +36,9 @@ export async function seedDemoTenant() {
       tenantId: DEMO_TENANT_ID,
       aiActive: true,
       greeting:
-        "Willkommen bei der Dispona Live-Demo! Dieses Gespräch führt eine KI und wird zu Vorführzwecken " +
-        "aufgezeichnet. Bestellen Sie gerne eine Beispielfahrt – im Dashboard auf dispona.de sehen Sie direkt, " +
-        "wie Dispona sie einplant.",
+        "Willkommen bei Mediway Krankenfahrdienst! Dies ist eine Dispona-Live-Demo: Das Gespräch führt eine KI " +
+        "und wird zu Vorführzwecken aufgezeichnet. Bestellen Sie gerne eine Beispielfahrt – im Dashboard auf " +
+        "dispona.de sehen Sie direkt, wie Dispona sie einplant.",
       // Echter Name aus Vapis eigenem Sprachanbieter ("Vapi Voices"), nicht länger ein
       // erfundener Platzhalter - siehe src/providers/voice/vapi.ts.
       voiceId: "Clara",
@@ -59,10 +63,17 @@ export async function seedDemoTenant() {
       dataRetentionDays: 7,
       audioRetentionDays: 7,
     },
-    // depotAddress/autoModeMinMargin/voiceId auch bei einem erneuten Lauf setzen (self-healing),
-    // falls ein Mandant vor diesen Fixes angelegt wurde und sonst dauerhaft ohne Auto-Disposition
-    // bliebe bzw. mit einer ungültigen Stimm-ID.
-    update: { depotAddress: { lat: 50.7753, lng: 6.0839 }, autoModeMinMargin: 0, voiceId: "Clara" },
+    // depotAddress/autoModeMinMargin/voiceId/greeting auch bei einem erneuten Lauf setzen
+    // (self-healing), falls ein Mandant vor diesen Fixes angelegt wurde.
+    update: {
+      depotAddress: { lat: 50.7753, lng: 6.0839 },
+      autoModeMinMargin: 0,
+      voiceId: "Clara",
+      greeting:
+        "Willkommen bei Mediway Krankenfahrdienst! Dies ist eine Dispona-Live-Demo: Das Gespräch führt eine KI " +
+        "und wird zu Vorführzwecken aufgezeichnet. Bestellen Sie gerne eine Beispielfahrt – im Dashboard auf " +
+        "dispona.de sehen Sie direkt, wie Dispona sie einplant.",
+    },
   });
 
   let telefonnummerZugeordnet = false;
