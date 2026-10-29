@@ -47,7 +47,7 @@ async function main() {
           aiActive: true,
           greeting:
             "Willkommen bei Muster Krankenfahrten. Dieses Gespräch wird von einer KI geführt und zur Bearbeitung aufgezeichnet.",
-          voiceId: "de-freundlich-1",
+          voiceId: "Clara",
           escalationNumber: "+4924019999999",
           openingHours: { "mo-fr": "07:00-18:00", sa: "08:00-13:00" },
           serviceAreaCenter: { lat: 50.7753, lng: 6.0839 },

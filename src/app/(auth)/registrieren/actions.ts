@@ -44,7 +44,7 @@ export async function firmaRegistrieren(
       settings: {
         create: {
           greeting: willkommenGruss(firmenname),
-          voiceId: "de-freundlich-1",
+          voiceId: "Clara",
           escalationNumber: handynummer,
           openingHours: { "mo-fr": "07:00-18:00" },
           serviceAreaCenter: DEUTSCHLAND_MITTE,

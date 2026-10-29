@@ -35,7 +35,9 @@ export async function seedDemoTenant() {
         "Willkommen bei der Dispona Live-Demo! Dieses Gespräch führt eine KI und wird zu Vorführzwecken " +
         "aufgezeichnet. Bestellen Sie gerne eine Beispielfahrt – im Dashboard auf dispona.de sehen Sie direkt, " +
         "wie Dispona sie einplant.",
-      voiceId: "de-freundlich-1",
+      // Echter Name aus Vapis eigenem Sprachanbieter ("Vapi Voices"), nicht länger ein
+      // erfundener Platzhalter - siehe src/providers/voice/vapi.ts.
+      voiceId: "Clara",
       // Bewusst leer: diese Demo leitet nicht an einen Menschen weiter (src/core/notify/voicePrompt.ts).
       escalationNumber: "",
       openingHours: { "mo-so": "00:00-23:59" },
@@ -57,9 +59,10 @@ export async function seedDemoTenant() {
       dataRetentionDays: 7,
       audioRetentionDays: 7,
     },
-    // depotAddress/autoModeMinMargin auch bei einem erneuten Lauf setzen (self-healing), falls ein
-    // Mandant vor diesem Fix angelegt wurde und sonst dauerhaft ohne Auto-Disposition bliebe.
-    update: { depotAddress: { lat: 50.7753, lng: 6.0839 }, autoModeMinMargin: 0 },
+    // depotAddress/autoModeMinMargin/voiceId auch bei einem erneuten Lauf setzen (self-healing),
+    // falls ein Mandant vor diesen Fixes angelegt wurde und sonst dauerhaft ohne Auto-Disposition
+    // bliebe bzw. mit einer ungültigen Stimm-ID.
+    update: { depotAddress: { lat: 50.7753, lng: 6.0839 }, autoModeMinMargin: 0, voiceId: "Clara" },
   });
 
   let telefonnummerZugeordnet = false;

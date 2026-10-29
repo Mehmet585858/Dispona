@@ -227,7 +227,10 @@ export const vapiProvider: VoiceProvider = {
           model: "gpt-4o",
           messages: [{ role: "system", content: voiceSystemPrompt(settings) }],
         },
-        voice: { provider: "11labs", voiceId: settings.voiceId },
+        // "vapi" (Vapis eigener Sprachanbieter, "Vapi Voices"), nicht "11labs" - wir haben keinen
+        // eigenen ElevenLabs-Account/Stimm-IDs, settings.voiceId sind echte Vapi-Stimmnamen (z. B.
+        // "Clara"), siehe STIMMEN in src/app/einrichtung/[schritt]/konstanten.ts.
+        voice: { provider: "vapi", voiceId: settings.voiceId },
         transcriber: { provider: "deepgram", language: "de" },
         tools,
         ...(serverUrl ? { server: { url: serverUrl } } : {}),
