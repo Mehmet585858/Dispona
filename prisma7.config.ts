@@ -8,7 +8,14 @@ export default defineConfig({
   migrations: {
     path: "prisma/migrations",
   },
+  // Nur die Prisma-CLI (migrate deploy/dev, generate) nutzt diese URL - die laufende App verbindet
+  // sich unabhängig davon über ihren eigenen pg-Adapter direkt mit DATABASE_URL (src/lib/prisma.ts),
+  // diese Zeile hat darauf keinen Einfluss. DIRECT_URL (falls gesetzt) sollte bei Neon die
+  // UNGEPOOLTE Verbindung sein: Neons gepoolter "-pooler"-Endpunkt läuft über PgBouncer im
+  // Transaction-Modus, der sitzungsgebundene Postgres-Advisory-Locks nicht zuverlässig unterstützt -
+  // genau die Locks, mit denen migrate deploy sich gegen gleichzeitige Migrationen absichert
+  // (P1002 "Timed out trying to acquire a postgres advisory lock").
   datasource: {
-    url: process.env["DATABASE_URL"],
+    url: process.env["DIRECT_URL"] ?? process.env["DATABASE_URL"],
   },
 });
