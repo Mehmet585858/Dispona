@@ -7,6 +7,12 @@
  * ruft an), damit die Demo nicht wirkt wie derselbe Anruf in Dauerschleife. Die Begrüßung läuft
  * vor dem ersten Gesprächs-Schnipsel bereits ab (wie bei einem echten Anruf) und wird hier nicht
  * wiederholt gezeigt - die Zeilen beginnen direkt mit dem eigentlichen Anliegen.
+ *
+ * offsetMinuten/dauerMinuten sind rein für die Platzierung im Zeitstrahl (immer relativ zu
+ * "jetzt" berechnet, siehe LiveClient.tsx) - unabhängig von der im Gespräch genannten Uhrzeit,
+ * die nur Gesprächs-Deko ist. Wichtig: der letzte Satz von Lisa darf der Zeit nie widersprechen -
+ * eine Fahrt in mehreren Stunden bekommt "ist eingeplant für X Uhr" statt einer Minuten-Ansage,
+ * die nur für eine Fahrt in Kürze stimmt.
  */
 export type SimulationsZeile = { sprecher: "ki" | "anrufer"; text: string };
 
@@ -19,7 +25,9 @@ export type SimulationsSzenario = {
   transport: string;
   abholung: string;
   ziel: string;
-  uhrzeit: string;
+  offsetMinuten: number;
+  dauerMinuten: number;
+  /** Kennzeichen - muss zu einem der Demo-Fahrzeuge passen (seedDemoTenant.ts). */
   fahrzeug: string;
 };
 
@@ -36,14 +44,15 @@ export const SIMULATIONS_SZENARIEN: SimulationsSzenario[] = [
       { sprecher: "anrufer", text: "Heute um vierzehn Uhr." },
       { sprecher: "ki", text: "Heute um vierzehn Uhr, Lindenweg vier zum Dialysezentrum Musterstadt, mit Rollstuhl, für Herbert Thormann. Passt das?" },
       { sprecher: "anrufer", text: "Ja, passt." },
-      { sprecher: "ki", text: "Ein Fahrer ist in etwa zwanzig Minuten da. Gute Besserung, Herr Thormann." },
+      { sprecher: "ki", text: "Die Fahrt ist für vierzehn Uhr eingeplant. Gute Besserung, Herr Thormann." },
     ],
     fahrgast: "Herbert Thormann",
     transport: "Rollstuhl",
     abholung: "Lindenweg 4",
     ziel: "Dialysezentrum Musterstadt",
-    uhrzeit: "heute 14:00",
-    fahrzeug: "DEMO-200",
+    offsetMinuten: 200,
+    dauerMinuten: 35,
+    fahrzeug: "DEMO-201",
   },
   {
     anruferName: "Ingrid Wagner",
@@ -63,8 +72,9 @@ export const SIMULATIONS_SZENARIEN: SimulationsSzenario[] = [
     transport: "Sitzend",
     abholung: "Klinikum Musterstadt",
     ziel: "Burgstraße 25",
-    uhrzeit: "in 30 Minuten",
-    fahrzeug: "DEMO-100",
+    offsetMinuten: 28,
+    dauerMinuten: 20,
+    fahrzeug: "DEMO-101",
   },
   {
     anruferName: "Klaus Meyer",
@@ -84,8 +94,9 @@ export const SIMULATIONS_SZENARIEN: SimulationsSzenario[] = [
     transport: "Sitzend",
     abholung: "Praxis am Markt",
     ziel: "Lindenweg 4",
-    uhrzeit: "sofort",
-    fahrzeug: "DEMO-100",
+    offsetMinuten: 15,
+    dauerMinuten: 20,
+    fahrzeug: "DEMO-102",
   },
   {
     anruferName: "Anrufer",
@@ -101,13 +112,14 @@ export const SIMULATIONS_SZENARIEN: SimulationsSzenario[] = [
       { sprecher: "anrufer", text: "Heute gegen sechzehn Uhr." },
       { sprecher: "ki", text: "Heute um sechzehn Uhr, Liegendtransport vom Klinikum Musterstadt zum Pflegeheim Sonnenhof, für Said Yilmaz. Passt das?" },
       { sprecher: "anrufer", text: "Ja, passt." },
-      { sprecher: "ki", text: "Ein Fahrer ist in etwa fünfunddreißig Minuten da. Gute Besserung für Ihren Vater." },
+      { sprecher: "ki", text: "Die Fahrt ist für sechzehn Uhr eingeplant. Gute Besserung für Ihren Vater." },
     ],
     fahrgast: "Said Yilmaz",
     transport: "Liegend",
     abholung: "Klinikum Musterstadt",
     ziel: "Pflegeheim Sonnenhof",
-    uhrzeit: "heute 16:00",
-    fahrzeug: "DEMO-400",
+    offsetMinuten: 330,
+    dauerMinuten: 40,
+    fahrzeug: "DEMO-401",
   },
 ];

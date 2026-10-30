@@ -8,7 +8,7 @@ import { Logo } from "@/components/ui/Logo";
 import { AnrufKarte } from "@/app/dispo/DispoClient";
 import { zeitstrahlPosition } from "@/core/shifts/zeitstrahl";
 import { liveDemoLaden, liveTranskriptLaden } from "./actions";
-import { LiveZeitstrahl } from "./LiveZeitstrahl";
+import { LiveZeitstrahl, type SimulierteZeitstrahlFahrt } from "./LiveZeitstrahl";
 import { SimulierterAnruf } from "./SimulierterAnruf";
 
 const AKTUALISIERUNG_MS = 5_000;
@@ -28,6 +28,11 @@ function keinOp() {}
 export function LiveClient({ initialDaten }: { initialDaten: LiveDaten }) {
   const [daten, setDaten] = useState(initialDaten);
   const [jetztProzent, setJetztProzent] = useState<number | null>(null);
+  // Vom Beispiel-Anruf gemeldet (SimulierterAnruf.tsx) - nach Kennzeichen, weil die Komponente
+  // keinen Zugriff auf die echten Fahrzeug-IDs hat (rein clientseitig, kein Datenbankzugriff).
+  const [geplanteSimFahrt, setGeplanteSimFahrt] = useState<
+    (Omit<SimulierteZeitstrahlFahrt, "vehicleId"> & { plate: string }) | null
+  >(null);
 
   useEffect(() => {
     function aktualisieren() {
@@ -140,7 +145,19 @@ export function LiveClient({ initialDaten }: { initialDaten: LiveDaten }) {
 
         <div className="flex flex-wrap items-start gap-4">
           <div className="min-w-0 flex-1 basis-[640px]">
-            <LiveZeitstrahl fahrten={daten.fahrten} fahrzeugZeilen={daten.fahrzeugZeilen} jetztProzent={jetztProzent} />
+            <LiveZeitstrahl
+              fahrten={daten.fahrten}
+              fahrzeugZeilen={daten.fahrzeugZeilen}
+              jetztProzent={jetztProzent}
+              simulierteFahrt={
+                geplanteSimFahrt
+                  ? (() => {
+                      const zeile = daten.fahrzeugZeilen.find((z) => z.plate === geplanteSimFahrt.plate);
+                      return zeile ? { ...geplanteSimFahrt, vehicleId: zeile.id } : null;
+                    })()
+                  : null
+              }
+            />
           </div>
           <div className="flex w-full flex-none flex-col gap-4 md:w-[380px]">
             {daten.liveAnrufe.map((anruf, index) => (
@@ -156,7 +173,7 @@ export function LiveClient({ initialDaten }: { initialDaten: LiveDaten }) {
             {/* Läuft immer mit, auch neben echten Anrufen - zeigt live genau das, womit die
                 Marketing-Seite wirbt: mehrere Anrufe gleichzeitig. Rein clientseitig, siehe
                 SimulierterAnruf.tsx. */}
-            <SimulierterAnruf />
+            <SimulierterAnruf onGeplantChange={setGeplanteSimFahrt} />
           </div>
         </div>
       </main>

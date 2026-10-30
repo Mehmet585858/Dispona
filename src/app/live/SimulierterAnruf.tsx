@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/Card";
+import { uhrzeit } from "@/app/dispo/fahrten/Zeitstrahl";
 import { SIMULATIONS_SZENARIEN } from "./simulationsSzenarien";
+import type { SimulierteZeitstrahlFahrt } from "./LiveZeitstrahl";
 
 const ZEICHEN_MS = 28;
 const ZEILE_PAUSE_MS = 700;
@@ -16,12 +18,21 @@ type Phase = "gespraech" | "geplant";
  * wirkt. Läuft parallel zu echten AnrufKarte-Karten weiter, statt sie zu ersetzen - genau das
  * zeigt live, dass Dispona mehrere Anrufe gleichzeitig annehmen kann (siehe LiveClient.tsx).
  * Zeilen werden per Tipp-Effekt zeichenweise aufgebaut statt alle auf einmal zu erscheinen.
+ *
+ * Meldet die gerade "eingeplante" Beispiel-Fahrt nach oben (onGeplantChange), damit LiveClient
+ * sie zusätzlich als Beispiel-Kachel im Zeitstrahl zeigen kann - Pickup-/Endzeit immer relativ zu
+ * "jetzt" berechnet (offsetMinuten/dauerMinuten), nie aus einer im Gespräch genannten Uhrzeit.
  */
-export function SimulierterAnruf() {
+export function SimulierterAnruf({
+  onGeplantChange,
+}: {
+  onGeplantChange?: (fahrt: (Omit<SimulierteZeitstrahlFahrt, "vehicleId"> & { plate: string }) | null) => void;
+}) {
   const [szenarioIndex, setSzenarioIndex] = useState(0);
   const [zeilenIndex, setZeilenIndex] = useState(0);
   const [zeichenIndex, setZeichenIndex] = useState(0);
   const [phase, setPhase] = useState<Phase>("gespraech");
+  const [geplanteZeiten, setGeplanteZeiten] = useState<{ pickupAt: Date; geplantesEnde: Date } | null>(null);
 
   const szenario = SIMULATIONS_SZENARIEN[szenarioIndex % SIMULATIONS_SZENARIEN.length];
   const aktuelleZeile = szenario.linien[zeilenIndex];
@@ -29,6 +40,11 @@ export function SimulierterAnruf() {
   useEffect(() => {
     if (phase !== "gespraech") return;
     if (!aktuelleZeile) {
+      const jetzt = new Date();
+      const pickupAt = new Date(jetzt.getTime() + szenario.offsetMinuten * 60_000);
+      const geplantesEnde = new Date(pickupAt.getTime() + szenario.dauerMinuten * 60_000);
+      setGeplanteZeiten({ pickupAt, geplantesEnde });
+      onGeplantChange?.({ plate: szenario.fahrzeug, pickupAt, geplantesEnde, fahrgast: szenario.fahrgast, transport: szenario.transport });
       setPhase("geplant");
       return;
     }
@@ -41,7 +57,7 @@ export function SimulierterAnruf() {
       setZeichenIndex(0);
     }, ZEILE_PAUSE_MS);
     return () => clearTimeout(timer);
-  }, [phase, zeichenIndex, aktuelleZeile]);
+  }, [phase, zeichenIndex, aktuelleZeile, szenario, onGeplantChange]);
 
   useEffect(() => {
     if (phase !== "geplant") return;
@@ -49,10 +65,12 @@ export function SimulierterAnruf() {
       setSzenarioIndex((i) => i + 1);
       setZeilenIndex(0);
       setZeichenIndex(0);
+      setGeplanteZeiten(null);
+      onGeplantChange?.(null);
       setPhase("gespraech");
     }, GEPLANT_MS);
     return () => clearTimeout(timer);
-  }, [phase]);
+  }, [phase, onGeplantChange]);
 
   const fertigeZeilen = szenario.linien.slice(0, zeilenIndex);
 
@@ -108,7 +126,8 @@ export function SimulierterAnruf() {
           <div className="col-span-2">
             <p className="text-xs text-muted">Eingeplant bei</p>
             <p className="font-medium text-ink">
-              {szenario.fahrzeug} · {szenario.uhrzeit}
+              {szenario.fahrzeug}
+              {geplanteZeiten ? ` · ${uhrzeit(geplanteZeiten.pickupAt)}` : ""}
             </p>
           </div>
         </div>

@@ -90,9 +90,15 @@ export async function seedDemoTenant() {
 
   const fahrzeugDaten = [
     { plate: "DEMO-100", seats: 4, wheelchairSpots: 0, carryChair: false, stretcher: false },
+    { plate: "DEMO-101", seats: 4, wheelchairSpots: 0, carryChair: false, stretcher: false },
+    { plate: "DEMO-102", seats: 3, wheelchairSpots: 0, carryChair: false, stretcher: false },
     { plate: "DEMO-200", seats: 3, wheelchairSpots: 1, carryChair: false, stretcher: false },
+    { plate: "DEMO-201", seats: 2, wheelchairSpots: 2, carryChair: false, stretcher: false },
+    { plate: "DEMO-202", seats: 3, wheelchairSpots: 1, carryChair: false, stretcher: false },
     { plate: "DEMO-300", seats: 2, wheelchairSpots: 0, carryChair: true, stretcher: false },
+    { plate: "DEMO-301", seats: 2, wheelchairSpots: 0, carryChair: true, stretcher: false },
     { plate: "DEMO-400", seats: 1, wheelchairSpots: 0, carryChair: false, stretcher: true },
+    { plate: "DEMO-401", seats: 1, wheelchairSpots: 0, carryChair: false, stretcher: true },
   ];
   const fahrzeuge = [];
   for (const daten of fahrzeugDaten) {
@@ -105,12 +111,10 @@ export async function seedDemoTenant() {
     );
   }
 
-  const fahrerDaten = [
-    { name: "Demo Fahrer 1", email: "demo-fahrer-1@dispona-demo.invalid" },
-    { name: "Demo Fahrer 2", email: "demo-fahrer-2@dispona-demo.invalid" },
-    { name: "Demo Fahrer 3", email: "demo-fahrer-3@dispona-demo.invalid" },
-    { name: "Demo Fahrer 4", email: "demo-fahrer-4@dispona-demo.invalid" },
-  ];
+  const fahrerDaten = Array.from({ length: fahrzeugDaten.length }, (_, i) => ({
+    name: `Demo Fahrer ${i + 1}`,
+    email: `demo-fahrer-${i + 1}@dispona-demo.invalid`,
+  }));
   // Eine einzige, sehr lang laufende Schicht statt täglich neuer - die Demo soll jederzeit
   // funktionieren, ohne dass ein Cron sie Tag für Tag verlängern muss.
   const schichtStart = new Date();
