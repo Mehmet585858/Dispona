@@ -104,6 +104,33 @@ body {
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
 }
 
+/* "Fährt gerade"-Pfeile links vom Live-Status-Punkt einer Fahrzeugzeile (BewegungsPfeile in
+ * src/app/dispo/fahrten/Zeitstrahl.tsx) - drei Pfeile blenden zeitversetzt auf und wieder ab, so
+ * dass nacheinander ›, ›› und ››› sichtbar werden, bevor der Zyklus von vorn beginnt. */
+@keyframes bewegungspfeil {
+  0%, 15% {
+    opacity: 0;
+  }
+  35%,
+  75% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.animate-bewegungspfeil {
+  display: inline-block;
+  opacity: 0;
+  animation: bewegungspfeil 1.3s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-bewegungspfeil {
+    animation: none;
+    opacity: 1;
+  }
+}
+
 /* Zahlen in Tabellen und Uhrzeiten gleich breit, damit sie nicht "wandern". */
 .tabular-nums {
   font-variant-numeric: tabular-nums;

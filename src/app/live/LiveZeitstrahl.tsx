@@ -14,6 +14,7 @@ import { chipStil } from "@/core/rides/transportfarbe";
 import { TRANSPORT_TYPE_LABEL } from "@/core/rides/validation";
 import { ZEITSTRAHL_ENDE_STUNDE, ZEITSTRAHL_START_STUNDE, zeitstrahlBreite, zeitstrahlPosition } from "@/core/shifts/zeitstrahl";
 import {
+  BewegungsPfeile,
   LIVE_PUNKT_FARBE,
   Legende,
   PX_PRO_STUNDE,
@@ -127,6 +128,7 @@ export function LiveZeitstrahl({
                   ) : null}
                 </div>
                 <p className="mt-0.5 flex items-center gap-1.5 text-xs">
+                  <BewegungsPfeile punkt={zeile.live.punkt} />
                   <span
                     className="inline-block h-2 w-2 rounded-full"
                     style={{ background: LIVE_PUNKT_FARBE[zeile.live.punkt] }}

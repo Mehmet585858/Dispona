@@ -39,6 +39,34 @@ export const LIVE_PUNKT_FARBE: Record<FahrzeugLiveStatus["punkt"], string> = {
   late: "var(--live-late)",
 };
 
+/** "go"/"late" (fährt zum Fahrgast) und "in" (Fahrgast im Auto) - das Fahrzeug bewegt sich wirklich.
+ * "free" (am Betriebshof) und "at" (gerade erst angekommen) nicht - siehe BewegungsPfeile. */
+const BEWEGTE_PUNKTE = new Set<FahrzeugLiveStatus["punkt"]>(["go", "late", "in"]);
+
+/** Kleine "fährt gerade"-Animation links vom Status-Punkt einer Fahrzeugzeile: drei Pfeile blenden
+ * zeitversetzt auf (CSS-Keyframe in globals.css), so dass nacheinander ›, ›› und ››› sichtbar
+ * werden - nur während das Fahrzeug wirklich unterwegs ist (BEWEGTE_PUNKTE), sonst null. */
+export function BewegungsPfeile({ punkt }: { punkt: FahrzeugLiveStatus["punkt"] }) {
+  if (!BEWEGTE_PUNKTE.has(punkt)) return null;
+  return (
+    <span
+      aria-hidden="true"
+      className="inline-flex flex-none items-center gap-px text-[10px] font-bold leading-none"
+      style={{ color: LIVE_PUNKT_FARBE[punkt] }}
+    >
+      <span className="animate-bewegungspfeil" style={{ animationDelay: "0ms" }}>
+        ›
+      </span>
+      <span className="animate-bewegungspfeil" style={{ animationDelay: "180ms" }}>
+        ›
+      </span>
+      <span className="animate-bewegungspfeil" style={{ animationDelay: "360ms" }}>
+        ›
+      </span>
+    </span>
+  );
+}
+
 export const STUNDEN_TICKS = Array.from({ length: ZEITSTRAHL_ENDE_STUNDE - ZEITSTRAHL_START_STUNDE + 1 }, (_, i) => ZEITSTRAHL_START_STUNDE + i);
 /** Breite einer Stunde im Tages-Zeitstrahl in Pixeln – fest statt prozentual, damit der Zeitstrahl
  * horizontal scrollbar ist (volle 24 Std. sichtbar, aber nie gequetschte Chips). */
@@ -590,6 +618,7 @@ export function Zeitstrahl({
                   ) : null}
                 </div>
                 <p className="mt-0.5 flex items-center gap-1.5 text-xs">
+                  <BewegungsPfeile punkt={zeile.live.punkt} />
                   <span
                     className="inline-block h-2 w-2 rounded-full"
                     style={{ background: LIVE_PUNKT_FARBE[zeile.live.punkt] }}
