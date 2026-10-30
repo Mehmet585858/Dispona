@@ -750,6 +750,15 @@ async function statusFortschreiben(tenantId: string, jetzt: Date) {
   const kandidaten = await db.ride.findMany({
     where: { status: { in: ["DISPONIERT", "UNTERWEGS", "AN_BORD"] } },
     include: { pickupPlace: true, dropoffPlace: true },
+    // orderBy ist hier Pflicht, nicht nur Kosmetik: an einem vollen Tag gibt es oft deutlich mehr
+    // als MAX_STATUS_FORTSCHREIBEN_PRO_LAUF offene Fahrten gleichzeitig. Ohne diese Sortierung
+    // liefert Postgres eine beliebige Teilmenge zurück - eine seit Langem fällige Fahrt (Fahrer
+    // zugewiesen, Abholzeit längst erreicht) konnte dadurch dauerhaft aus der take-Grenze
+    // herausfallen, während spätere, noch gar nicht fällige Fahrten unnötig Plätze belegten
+    // (jeder Kandidat zählt gegen die Grenze, auch wenn die untenstehende Zeitprüfung ihn gar
+    // nicht fortschreibt). Mit "nach Abholzeit aufsteigend" sind die am längsten überfälligen
+    // Fahrten immer zuerst dran und ein Rückstand baut sich garantiert über die nächsten Läufe ab.
+    orderBy: { pickupAt: "asc" },
     take: MAX_STATUS_FORTSCHREIBEN_PRO_LAUF, // Rest holt der nächste Lauf nach, siehe MAX_NEUE_TAGESPLAN_FAHRTEN_PRO_LAUF
   });
   for (const fahrt of kandidaten) {
