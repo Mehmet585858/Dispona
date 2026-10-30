@@ -7,6 +7,12 @@ import { withTenant } from "@/lib/db";
 import { fahrtStatusAendern } from "@/core/rides/status";
 import { pushAnFahrer } from "@/core/notify/push";
 import { fahrtEntzogenText, neueFahrtText } from "@/core/notify/texte";
+import { geplantesEnde } from "@/core/shifts/dauer";
+
+/** Wird geworfen, wenn das Zielfahrzeug zur Abholzeit schon anderweitig eingeplant ist - von
+ * allen vier Aufrufern von fahrzeugZuweisen separat abgefangen (siehe dort), nie unbehandelt
+ * durchgereicht. */
+export class FahrzeugKonfliktError extends Error {}
 
 function uhrzeitBerlin(datum: Date): string {
   return datum.toLocaleTimeString("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", minute: "2-digit" });
@@ -24,12 +30,47 @@ export async function fahrzeugZuweisen(
     select: {
       pickupAt: true,
       driverId: true,
-      pickupPlace: { select: { label: true } },
-      dropoffPlace: { select: { label: true } },
+      transportType: true,
+      pickupPlace: { select: { label: true, lat: true, lng: true } },
+      dropoffPlace: { select: { label: true, lat: true, lng: true } },
     },
   });
   if (!fahrt) throw new Error("Fahrt nicht gefunden.");
   const vorherigerFahrerId = fahrt.driverId;
+
+  // Einziger Ort, der eine Doppelbuchung des Fahrzeugs zuverlässig abfängt: automatische
+  // Disposition, "Plan für morgen", das manuelle Bestätigen/Umbesetzen und das Ziehen im
+  // Zeitstrahl laufen alle hierüber. Ein beim Vorschlag geprüfter freier Slot kann seitdem durch
+  // eine andere, inzwischen zugewiesene Fahrt belegt worden sein (z. B. zwei Vorschläge aus
+  // unterschiedlichen Automodus-Läufen, die unabhängig voneinander dasselbe Fahrzeug als beste
+  // Option hatten) - das wird hier anhand des tatsächlichen, aktuellen Fahrplans geprüft statt
+  // anhand einer möglicherweise veralteten Momentaufnahme.
+  const eigenesEnde = geplantesEnde(fahrt.pickupAt, fahrt.transportType, fahrt.pickupPlace, fahrt.dropoffPlace);
+  const fensterVon = new Date(fahrt.pickupAt.getTime() - 24 * 60 * 60_000);
+  const fensterBis = new Date(fahrt.pickupAt.getTime() + 24 * 60 * 60_000);
+  const andereFahrtenDesFahrzeugs = await db.ride.findMany({
+    where: {
+      vehicleId,
+      id: { not: rideId },
+      status: { notIn: ["STORNIERT", "ERLEDIGT"] },
+      pickupAt: { gte: fensterVon, lte: fensterBis },
+    },
+    select: {
+      pickupAt: true,
+      transportType: true,
+      pickupPlace: { select: { lat: true, lng: true } },
+      dropoffPlace: { select: { lat: true, lng: true } },
+    },
+  });
+  const konflikt = andereFahrtenDesFahrzeugs.find((andere) => {
+    const andereEnde = geplantesEnde(andere.pickupAt, andere.transportType, andere.pickupPlace, andere.dropoffPlace);
+    return fahrt.pickupAt < andereEnde && andere.pickupAt < eigenesEnde;
+  });
+  if (konflikt) {
+    throw new FahrzeugKonfliktError(
+      `Dieses Fahrzeug ist um ${uhrzeitBerlin(konflikt.pickupAt)} Uhr schon für eine andere Fahrt eingeplant.`,
+    );
+  }
 
   const schicht = await db.shift.findFirst({
     where: { vehicleId, start: { lte: fahrt.pickupAt }, end: { gte: fahrt.pickupAt } },

@@ -9,7 +9,7 @@ import { withTenant } from "@/lib/db";
 import { berlinerMitternacht, datumIso, tagVerschieben } from "@/core/shifts/week";
 import { routingProvider } from "@/providers/routing";
 import { fahrtStatusAendern } from "@/core/rides/status";
-import { fahrzeugZuweisen } from "./zuweisen";
+import { fahrzeugZuweisen, FahrzeugKonfliktError } from "./zuweisen";
 import { sicherheitsbedingungenPruefen } from "./automodus";
 import { vorschlaegeBerechnen, type GeplanteFahrt } from "./vorschlagen";
 
@@ -139,8 +139,17 @@ export async function planFuerMorgenBerechnen(tenantId: string) {
     });
 
     if (automodeErgebnis.erlaubt) {
-      await fahrzeugZuweisen(tenantId, fahrt.id, bester.vehicleId, { dispatchMode: "AUTO" });
-      automatischDisponiert += 1;
+      try {
+        await fahrzeugZuweisen(tenantId, fahrt.id, bester.vehicleId, { dispatchMode: "AUTO" });
+        automatischDisponiert += 1;
+      } catch (fehler) {
+        // Der im eigenen tagesplan reservierte Slot schützt nur gegen Fahrten aus diesem Lauf -
+        // eine zeitgleich von anderswo (z. B. einem echten Anruf) zugewiesene Fahrt sieht
+        // fahrzeugZuweisen trotzdem; dann bleibt die Fahrt als normaler Vorschlag stehen statt
+        // den ganzen Lauf abzubrechen.
+        if (!(fehler instanceof FahrzeugKonfliktError)) throw fehler;
+        vorgeschlagen += 1;
+      }
     } else {
       vorgeschlagen += 1;
     }

@@ -6,7 +6,7 @@
  */
 import { withTenant } from "@/lib/db";
 import { sicherheitsbedingungenPruefen } from "./automodus";
-import { fahrzeugZuweisen } from "./zuweisen";
+import { fahrzeugZuweisen, FahrzeugKonfliktError } from "./zuweisen";
 
 type SuggestionOption = { vehicleId: string; plate: string; etaMin: number; onTime: boolean; score: number; reason: string };
 
@@ -77,8 +77,17 @@ export async function automatischDisponieren(tenantId: string) {
     });
 
     if (ergebnis.erlaubt) {
-      await fahrzeugZuweisen(tenantId, fahrt.id, bester.vehicleId, { dispatchMode: "AUTO" });
-      automatischDisponiert += 1;
+      try {
+        await fahrzeugZuweisen(tenantId, fahrt.id, bester.vehicleId, { dispatchMode: "AUTO" });
+        automatischDisponiert += 1;
+      } catch (fehler) {
+        // Der beste Vorschlag kann seit seiner Berechnung durch eine andere, inzwischen
+        // zugewiesene Fahrt überholt sein (siehe fahrzeugZuweisen) - dann bleibt die Fahrt beim
+        // Disponenten liegen statt den ganzen Lauf für alle anderen Fahrten abzubrechen.
+        if (!(fehler instanceof FahrzeugKonfliktError)) throw fehler;
+        await db.ride.update({ where: { id: fahrt.id }, data: { autoSkipReason: fehler.message } });
+        uebersprungen += 1;
+      }
     } else {
       await db.ride.update({ where: { id: fahrt.id }, data: { autoSkipReason: ergebnis.grund } });
       uebersprungen += 1;

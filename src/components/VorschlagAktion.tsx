@@ -33,7 +33,11 @@ export function VorschlagAktion({
     if (!vehicleId) return;
     setLaedt(true);
     try {
-      await fahrzeugWaehlen(rideId, vehicleId);
+      const ergebnis = await fahrzeugWaehlen(rideId, vehicleId);
+      if (!ergebnis.ok) {
+        window.alert(ergebnis.grund);
+        return;
+      }
       onErledigt();
     } finally {
       setLaedt(false);

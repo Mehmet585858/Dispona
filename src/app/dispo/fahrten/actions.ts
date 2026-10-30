@@ -9,7 +9,7 @@ import { fahrtAendern } from "@/core/rides/aendern";
 import { fahrtErfassen } from "@/core/rides/erfassen";
 import { serieAnlegen as serieAnlegenKern } from "@/core/rides/serie";
 import { fahrtStornieren as fahrtStornierenKern } from "@/core/rides/stornieren";
-import { fahrzeugZuweisen } from "@/core/disposition/zuweisen";
+import { fahrzeugZuweisen, FahrzeugKonfliktError } from "@/core/disposition/zuweisen";
 import { fahrgaesteAehnlicheNamen, telefonNormalisieren } from "@/core/passengers/suche";
 import { telefonMaskiert } from "@/core/notify/telefonMaskierung";
 import { berlinerMitternacht, datumIso, wochenStart } from "@/core/shifts/week";
@@ -414,11 +414,22 @@ export async function serieAnlegen(eingabe: SerieEingabe) {
   return ergebnis;
 }
 
-/** "Bestätigen" (vorgeschlagenes Fahrzeug) oder "Anderes Fahrzeug" – beides läuft hierüber. */
-export async function fahrzeugWaehlen(rideId: string, vehicleId: string) {
+/** "Bestätigen" (vorgeschlagenes Fahrzeug) oder "Anderes Fahrzeug" – beides läuft hierüber.
+ * Gibt {ok:false, grund} statt zu werfen zurück, wenn das Fahrzeug schon belegt ist - ein
+ * geworfener Fehler würde serverseitig u. U. mit einer generischen Meldung ersetzt, bevor er den
+ * Client erreicht (Next.js-Verhalten bei Server Actions), die konkrete Konflikt-Uhrzeit also nie
+ * ankommen. */
+export async function fahrzeugWaehlen(rideId: string, vehicleId: string): Promise<{ ok: true } | { ok: false; grund: string }> {
   const { tenantId, userId } = await requireSession();
-  await fahrzeugZuweisen(tenantId, rideId, vehicleId, { dispatchMode: "MANUELL", userId });
+  try {
+    await fahrzeugZuweisen(tenantId, rideId, vehicleId, { dispatchMode: "MANUELL", userId });
+  } catch (fehler) {
+    revalidatePath("/dispo");
+    if (fehler instanceof FahrzeugKonfliktError) return { ok: false, grund: fehler.message };
+    throw fehler;
+  }
   revalidatePath("/dispo");
+  return { ok: true };
 }
 
 const NICHT_VERSCHIEBBARE_STATUS = new Set<string>(["UNTERWEGS", "AN_BORD", "ERLEDIGT", "STORNIERT", "NICHT_ANGETROFFEN"]);
@@ -453,7 +464,13 @@ export async function fahrtVerschieben(
     await fahrtStatusAendern(tenantId, rideId, "ERFASST", { userId });
   }
   if (eingabe.neuesFahrzeugId) {
-    await fahrzeugZuweisen(tenantId, rideId, eingabe.neuesFahrzeugId, { dispatchMode: "MANUELL", userId });
+    try {
+      await fahrzeugZuweisen(tenantId, rideId, eingabe.neuesFahrzeugId, { dispatchMode: "MANUELL", userId });
+    } catch (fehler) {
+      revalidatePath("/dispo");
+      if (fehler instanceof FahrzeugKonfliktError) return { ok: false, grund: fehler.message };
+      throw fehler;
+    }
   }
   revalidatePath("/dispo");
   return { ok: true };
