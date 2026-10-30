@@ -24,7 +24,18 @@ export type FahrzeugLiveStatus = {
 
 const AM_ZIEL_SICHTBAR_MINUTEN = 60;
 
-export function fahrzeugLiveStatus(fahrtenHeute: FahrtFuerLiveStatus[], jetzt: Date): FahrzeugLiveStatus {
+/**
+ * oeffentlich=true (öffentliche Live-Demo, kein Login, siehe src/app/live/actions.ts) lässt den
+ * Fahrgastnamen aus "zusatz" weg - der einzige der vier Zustände, dessen Text sonst einen echten
+ * Namen enthält. Statt den fertigen Text danach wieder zu zerlegen, wird er hier schon ohne Namen
+ * gebaut - die anderen Zustände (Ankunftszeit, Verspätung, "am Betriebshof") enthalten ohnehin nie
+ * einen Namen und bleiben unverändert.
+ */
+export function fahrzeugLiveStatus(
+  fahrtenHeute: FahrtFuerLiveStatus[],
+  jetzt: Date,
+  oeffentlich = false,
+): FahrzeugLiveStatus {
   const anBord = fahrtenHeute.find((f) => f.status === "AN_BORD");
   if (anBord) {
     return { punkt: "in", label: "Fahrgast im Auto", zusatz: `Ankunft ${uhrzeit(anBord.geplantesEnde)}` };
@@ -36,7 +47,12 @@ export function fahrzeugLiveStatus(fahrtenHeute: FahrtFuerLiveStatus[], jetzt: D
     if (verspaetungMin > 0) {
       return { punkt: "late", label: "Fährt zum Fahrgast", zusatz: `+${verspaetungMin} Min.` };
     }
-    return { punkt: "go", label: "Fährt zum Fahrgast", zusatz: `${unterwegs.passagierName}, ${uhrzeit(unterwegs.pickupAt)}` };
+    const zeit = uhrzeit(unterwegs.pickupAt);
+    return {
+      punkt: "go",
+      label: "Fährt zum Fahrgast",
+      zusatz: oeffentlich ? zeit : `${unterwegs.passagierName}, ${zeit}`,
+    };
   }
 
   const amZiel = [...fahrtenHeute]

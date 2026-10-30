@@ -19,17 +19,17 @@ function anonymisiert(firstName: string, lastName: string): { firstName: string;
 }
 
 export async function liveDemoLaden() {
-  const daten = await fahrplanFuerMandantLaden(DEMO_TENANT_ID, undefined, "tag");
+  // oeffentlich=true lässt fahrzeugLiveStatus() den Fahrgastnamen aus "zusatz" weg (sonst z. B.
+  // "Fährt zum Fahrgast: M. Mustermann, 14:00") - der einzige Live-Status-Text, der je einen
+  // echten Namen enthält. Alle anderen Zustände (Ankunftszeit, Verspätung, "am Betriebshof")
+  // bleiben wie beim echten Dashboard sichtbar, statt komplett leer zu sein.
+  const daten = await fahrplanFuerMandantLaden(DEMO_TENANT_ID, undefined, "tag", true);
   return {
     ...daten,
     fahrten: daten.fahrten.map((fahrt) => ({
       ...fahrt,
       passenger: { ...anonymisiert(fahrt.passenger.firstName, fahrt.passenger.lastName), phones: [], insurer: null },
     })),
-    // Enthält sonst den vollen Fahrgastnamen in "zusatz" (z. B. "Fährt zum Fahrgast: M. Mustermann,
-    // 14:00") - wird von der Live-Demo-Seite aktuell nirgends angezeigt, aber steckt trotzdem im an
-    // den Browser gesendeten JSON und wäre über die Entwicklertools einsehbar.
-    fahrzeugZeilen: daten.fahrzeugZeilen.map((zeile) => ({ ...zeile, live: { ...zeile.live, zusatz: "" } })),
     liveAnrufe: daten.liveAnrufe.map((anruf) => ({
       ...anruf,
       fahrt: anruf.fahrt

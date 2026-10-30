@@ -51,13 +51,16 @@ export async function fahrplanLaden(datumFilter: string | undefined, ansicht: "t
 
 /** Dieselbe Logik wie fahrplanLaden, aber mit einer schon bekannten tenantId statt über die
  * Sitzung - genutzt von der öffentlichen Live-Demo (src/app/live/actions.ts), die ohne Login
- * auskommt, aber nur den fest verdrahteten Demo-Mandanten sehen darf (DEMO_TENANT_ID). Diese
- * Funktion selbst kennt den Unterschied nicht und ist deshalb genauso wenig/viel ein Risiko wie
- * fahrplanLaden mit einer manipulierten Sitzung - die Absicherung passiert beim Aufrufer. */
+ * auskommt, aber nur den fest verdrahteten Demo-Mandanten sehen darf (DEMO_TENANT_ID). Welchen
+ * Mandanten sie sehen darf, kennt diese Funktion nicht und ist deshalb genauso wenig/viel ein
+ * Risiko wie fahrplanLaden mit einer manipulierten Sitzung - die Absicherung passiert beim
+ * Aufrufer. oeffentlich=true lässt nur den Fahrgastnamen aus dem Live-Status weg (siehe
+ * fahrzeugLiveStatus) - für alles andere bleibt die Funktion identisch. */
 export async function fahrplanFuerMandantLaden(
   tenantId: string,
   datumFilter: string | undefined,
   ansicht: "tag" | "woche",
+  oeffentlich = false,
 ) {
   const db = withTenant(tenantId);
   const tagIso = datumFilter ?? datumIso(new Date());
@@ -162,6 +165,7 @@ export async function fahrplanFuerMandantLaden(
                 }),
               ),
               jetzt,
+              oeffentlich,
             ),
           };
         })

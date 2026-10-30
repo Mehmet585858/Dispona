@@ -111,8 +111,12 @@ export async function seedDemoTenant() {
     );
   }
 
-  const fahrerDaten = Array.from({ length: fahrzeugDaten.length }, (_, i) => ({
-    name: `Demo Fahrer ${i + 1}`,
+  // Nachnamen statt durchnummerierter "Demo Fahrer N" - nachname() (actions.ts) zeigt im
+  // Zeitstrahl nur das letzte Wort des Namens an und hätte sonst die Zahl selbst als "Nachname"
+  // angezeigt (z. B. "2 · 4" statt eines Namens).
+  const DEMO_NACHNAMEN = ["Berger", "Winter", "Falk", "Keller", "Vogel", "Brandt", "Lindner", "Schuster", "Fink", "Weiss"];
+  const fahrerDaten = fahrzeugDaten.map((_, i) => ({
+    name: `Demo ${DEMO_NACHNAMEN[i % DEMO_NACHNAMEN.length]}`,
     email: `demo-fahrer-${i + 1}@dispona-demo.invalid`,
   }));
   // Eine einzige, sehr lang laufende Schicht statt täglich neuer - die Demo soll jederzeit
@@ -132,7 +136,9 @@ export async function seedDemoTenant() {
         role: "FAHRER",
         emailVerified: true,
       },
-      update: {},
+      // Namen auch bei erneutem Lauf setzen (self-healing), falls der Nutzer noch unter dem alten
+      // "Demo Fahrer N"-Schema angelegt wurde.
+      update: { name: daten.name },
     });
     let driver = await db.driver.findUnique({ where: { userId: user.id } });
     if (!driver) {
