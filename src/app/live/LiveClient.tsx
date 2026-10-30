@@ -5,11 +5,10 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { KpiTile } from "@/components/ui/KpiTile";
 import { Logo } from "@/components/ui/Logo";
-import { AnrufKarte } from "@/app/dispo/DispoClient";
+import { AnrufKarte, AnrufWarteKarte } from "@/app/dispo/DispoClient";
 import { zeitstrahlPosition } from "@/core/shifts/zeitstrahl";
 import { liveDemoLaden, liveTranskriptLaden } from "./actions";
-import { LiveZeitstrahl, type SimulierteZeitstrahlFahrt } from "./LiveZeitstrahl";
-import { SimulierterAnruf } from "./SimulierterAnruf";
+import { LiveZeitstrahl } from "./LiveZeitstrahl";
 
 const AKTUALISIERUNG_MS = 5_000;
 // Noch nicht eingerichtet (siehe docs/12-betrieb.md) - sobald eine Vapi-Nummer existiert, hier
@@ -28,13 +27,6 @@ function keinOp() {}
 export function LiveClient({ initialDaten }: { initialDaten: LiveDaten }) {
   const [daten, setDaten] = useState(initialDaten);
   const [jetztProzent, setJetztProzent] = useState<number | null>(null);
-  // Vom Beispiel-Anruf gemeldet (SimulierterAnruf.tsx) - sammelt sich über die Sitzung, bleibt
-  // stehen wie im echten Dashboard statt beim nächsten simulierten Anruf zu verschwinden. Nach
-  // Kennzeichen statt Fahrzeug-ID, weil die Komponente keinen Zugriff auf die echten Fahrzeug-IDs
-  // hat (rein clientseitig, kein Datenbankzugriff) - wird unten pro Fahrzeugzeile aufgelöst.
-  const [simulierteFahrten, setSimulierteFahrten] = useState<
-    (Omit<SimulierteZeitstrahlFahrt, "vehicleId"> & { plate: string })[]
-  >([]);
 
   useEffect(() => {
     function aktualisieren() {
@@ -80,8 +72,8 @@ export function LiveClient({ initialDaten }: { initialDaten: LiveDaten }) {
               <a href={`tel:${DEMO_TELEFONNUMMER}`} className="font-semibold text-accent">
                 {DEMO_TELEFONNUMMER}
               </a>{" "}
-              an, bestellen Sie eine Beispielfahrt, und schauen Sie hier zu, wie sie in Sekunden eingeplant wird.
-              Diese Seite aktualisiert sich von selbst.
+              an, bestellen Sie eine Fahrt, und schauen Sie hier zu, wie sie in Sekunden eingeplant wird. Diese
+              Seite aktualisiert sich von selbst.
             </p>
           ) : (
             <p className="text-sm text-ink-soft">
@@ -147,36 +139,24 @@ export function LiveClient({ initialDaten }: { initialDaten: LiveDaten }) {
               <KpiTile label="Anrufe heute" wert={daten.kennzahlen.anrufeHeute} />
             </div>
             <div className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4">
-              <LiveZeitstrahl
-                fahrten={daten.fahrten}
-                fahrzeugZeilen={daten.fahrzeugZeilen}
-                jetztProzent={jetztProzent}
-                simulierteFahrten={simulierteFahrten.flatMap((fahrt) => {
-                  const zeile = daten.fahrzeugZeilen.find((z) => z.plate === fahrt.plate);
-                  return zeile ? [{ ...fahrt, vehicleId: zeile.id }] : [];
-                })}
-              />
+              <LiveZeitstrahl fahrten={daten.fahrten} fahrzeugZeilen={daten.fahrzeugZeilen} jetztProzent={jetztProzent} />
             </div>
           </div>
           <div className="flex w-full flex-none flex-col gap-4 md:w-[380px]">
-            {daten.liveAnrufe.map((anruf, index) => (
-              <AnrufKarte
-                key={anruf.id}
-                anruf={anruf}
-                index={index}
-                gesamt={daten.liveAnrufe.length}
-                onFahrtKlick={keinOp}
-                transkriptLaden={liveTranskriptLaden}
-              />
-            ))}
-            {/* Läuft immer mit, auch neben echten Anrufen - zeigt live genau das, womit die
-                Marketing-Seite wirbt: mehrere Anrufe gleichzeitig. Rein clientseitig, siehe
-                SimulierterAnruf.tsx. */}
-            <SimulierterAnruf
-              onFahrtErfasst={(fahrt) =>
-                setSimulierteFahrten((vorher) => [...vorher, { ...fahrt, id: `${fahrt.plate}-${fahrt.pickupAt.getTime()}` }])
-              }
-            />
+            {daten.liveAnrufe.length > 0 ? (
+              daten.liveAnrufe.map((anruf, index) => (
+                <AnrufKarte
+                  key={anruf.id}
+                  anruf={anruf}
+                  index={index}
+                  gesamt={daten.liveAnrufe.length}
+                  onFahrtKlick={keinOp}
+                  transkriptLaden={liveTranskriptLaden}
+                />
+              ))
+            ) : (
+              <AnrufWarteKarte anrufeHeute={daten.kennzahlen.anrufeHeute} />
+            )}
           </div>
         </div>
       </main>

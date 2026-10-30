@@ -1,8 +1,8 @@
 /**
  * Legt den dauerhaften Demo-Mandanten für die öffentliche Live-Demo an (marketing Seite ->
- * app.dispona.de/live, src/core/demo/const.ts). Sicher mehrfach ausführbar (Upserts), legt aber
- * nie Fahrten/Anrufe an - die entstehen live durch echte Demo-Anrufer und werden vom Cron
- * /api/cron/demoZuruecksetzen wieder aufgeräumt.
+ * app.dispona.de/live, src/core/demo/const.ts). Sicher mehrfach ausführbar (Upserts). Fahrten und
+ * Anrufe entstehen nicht hier, sondern laufend durch src/core/demo/betriebSimulieren.ts (Cron
+ * /api/cron/demoBetrieb) und werden vom Cron /api/cron/demoZuruecksetzen wieder aufgeräumt.
  *
  * Eigenständige Funktion statt nur im Skript (scripts/seed-demo-tenant.ts), damit sie auch von
  * einem einmaligen, CRON_SECRET-gesicherten Cron-Aufruf (für die Produktions-Erstbefüllung ohne
@@ -10,7 +10,7 @@
  */
 import { randomUUID } from "node:crypto";
 import { prisma as db } from "@/lib/prisma";
-import { DEMO_TENANT_ID } from "./const";
+import { DEMO_PASSAGIER_ROSTER, DEMO_TENANT_ID } from "./const";
 
 export async function seedDemoTenant() {
   await db.tenant.upsert({
@@ -20,16 +20,20 @@ export async function seedDemoTenant() {
       // Ein erfundener, aber konkreter Firmenname wirkt für Demo-Anrufer glaubwürdiger als
       // "Dispona Live-Demo" (Nutzerwunsch) - siehe DEMO_TENANT_ID in const.ts.
       name: "Mediway Krankenfahrdienst",
-      // Echte Aachener Adresse statt "Musterstraße" - wirkt für Demo-Anrufer glaubwürdiger.
-      street: "Jülicher Straße 112",
-      zip: "52070",
-      city: "Aachen",
+      // Echte Berliner Adresse (Mitte) statt "Musterstraße".
+      street: "Torstraße 1",
+      zip: "10119",
+      city: "Berlin",
       paket: "PRO",
     },
     // Auch bei erneutem Lauf setzen (self-healing), falls der Mandant vor diesen Namen/Adressen
     // angelegt wurde.
-    update: { name: "Mediway Krankenfahrdienst", street: "Jülicher Straße 112", zip: "52070", city: "Aachen" },
+    update: { name: "Mediway Krankenfahrdienst", street: "Torstraße 1", zip: "10119", city: "Berlin" },
   });
+
+  // Alexanderplatz als Mittelpunkt - zentral genug, dass alle Stadtteil-Adressen unten innerhalb
+  // des 50-km-Einzugsgebiets liegen.
+  const BERLIN_ZENTRUM = { lat: 52.5219, lng: 13.4132 };
 
   await db.tenantSettings.upsert({
     where: { tenantId: DEMO_TENANT_ID },
@@ -40,26 +44,27 @@ export async function seedDemoTenant() {
         "Willkommen bei Mediway Krankenfahrdienst! Dies ist eine Dispona-Live-Demo: Das Gespräch führt eine KI, " +
         "wird zu Vorführzwecken aufgezeichnet und der Gesprächsverlauf läuft live und für jeden Besucher sichtbar " +
         "auf dispona.de/live mit. Bitte nennen Sie keine echten persönlichen Daten. Bestellen Sie gerne eine " +
-        "Beispielfahrt – im Dashboard auf dispona.de sehen Sie direkt, wie Dispona sie einplant.",
+        "Fahrt – im Dashboard auf dispona.de sehen Sie direkt, wie Dispona sie einplant.",
       // Echter Name aus Vapis eigenem Sprachanbieter ("Vapi Voices"), nicht länger ein
       // erfundener Platzhalter - siehe src/providers/voice/vapi.ts.
       voiceId: "Clara",
       // Bewusst leer: diese Demo leitet nicht an einen Menschen weiter (src/core/notify/voicePrompt.ts).
       escalationNumber: "",
       openingHours: { "mo-so": "00:00-23:59" },
-      serviceAreaCenter: { lat: 50.7753, lng: 6.0839 },
+      serviceAreaCenter: BERLIN_ZENTRUM,
       serviceAreaKm: 50,
       // Ohne depotAddress bricht vorschlagBerechnenUndSpeichern sofort ab ("Einrichtung noch nicht
       // abgeschlossen") - die Demo-Fahrt bliebe für immer bei ERFASST stehen, ohne Fahrzeugvorschlag.
-      depotAddress: { lat: 50.7753, lng: 6.0839 },
-      // Automatikmodus "immer" + keine Dokumente nötig, damit die Demo-Fahrt ohne Disponenten-Klick
-      // sofort disponiert wird - das ist der eigentliche Vorführeffekt ("wie es arbeitet").
+      depotAddress: BERLIN_ZENTRUM,
+      // Automatikmodus "immer" + keine Dokumente nötig, damit jede simulierte Fahrt (siehe
+      // betriebSimulieren.ts) ohne Disponenten-Klick sofort disponiert wird - das ist der
+      // eigentliche Vorführeffekt ("wie es arbeitet").
       autoMode: "IMMER",
       requireDocsForAuto: false,
-      // Die 4 Demo-Fahrzeuge stehen immer leer am selben Betriebshof - ihre Vorschlagsscores liegen
-      // oft sehr nah beieinander. Der normale Default (5 Punkte Mindestabstand zur Alternative,
-      // Bedingung 2 in automodus.ts) würde die Demo-Fahrt dann dauerhaft zum Disponenten schicken
-      // statt sie vorzuführen - für die Demo reicht "mindestens genauso gut".
+      // Die Demo-Fahrzeuge haben oft sehr nah beieinanderliegende Vorschlagsscores. Der normale
+      // Default (5 Punkte Mindestabstand zur Alternative, Bedingung 2 in automodus.ts) würde eine
+      // Demo-Fahrt dann dauerhaft zum Disponenten schicken statt sie vorzuführen - für die Demo
+      // reicht "mindestens genauso gut".
       autoModeMinMargin: 0,
       // Kurze Aufbewahrung: Demo-Daten sind ohnehin erfunden, nicht 10 Jahre wie bei echten Kunden.
       dataRetentionDays: 7,
@@ -68,14 +73,15 @@ export async function seedDemoTenant() {
     // depotAddress/autoModeMinMargin/voiceId/greeting auch bei einem erneuten Lauf setzen
     // (self-healing), falls ein Mandant vor diesen Fixes angelegt wurde.
     update: {
-      depotAddress: { lat: 50.7753, lng: 6.0839 },
+      serviceAreaCenter: BERLIN_ZENTRUM,
+      depotAddress: BERLIN_ZENTRUM,
       autoModeMinMargin: 0,
       voiceId: "Clara",
       greeting:
         "Willkommen bei Mediway Krankenfahrdienst! Dies ist eine Dispona-Live-Demo: Das Gespräch führt eine KI, " +
         "wird zu Vorführzwecken aufgezeichnet und der Gesprächsverlauf läuft live und für jeden Besucher sichtbar " +
         "auf dispona.de/live mit. Bitte nennen Sie keine echten persönlichen Daten. Bestellen Sie gerne eine " +
-        "Beispielfahrt – im Dashboard auf dispona.de sehen Sie direkt, wie Dispona sie einplant.",
+        "Fahrt – im Dashboard auf dispona.de sehen Sie direkt, wie Dispona sie einplant.",
     },
   });
 
@@ -89,20 +95,20 @@ export async function seedDemoTenant() {
     telefonnummerZugeordnet = true;
   }
 
-  // Kennzeichen im echten deutschen Format (Stadt-Kürzel "AC" für Aachen) statt "DEMO-101" -
-  // altesKennzeichen lässt ein schon angelegtes Fahrzeug umbenennen (self-healing per Rename statt
-  // Löschen+Neuanlegen), damit bestehende Schichten/Fahrten weiter auf dieselbe Fahrzeug-ID zeigen.
+  // Kennzeichen im echten deutschen Format (Stadt-Kürzel "B" für Berlin) - altesKennzeichen lässt
+  // ein schon angelegtes Fahrzeug umbenennen (self-healing per Rename statt Löschen+Neuanlegen),
+  // damit bestehende Schichten/Fahrten weiter auf dieselbe Fahrzeug-ID zeigen.
   const fahrzeugDaten = [
-    { plate: "AC-DEM 100", altesKennzeichen: "DEMO-100", seats: 4, wheelchairSpots: 0, carryChair: false, stretcher: false },
-    { plate: "AC-DEM 101", altesKennzeichen: "DEMO-101", seats: 4, wheelchairSpots: 0, carryChair: false, stretcher: false },
-    { plate: "AC-DEM 102", altesKennzeichen: "DEMO-102", seats: 3, wheelchairSpots: 0, carryChair: false, stretcher: false },
-    { plate: "AC-DEM 200", altesKennzeichen: "DEMO-200", seats: 3, wheelchairSpots: 1, carryChair: false, stretcher: false },
-    { plate: "AC-DEM 201", altesKennzeichen: "DEMO-201", seats: 2, wheelchairSpots: 2, carryChair: false, stretcher: false },
-    { plate: "AC-DEM 202", altesKennzeichen: "DEMO-202", seats: 3, wheelchairSpots: 1, carryChair: false, stretcher: false },
-    { plate: "AC-DEM 300", altesKennzeichen: "DEMO-300", seats: 2, wheelchairSpots: 0, carryChair: true, stretcher: false },
-    { plate: "AC-DEM 301", altesKennzeichen: "DEMO-301", seats: 2, wheelchairSpots: 0, carryChair: true, stretcher: false },
-    { plate: "AC-DEM 400", altesKennzeichen: "DEMO-400", seats: 1, wheelchairSpots: 0, carryChair: false, stretcher: true },
-    { plate: "AC-DEM 401", altesKennzeichen: "DEMO-401", seats: 1, wheelchairSpots: 0, carryChair: false, stretcher: true },
+    { plate: "B-DEM 100", altesKennzeichen: "AC-DEM 100", seats: 4, wheelchairSpots: 0, carryChair: false, stretcher: false },
+    { plate: "B-DEM 101", altesKennzeichen: "AC-DEM 101", seats: 4, wheelchairSpots: 0, carryChair: false, stretcher: false },
+    { plate: "B-DEM 102", altesKennzeichen: "AC-DEM 102", seats: 3, wheelchairSpots: 0, carryChair: false, stretcher: false },
+    { plate: "B-DEM 200", altesKennzeichen: "AC-DEM 200", seats: 3, wheelchairSpots: 1, carryChair: false, stretcher: false },
+    { plate: "B-DEM 201", altesKennzeichen: "AC-DEM 201", seats: 2, wheelchairSpots: 2, carryChair: false, stretcher: false },
+    { plate: "B-DEM 202", altesKennzeichen: "AC-DEM 202", seats: 3, wheelchairSpots: 1, carryChair: false, stretcher: false },
+    { plate: "B-DEM 300", altesKennzeichen: "AC-DEM 300", seats: 2, wheelchairSpots: 0, carryChair: true, stretcher: false },
+    { plate: "B-DEM 301", altesKennzeichen: "AC-DEM 301", seats: 2, wheelchairSpots: 0, carryChair: true, stretcher: false },
+    { plate: "B-DEM 400", altesKennzeichen: "AC-DEM 400", seats: 1, wheelchairSpots: 0, carryChair: false, stretcher: true },
+    { plate: "B-DEM 401", altesKennzeichen: "AC-DEM 401", seats: 1, wheelchairSpots: 0, carryChair: false, stretcher: true },
   ];
   const fahrzeuge = [];
   for (const { altesKennzeichen, ...daten } of fahrzeugDaten) {
@@ -183,34 +189,75 @@ export async function seedDemoTenant() {
     },
   });
 
-  // Echte Aachener Adressen statt "Beispielweg"/"Musterstadt" - altesLabel lässt eine schon
-  // angelegte Platzhalter-Adresse auf die neue umschreiben (self-healing per Rename statt
-  // Löschen+Neuanlegen), falls eine laufende Demo-Fahrt noch auf die alte ID zeigt.
-  const orteDaten = [
-    { label: "Dispona-Betriebshof", street: "Jülicher Straße 112", zip: "52070", city: "Aachen", lat: 50.7847, lng: 6.0825, type: "SONSTIGES" as const },
+  // Echte Berliner Einrichtungen (für Abholung/Ziel in simulierten Fahrten, siehe
+  // betriebSimulieren.ts) - altesLabel lässt eine schon angelegte Aachener Adresse auf die neue
+  // umschreiben (self-healing per Rename statt Löschen+Neuanlegen), falls eine laufende Fahrt noch
+  // auf die alte ID zeigt.
+  const einrichtungenDaten = [
     {
-      label: "Klinikum Aachen-Mitte",
-      altesLabel: "Klinikum Musterstadt",
-      street: "Goethestraße 1",
-      zip: "52064",
-      city: "Aachen",
-      lat: 50.7762,
-      lng: 6.0865,
+      label: "Dispona-Betriebshof",
+      altesLabel: "Dispona-Betriebshof",
+      street: "Torstraße 1",
+      zip: "10119",
+      city: "Berlin",
+      lat: 52.5283,
+      lng: 13.3959,
+      type: "SONSTIGES" as const,
+    },
+    {
+      label: "Klinikum Berlin-Mitte",
+      altesLabel: "Klinikum Aachen-Mitte",
+      street: "Charitéplatz 1",
+      zip: "10117",
+      city: "Berlin",
+      lat: 52.5253,
+      lng: 13.3773,
       type: "KLINIK" as const,
     },
-    { label: "Pflegeheim Sonnenhof", street: "Lousbergstraße 10", zip: "52064", city: "Aachen", lat: 50.7831, lng: 6.0774, type: "PFLEGEHEIM" as const },
-    { label: "Praxis am Markt", street: "Am Markt 5", zip: "52062", city: "Aachen", lat: 50.7753, lng: 6.0839, type: "PRAXIS" as const },
     {
-      label: "Dialysezentrum Aachen",
-      altesLabel: "Dialysezentrum Musterstadt",
-      street: "Roermonder Straße 20",
-      zip: "52072",
-      city: "Aachen",
-      lat: 50.7682,
-      lng: 6.0651,
+      label: "Pflegeheim Sonnenhof",
+      altesLabel: undefined as string | undefined,
+      street: "Kastanienallee 10",
+      zip: "10435",
+      city: "Berlin",
+      lat: 52.5392,
+      lng: 13.4106,
+      type: "PFLEGEHEIM" as const,
+    },
+    {
+      label: "Praxis am Kollwitzplatz",
+      altesLabel: "Praxis am Markt",
+      street: "Kollwitzstraße 1",
+      zip: "10405",
+      city: "Berlin",
+      lat: 52.5386,
+      lng: 13.4172,
+      type: "PRAXIS" as const,
+    },
+    {
+      label: "Dialysezentrum Berlin",
+      altesLabel: "Dialysezentrum Aachen",
+      street: "Kurfürstendamm 50",
+      zip: "10707",
+      city: "Berlin",
+      lat: 52.5035,
+      lng: 13.329,
       type: "DIALYSE" as const,
     },
   ];
+  // Wohnadressen, über ganz Berlin verteilt - als Abholung/Ziel der simulierten Fahrten
+  // (betriebSimulieren.ts), damit Fahrzeuge auf echten Routen quer durch die Stadt unterwegs sind
+  // statt nur am Betriebshof zu stehen.
+  const altesLabelLeer = undefined as string | undefined;
+  const wohnorteDaten = [
+    { label: "Wohnung Prenzlauer Berg", altesLabel: altesLabelLeer, street: "Schönhauser Allee 120", zip: "10437", city: "Berlin", lat: 52.5476, lng: 13.4126, type: "WOHNUNG" as const },
+    { label: "Wohnung Charlottenburg", altesLabel: altesLabelLeer, street: "Kantstraße 45", zip: "10625", city: "Berlin", lat: 52.5058, lng: 13.3192, type: "WOHNUNG" as const },
+    { label: "Wohnung Neukölln", altesLabel: altesLabelLeer, street: "Karl-Marx-Straße 66", zip: "12043", city: "Berlin", lat: 52.4817, lng: 13.4357, type: "WOHNUNG" as const },
+    { label: "Wohnung Spandau", altesLabel: altesLabelLeer, street: "Altstädter Ring 2", zip: "13597", city: "Berlin", lat: 52.5355, lng: 13.2007, type: "WOHNUNG" as const },
+    { label: "Wohnung Köpenick", altesLabel: altesLabelLeer, street: "Bahnhofstraße 30", zip: "12555", city: "Berlin", lat: 52.4559, lng: 13.5752, type: "WOHNUNG" as const },
+    { label: "Wohnung Reinickendorf", altesLabel: altesLabelLeer, street: "Residenzstraße 80", zip: "13409", city: "Berlin", lat: 52.5698, lng: 13.3496, type: "WOHNUNG" as const },
+  ];
+  const orteDaten = [...einrichtungenDaten, ...wohnorteDaten];
   for (const { altesLabel, ...daten } of orteDaten) {
     const vorhanden = await db.place.findFirst({
       where: { tenantId: DEMO_TENANT_ID, label: { in: [daten.label, ...(altesLabel ? [altesLabel] : [])] } },
@@ -222,11 +269,25 @@ export async function seedDemoTenant() {
     }
   }
 
+  // Fester Fahrgast-Stamm für die simulierten Anrufe (betriebSimulieren.ts, Liste gemeinsam mit
+  // dort in const.ts) - echte Passenger-Datensätze, damit eine simulierte Fahrt ein ganz normaler,
+  // über fahrtErfassen() angelegter Ride ist.
+  const passagierDaten = DEMO_PASSAGIER_ROSTER;
+  for (const daten of passagierDaten) {
+    const vorhanden = await db.passenger.findFirst({
+      where: { tenantId: DEMO_TENANT_ID, firstName: daten.firstName, lastName: daten.lastName },
+    });
+    if (!vorhanden) {
+      await db.passenger.create({ data: { tenantId: DEMO_TENANT_ID, phones: [], ...daten } });
+    }
+  }
+
   return {
     tenantId: DEMO_TENANT_ID,
     fahrzeuge: fahrzeuge.length,
     fahrer: fahrerDaten.length,
     orte: orteDaten.length,
+    passagiere: passagierDaten.length,
     telefonnummerZugeordnet,
   };
 }

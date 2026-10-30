@@ -7,17 +7,13 @@ import type { TRANSPORT_TYPES } from "@/core/rides/validation";
 
 export type LiveFahrtAnzeige = {
   titel: string;
-  /** Echte Fahrten zeigen die farbige Transportart-Plakette, Beispiel-Fahrten nur den Text (die
-   * Simulation kennt nur das deutsche Label, nicht den internen Transportart-Schlüssel). */
-  transportArt?: (typeof TRANSPORT_TYPES)[number];
-  transportLabel: string;
+  transportArt: (typeof TRANSPORT_TYPES)[number];
   statusLabel?: string;
   zeitraum: string;
   pickupLabel: string;
   dropoffLabel: string;
   vehiclePlate: string | null;
   fahrerName?: string | null;
-  beispiel: boolean;
 };
 
 /** Rein lesende Fahrt-Details für die öffentliche Live-Demo (Klick auf eine Fahrt im Zeitstrahl,
@@ -30,13 +26,8 @@ export function LiveFahrtDetails({ fahrt, onClose }: { fahrt: LiveFahrtAnzeige; 
       <div className="flex items-start justify-between gap-4 border-b border-line p-5">
         <div>
           <div className="mb-2 flex flex-wrap items-center gap-2">
-            {fahrt.transportArt ? (
-              <TransportBadge art={fahrt.transportArt} variante="gefuellt" />
-            ) : (
-              <span className="text-sm text-ink-soft">{fahrt.transportLabel}</span>
-            )}
+            <TransportBadge art={fahrt.transportArt} variante="gefuellt" />
             {fahrt.statusLabel ? <Chip ton="info">{fahrt.statusLabel}</Chip> : null}
-            {fahrt.beispiel ? <Chip>Beispiel</Chip> : null}
           </div>
           <h2 className="text-xl font-semibold text-ink">{fahrt.titel}</h2>
           <p className="font-mono text-sm text-ink-soft">{fahrt.zeitraum}</p>
@@ -64,13 +55,6 @@ export function LiveFahrtDetails({ fahrt, onClose }: { fahrt: LiveFahrtAnzeige; 
           <p className="text-ink">{fahrt.fahrerName ?? "—"}</p>
         </div>
       </div>
-
-      {fahrt.beispiel ? (
-        <div className="mx-5 mb-5 rounded-xl bg-surface2 p-3 text-xs text-muted">
-          Erfundene Beispiel-Fahrt, zeigt nur, wie ein Eintrag im Zeitstrahl aussieht - keine echten
-          Daten, nirgends gespeichert.
-        </div>
-      ) : null}
     </Modal>
   );
 }

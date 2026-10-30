@@ -32,10 +32,12 @@ function nachname(vollerName: string): string {
 }
 
 /** Höchste Fähigkeit zuerst (core/disposition/kandidaten.ts kennt dieselbe Reihenfolge). */
+/** Branchenübliche Kürzel aus dem Krankentransport statt generischer Beschreibung:
+ * BTW = Behindertentransportwagen, LMW = Liegend-Mietwagen. */
 function fahrzeugTypLabel(fahrzeug: { stretcher: boolean; carryChair: boolean; wheelchairSpots: number }): string {
-  if (fahrzeug.stretcher) return "Liegewagen";
+  if (fahrzeug.stretcher) return "LMW";
   if (fahrzeug.carryChair) return "Tragestuhl";
-  if (fahrzeug.wheelchairSpots > 0) return "Rollstuhl";
+  if (fahrzeug.wheelchairSpots > 0) return "BTW";
   return "Taxi";
 }
 

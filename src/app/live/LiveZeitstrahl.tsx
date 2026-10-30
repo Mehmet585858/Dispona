@@ -5,8 +5,10 @@
 // Anmeldung und würde bei einem anonymen Besucher nur mit einer unbehandelten Fehlermeldung und
 // einer für immer "hängenden" Kachel enden) - ein Klick öffnet aber, genau wie im echten
 // Dashboard, ein rein lesendes Detail-Fenster (LiveFahrtDetails.tsx), ohne jede Aktion, die eine
-// Anmeldung bräuchte. Layout, Kopfzeile, Live-Status pro Fahrzeug und Legende sind aus dem
-// Original importiert statt nachgebaut, damit beide Ansichten nie wieder auseinanderlaufen.
+// Anmeldung bräuchte. Alle gezeigten Fahrten sind echte, in der Datenbank angelegte Fahrten (siehe
+// src/core/demo/betriebSimulieren.ts) - keine clientseitige Deko mehr. Layout, Kopfzeile,
+// Live-Status pro Fahrzeug und Legende sind aus dem Original importiert statt nachgebaut, damit
+// beide Ansichten nie wieder auseinanderlaufen.
 import { useState } from "react";
 import { chipStil } from "@/core/rides/transportfarbe";
 import { TRANSPORT_TYPE_LABEL } from "@/core/rides/validation";
@@ -26,15 +28,6 @@ import {
   type FahrzeugZeile,
 } from "@/app/dispo/fahrten/Zeitstrahl";
 import { LiveFahrtDetails, type LiveFahrtAnzeige } from "./LiveFahrtDetails";
-
-export type SimulierteZeitstrahlFahrt = {
-  id: string;
-  vehicleId: string;
-  pickupAt: Date;
-  geplantesEnde: Date;
-  fahrgast: string;
-  transport: string;
-};
 
 // Spiegelt TripModal.tsx (src/app/dispo/fahrten/TripModal.tsx) - dort nicht exportiert, weil als
 // Seiten-internes Detail gedacht; hier dupliziert statt importiert, damit die Live-Demo nicht von
@@ -56,45 +49,25 @@ export function LiveZeitstrahl({
   fahrten,
   fahrzeugZeilen,
   jetztProzent,
-  simulierteFahrten,
 }: {
   fahrten: (FahrtMini & { fahrerName: string | null })[];
   fahrzeugZeilen: FahrzeugZeile[];
   jetztProzent: number | null;
-  /** Rein clientseitig erfundene Beispiel-Fahrten (siehe SimulierterAnruf.tsx) - sammeln sich über
-   * die Sitzung und bleiben stehen (wie im echten Dashboard), statt beim nächsten simulierten
-   * Anruf zu verschwinden. Deutlich anders gestaltet (gestrichelt, gedämpfte Farbe) als echte
-   * Fahrten, damit sie nie mit einer echten verwechselt werden. */
-  simulierteFahrten?: SimulierteZeitstrahlFahrt[];
 }) {
   const [offeneFahrt, setOffeneFahrt] = useState<LiveFahrtAnzeige | null>(null);
   const unterwegsCount = fahrten.filter((f) => f.status === "UNTERWEGS" || f.status === "AN_BORD").length;
   const verspaetetCount = fahrten.filter((f) => !!f.driverDelayMin && f.driverDelayMin > 0).length;
 
-  function echteFahrtOeffnen(fahrt: (typeof fahrten)[number]) {
+  function fahrtOeffnen(fahrt: (typeof fahrten)[number]) {
     setOffeneFahrt({
       titel: `${fahrt.passenger.firstName} ${fahrt.passenger.lastName}`,
       transportArt: fahrt.transportType,
-      transportLabel: TRANSPORT_TYPE_LABEL[fahrt.transportType],
       statusLabel: STATUS_LABEL[fahrt.status] ?? fahrt.status,
       zeitraum: `${uhrzeit(fahrt.pickupAt)}–${uhrzeit(fahrt.geplantesEnde)}`,
       pickupLabel: fahrt.pickupPlace.label,
       dropoffLabel: fahrt.dropoffPlace.label,
       vehiclePlate: fahrt.vehicle?.plate ?? null,
       fahrerName: fahrt.fahrerName,
-      beispiel: false,
-    });
-  }
-
-  function beispielFahrtOeffnen(simulierteFahrt: SimulierteZeitstrahlFahrt, plate: string) {
-    setOffeneFahrt({
-      titel: `Beispiel · ${simulierteFahrt.fahrgast}`,
-      transportLabel: simulierteFahrt.transport,
-      zeitraum: `${uhrzeit(simulierteFahrt.pickupAt)}–${uhrzeit(simulierteFahrt.geplantesEnde)}`,
-      pickupLabel: "—",
-      dropoffLabel: "—",
-      vehiclePlate: plate,
-      beispiel: true,
     });
   }
 
@@ -164,7 +137,7 @@ export function LiveZeitstrahl({
                     <button
                       key={fahrt.id}
                       type="button"
-                      onClick={() => echteFahrtOeffnen(fahrt)}
+                      onClick={() => fahrtOeffnen(fahrt)}
                       title={`${uhrzeit(fahrt.pickupAt)}–${uhrzeit(fahrt.geplantesEnde)} ${fahrt.passenger.firstName} ${fahrt.passenger.lastName}`}
                       className={`absolute top-1.5 bottom-1.5 flex flex-col justify-center overflow-hidden rounded-md px-2 text-left text-xs leading-tight ${istAlarmFahrt(fahrt) ? "ring-2 ring-danger-ink" : ""}`}
                       style={{
@@ -178,25 +151,6 @@ export function LiveZeitstrahl({
                         {kurzname(fahrt.passenger.firstName, fahrt.passenger.lastName)}
                       </span>
                       <span className="truncate text-[10px] opacity-80">{TRANSPORT_TYPE_LABEL[fahrt.transportType]}</span>
-                    </button>
-                  ))}
-                {(simulierteFahrten ?? [])
-                  .filter((f) => f.vehicleId === zeile.id)
-                  .map((simulierteFahrt) => (
-                    <button
-                      key={simulierteFahrt.id}
-                      type="button"
-                      onClick={() => beispielFahrtOeffnen(simulierteFahrt, zeile.plate)}
-                      title={`Beispiel: ${uhrzeit(simulierteFahrt.pickupAt)}–${uhrzeit(simulierteFahrt.geplantesEnde)} ${simulierteFahrt.fahrgast}`}
-                      className="absolute top-1.5 bottom-1.5 flex flex-col justify-center overflow-hidden rounded-md border-2 border-dashed border-line-strong bg-surface/90 px-2 text-left text-xs leading-tight text-ink-soft"
-                      style={{
-                        left: px(zeitstrahlPosition(simulierteFahrt.pickupAt)),
-                        width: Math.max(px(zeitstrahlBreite(simulierteFahrt.pickupAt, simulierteFahrt.geplantesEnde)), 92),
-                      }}
-                    >
-                      <span className="font-mono text-[11px]">{uhrzeit(simulierteFahrt.pickupAt)}</span>
-                      <span className="truncate font-semibold">Beispiel · {simulierteFahrt.fahrgast}</span>
-                      <span className="truncate text-[10px] opacity-80">{simulierteFahrt.transport}</span>
                     </button>
                   ))}
               </div>
