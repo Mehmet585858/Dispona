@@ -18,6 +18,10 @@ export type LiveFahrtAnzeige = {
    * Auslastung aus"), siehe bewerteKandidat() in src/core/disposition/bewertung.ts - nur gesetzt,
    * solange die Fahrt noch kein echtes Fahrzeug hat (Zustand "Vorgeschlagen"). */
   vorschlagBegruendung?: string | null;
+  /** Warum der Automodus diesen Vorschlag (noch) nicht selbst bestätigt hat, siehe
+   * automatischDisponieren() in src/core/disposition/automatischDisponieren.ts - z. B. "Kein
+   * aktueller Standort des Fahrzeugs" oder eine FahrzeugKonfliktError-Meldung. */
+  autoSkipReason?: string | null;
 };
 
 /** Rein lesende Fahrt-Details für die öffentliche Live-Demo (Klick auf eine Fahrt im Zeitstrahl,
@@ -62,6 +66,12 @@ export function LiveFahrtDetails({ fahrt, onClose }: { fahrt: LiveFahrtAnzeige; 
           <div className="sm:col-span-2">
             <p className="text-xs text-muted">Berechnung</p>
             <p className="text-ink">{fahrt.vorschlagBegruendung}</p>
+          </div>
+        ) : null}
+        {fahrt.autoSkipReason ? (
+          <div className="sm:col-span-2">
+            <p className="text-xs text-muted">Noch nicht automatisch disponiert, weil</p>
+            <p className="text-warn-ink">{fahrt.autoSkipReason}</p>
           </div>
         ) : null}
       </div>

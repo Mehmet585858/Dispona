@@ -83,6 +83,7 @@ export function LiveZeitstrahl({
       vehiclePlate: fahrt.vehicle?.plate ?? null,
       fahrerName: fahrt.fahrerName,
       vorschlagBegruendung: fahrt.vorschlagBegruendung,
+      autoSkipReason: fahrt.autoSkipReason,
     });
   }
 
