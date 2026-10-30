@@ -72,6 +72,12 @@ export const STUNDEN_TICKS = Array.from({ length: ZEITSTRAHL_ENDE_STUNDE - ZEITS
  * horizontal scrollbar ist (volle 24 Std. sichtbar, aber nie gequetschte Chips). */
 export const PX_PRO_STUNDE = 130;
 export const ZEITSTRAHL_BREITE_PX = (ZEITSTRAHL_ENDE_STUNDE - ZEITSTRAHL_START_STUNDE) * PX_PRO_STUNDE;
+/** Mindestbreite eines Chips, damit Uhrzeit/Name bei sehr kurzen Fahrten noch lesbar bleiben - mit
+ * Bedacht klein gehalten (vorher 92px): bei PX_PRO_STUNDE=130 entsprach das ~42 Minuten, also waren
+ * praktisch alle realistischen Fahrten (meist 15-40 Minuten inkl. Lade-/Fahrzeit, siehe
+ * fahrtDauerMinuten()) gleich breit geklemmt - kurze und lange Fahrten sahen identisch aus, obwohl
+ * die Dauer längst korrekt pro Transportart und Entfernung berechnet wird. */
+export const MINDEST_CHIP_BREITE_PX = 56;
 export function px(prozent: number): number {
   return (prozent / 100) * ZEITSTRAHL_BREITE_PX;
 }
@@ -305,7 +311,7 @@ function FahrtChip({
       className={`absolute top-1.5 bottom-1.5 ${verschiebungPx ? "z-20" : ""}`}
       style={{
         left: originalLeft,
-        width: Math.max(px(zeitstrahlBreite(fahrt.pickupAt, fahrt.geplantesEnde)), 92),
+        width: Math.max(px(zeitstrahlBreite(fahrt.pickupAt, fahrt.geplantesEnde)), MINDEST_CHIP_BREITE_PX),
         transform: verschiebungPx ? `translate(${verschiebungPx.dx}px, ${verschiebungPx.dy}px)` : undefined,
       }}
     >

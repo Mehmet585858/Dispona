@@ -808,7 +808,13 @@ function freienSlotFinden(
   fixeRoute?: { pickupPlace: Ort; dropoffPlace: Ort },
 ): { pickupAt: Date; ende: Date; pickupPlace: Ort; dropoffPlace: Ort } | null {
   if (fruehestens >= tagesEnde) return null; // z. B. eine Rückfahrt, deren Wartezeit über 18 Uhr hinausreicht
-  for (let versuch = 0; versuch < 8; versuch++) {
+  // Deutlich mehr Versuche als früher (8): anfahrtKonfliktVorhanden() prüft jetzt die echte
+  // Anfahrtszeit zwischen zwei echten Adressen statt einer pauschalen 12-Minuten-Spanne - bei zwei
+  // weit auseinanderliegenden Nachbar-Fahrten (z. B. Spandau und Köpenick) braucht ein zufällig
+  // gezogener Kandidat entsprechend öfter einen neuen Anlauf, um einen wirklich passenden,
+  // geografisch sinnvollen Platz zu finden. Rein In-Memory-Prüfung (kein Datenbank-Zugriff in der
+  // Schleife), also auch bei vielen Versuchen güntig.
+  for (let versuch = 0; versuch < 60; versuch++) {
     const anteil = Math.random();
     const pickupAt = new Date(fruehestens.getTime() + anteil * (tagesEnde.getTime() - fruehestens.getTime()));
     // fixeRoute (Rückfahrt): dieselbe umgekehrte Route bei jedem Versuch, nur die Uhrzeit variiert.

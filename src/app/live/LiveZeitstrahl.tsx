@@ -17,6 +17,7 @@ import {
   BewegungsPfeile,
   LIVE_PUNKT_FARBE,
   Legende,
+  MINDEST_CHIP_BREITE_PX,
   PX_PRO_STUNDE,
   STUNDEN_TICKS,
   ZEITSTRAHL_BREITE_PX,
@@ -157,7 +158,7 @@ export function LiveZeitstrahl({
                       className="absolute top-1.5 bottom-1.5 flex flex-col justify-center overflow-hidden rounded-lg px-2 text-left text-xs leading-tight"
                       style={{
                         left: px(zeitstrahlPosition(fahrt.pickupAt)),
-                        width: Math.max(px(zeitstrahlBreite(fahrt.pickupAt, fahrt.geplantesEnde)), 92),
+                        width: Math.max(px(zeitstrahlBreite(fahrt.pickupAt, fahrt.geplantesEnde)), MINDEST_CHIP_BREITE_PX),
                         ...chipStil(zustandFuerFahrt(fahrt)),
                       }}
                     >
