@@ -96,10 +96,14 @@ export function uhrzeit(datum: Date): string {
 }
 
 /** Nur noch der Zustand bestimmt die Farbe (docs/DISPO-SPEZ.md Abschnitt 4.1/4.2, chipStil()) -
- * die Transportart steht als Text im Chip, nicht mehr in der Farbe. */
+ * die Transportart steht als Text im Chip, nicht mehr in der Farbe. "laeuft" (Blau) ist bewusst
+ * AN_BORD vorbehalten ("gerade im Auto") - UNTERWEGS (Fahrzeug erst auf dem Weg zum Fahrgast, noch
+ * niemand an Bord) fällt stattdessen unter "geplant"/"verspaetet" (Orange), sonst würde der
+ * Status-Punkt der Fahrzeugzeile "Fährt zum Fahrgast" zu einem blauen "im Auto"-Chip nicht passen. */
 export function zustandFuerFahrt(fahrt: { status: string; driverDelayMin: number | null }): Fahrtzustand {
-  if (fahrt.status === "UNTERWEGS" || fahrt.status === "AN_BORD") {
-    return fahrt.driverDelayMin && fahrt.driverDelayMin > 0 ? "verspaetet" : "laeuft";
+  if (fahrt.status === "AN_BORD") return "laeuft";
+  if (fahrt.status === "UNTERWEGS") {
+    return fahrt.driverDelayMin && fahrt.driverDelayMin > 0 ? "verspaetet" : "geplant";
   }
   if (fahrt.status === "ERLEDIGT") return "erledigt";
   if (fahrt.status === "VORGESCHLAGEN" || fahrt.status === "ERFASST") return "vorschlag";
@@ -400,13 +404,14 @@ export function Legende() {
       {TRANSPORT_TYPE_LABEL[art]}
     </span>
   ));
-  // Nur noch 3 Farben (chipStil()) - "geplant" und "Vorschlag, unbestätigt" sehen jetzt bewusst
-  // gleich aus (beides: liegt noch in der Zukunft), "verspätet" bewusst wie "unterwegs" (beides:
-  // gerade im Auto - die Verspätung zeigt stattdessen der "+X"-Minuten-Text auf der Kachel).
+  // Nur noch 3 Farben (chipStil()) - "geplant", "vorgeschlagen" und "auf dem Weg zum Fahrgast"
+  // sehen jetzt bewusst gleich aus (der Fahrgast sitzt in allen dreien noch nicht im Auto); eine
+  // Verspätung auf dem Weg zum Fahrgast zeigt stattdessen der "+X"-Minuten-Text auf der Kachel.
+  // Blau ist bewusst "Fahrgast im Auto" vorbehalten (zustandFuerFahrt(): nur noch AN_BORD).
   const zustandZeile: { label: string; stil: ReturnType<typeof chipStil> }[] = [
     { label: "erledigt", stil: chipStil("erledigt") },
-    { label: "geplant / vorgeschlagen", stil: chipStil("geplant") },
-    { label: "unterwegs (ggf. verspätet, siehe +Min.)", stil: chipStil("laeuft") },
+    { label: "geplant / vorgeschlagen / auf dem Weg (ggf. verspätet, siehe +Min.)", stil: chipStil("geplant") },
+    { label: "Fahrgast im Auto", stil: chipStil("laeuft") },
   ];
   return (
     <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-2xl border border-line bg-surface2 px-4 py-3 text-xs text-ink-soft">
