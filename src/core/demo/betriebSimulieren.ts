@@ -50,6 +50,11 @@ const BRAUCHT_SIE_GEDULD_MINUTEN = 20;
  * Tagesplanung) wird nicht mehr pauschal angenommen, sondern aus der echten Entfernung zwischen
  * Start- und Abholadresse berechnet - siehe anfahrtMinuten() (src/core/shifts/dauer.ts) und
  * vorherigerStandort() unten. */
+/** Wie oft ein ruhendes (nicht gerade fahrendes) Fahrzeug trotzdem eine frische GPS-Zeile bekommt -
+ * sicher unter den 10 Minuten, die automodus.ts (pruefeGpsOderBetriebshof, Sicherheitsbedingung 3)
+ * für einen aktuellen Standort verlangt, sonst bleibt jede Fahrt für ein länger ruhendes Fahrzeug
+ * dauerhaft beim Automodus hängen ("Vorgeschlagen" statt automatisch "Disponiert"). */
+const GPS_AUFFRISCH_MINUTEN = 5;
 /** Simulierte Gesprächsdauer, bevor ein Anruf nicht mehr als "läuft gerade" gilt (AnrufKarte) -
  * großzügig bemessen, damit bei mehreren Anrufen kurz hintereinander auch wirklich mehrere
  * gleichzeitig als "live" zu sehen sind (AnrufKarussell). */
@@ -896,11 +901,15 @@ async function positionenAktualisieren(tenantId: string, jetzt: Date, depot: Lat
       position = interpolieren(fahrt.pickupPlace, fahrt.dropoffPlace, anteil);
     } else {
       // Kein aktiver Auftrag (frei oder disponiert, aber noch nicht losgefahren) - steht an seiner
-      // letzten Position, braucht also nur dann eine neue Zeile, wenn es noch nie eine GPS-Zeile
-      // gab (frisch angelegtes Fahrzeug).
-      const letzte = await letztePosition(db, fahrzeug.id);
-      if (letzte) continue;
-      position = STANDPLAETZE[index % STANDPLAETZE.length];
+      // letzten Position, braucht aber trotzdem regelmäßig eine frische GPS-Zeile (nicht nur beim
+      // allerersten Mal): ein echter GPS-Tracker meldet auch im Stand periodisch seine Position.
+      // Ohne diese Auffrischung würde das GPS-Alter eines länger ruhenden Fahrzeugs die in
+      // automodus.ts geforderten 10 Minuten (pruefeGpsOderBetriebshof, Bedingung 3) überschreiten -
+      // das blockierte in der Praxis fast jedes Fahrzeug nach seiner ersten Fahrt des Tages dauerhaft
+      // für den Automodus, Vorschläge blieben "Vorgeschlagen" hängen statt automatisch zu disponieren.
+      const letzte = await letztePositionMitZeitpunkt(db, fahrzeug.id);
+      if (letzte && jetzt.getTime() - letzte.at.getTime() < GPS_AUFFRISCH_MINUTEN * 60_000) continue;
+      position = letzte ?? STANDPLAETZE[index % STANDPLAETZE.length];
     }
 
     if (position) {
@@ -911,7 +920,10 @@ async function positionenAktualisieren(tenantId: string, jetzt: Date, depot: Lat
   }
 }
 
-async function letztePosition(db: ReturnType<typeof withTenant>, vehicleId: string): Promise<LatLng | null> {
+async function letztePositionMitZeitpunkt(
+  db: ReturnType<typeof withTenant>,
+  vehicleId: string,
+): Promise<(LatLng & { at: Date }) | null> {
   const zeile = await db.vehicleLocation.findFirst({ where: { vehicleId }, orderBy: { at: "desc" } });
-  return zeile ? { lat: zeile.lat, lng: zeile.lng } : null;
+  return zeile ? { lat: zeile.lat, lng: zeile.lng, at: zeile.at } : null;
 }

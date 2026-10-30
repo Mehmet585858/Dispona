@@ -33,8 +33,7 @@ export async function automatischDisponieren(tenantId: string) {
       orderBy: { createdAt: "desc" },
     });
     const optionen = vorschlag?.options as SuggestionOption[] | undefined;
-    const bester = optionen?.[0];
-    if (!bester) {
+    if (!optionen || optionen.length === 0) {
       uebersprungen += 1;
       continue;
     }
@@ -44,52 +43,72 @@ export async function automatischDisponieren(tenantId: string) {
       effektiveProbleme.push("TRANSPORTSCHEIN_FEHLT");
     }
 
-    const [letztePosition, schicht, fruehereFahrtHeute] = await Promise.all([
-      db.vehicleLocation.findFirst({ where: { vehicleId: bester.vehicleId }, orderBy: { at: "desc" } }),
-      db.shift.findFirst({
-        where: { vehicleId: bester.vehicleId, start: { lte: fahrt.pickupAt }, end: { gte: fahrt.pickupAt } },
-        select: { onBreak: true, unavailable: true, start: true, end: true },
-      }),
-      db.ride.findFirst({
-        where: {
-          vehicleId: bester.vehicleId,
-          pickupAt: { lt: fahrt.pickupAt, gte: new Date(fahrt.pickupAt.getFullYear(), fahrt.pickupAt.getMonth(), fahrt.pickupAt.getDate()) },
-          status: { notIn: ["STORNIERT"] },
-        },
-        select: { id: true },
-      }),
-    ]);
+    // Reiht der Reihe nach alle gespeicherten Kandidaten durch (nicht nur den besten): seit der
+    // Vorschlagsberechnung kann genau dieses eine Fahrzeug durch eine andere, inzwischen
+    // zugewiesene Fahrt überholt worden sein (siehe fahrzeugZuweisen/FahrzeugKonfliktError) oder
+    // eine Sicherheitsbedingung erfüllt nicht mehr (z. B. GPS veraltet) - vorher wurde dann direkt
+    // aufgegeben, obwohl der zweit- oder drittbeste Vorschlag oft noch passt. Jeder Kandidat
+    // bekommt dafür eine eigene, frische Prüfung (eigene GPS-/Schicht-/Vortagesfahrt-Daten).
+    let erfolgreich = false;
+    let letzterGrund: string | null = null;
 
-    const gpsAlterMinuten = letztePosition ? (jetzt.getTime() - letztePosition.at.getTime()) / 60_000 : null;
+    for (let i = 0; i < optionen.length; i++) {
+      const kandidat = optionen[i];
+      const [letztePosition, schicht, fruehereFahrtHeute] = await Promise.all([
+        db.vehicleLocation.findFirst({ where: { vehicleId: kandidat.vehicleId }, orderBy: { at: "desc" } }),
+        db.shift.findFirst({
+          where: { vehicleId: kandidat.vehicleId, start: { lte: fahrt.pickupAt }, end: { gte: fahrt.pickupAt } },
+          select: { onBreak: true, unavailable: true, start: true, end: true },
+        }),
+        db.ride.findFirst({
+          where: {
+            vehicleId: kandidat.vehicleId,
+            pickupAt: { lt: fahrt.pickupAt, gte: new Date(fahrt.pickupAt.getFullYear(), fahrt.pickupAt.getMonth(), fahrt.pickupAt.getDate()) },
+            status: { notIn: ["STORNIERT"] },
+          },
+          select: { id: true },
+        }),
+      ]);
 
-    const ergebnis = sicherheitsbedingungenPruefen({
-      problems: effektiveProbleme,
-      bester: { zuSpaet: !bester.onTime, score: bester.score },
-      zweitbesterScore: optionen && optionen.length > 1 ? optionen[1].score : null,
-      minMarge: settings.autoModeMinMargin,
-      gpsAlterMinuten,
-      startetVomBetriebshof: !fruehereFahrtHeute,
-      schicht: schicht ?? undefined,
-      pickupAt: fahrt.pickupAt,
-      autoMode: settings.autoMode,
-      jetzt,
-      maxTageVoraus: settings.autoModeMaxDaysAhead,
-    });
+      const gpsAlterMinuten = letztePosition ? (jetzt.getTime() - letztePosition.at.getTime()) / 60_000 : null;
 
-    if (ergebnis.erlaubt) {
-      try {
-        await fahrzeugZuweisen(tenantId, fahrt.id, bester.vehicleId, { dispatchMode: "AUTO" });
-        automatischDisponiert += 1;
-      } catch (fehler) {
-        // Der beste Vorschlag kann seit seiner Berechnung durch eine andere, inzwischen
-        // zugewiesene Fahrt überholt sein (siehe fahrzeugZuweisen) - dann bleibt die Fahrt beim
-        // Disponenten liegen statt den ganzen Lauf für alle anderen Fahrten abzubrechen.
-        if (!(fehler instanceof FahrzeugKonfliktError)) throw fehler;
-        await db.ride.update({ where: { id: fahrt.id }, data: { autoSkipReason: fehler.message } });
-        uebersprungen += 1;
+      const ergebnis = sicherheitsbedingungenPruefen({
+        problems: effektiveProbleme,
+        bester: { zuSpaet: !kandidat.onTime, score: kandidat.score },
+        // Marge gegen den jeweils nächstschwächeren Kandidaten in der Liste - bei einem
+        // Ausweich-Kandidaten also nicht mehr gegen den (schon gescheiterten) besten verglichen.
+        zweitbesterScore: optionen.length > i + 1 ? optionen[i + 1].score : null,
+        minMarge: settings.autoModeMinMargin,
+        gpsAlterMinuten,
+        startetVomBetriebshof: !fruehereFahrtHeute,
+        schicht: schicht ?? undefined,
+        pickupAt: fahrt.pickupAt,
+        autoMode: settings.autoMode,
+        jetzt,
+        maxTageVoraus: settings.autoModeMaxDaysAhead,
+      });
+
+      if (!ergebnis.erlaubt) {
+        letzterGrund = ergebnis.grund ?? null;
+        continue;
       }
-    } else {
-      await db.ride.update({ where: { id: fahrt.id }, data: { autoSkipReason: ergebnis.grund } });
+
+      try {
+        await fahrzeugZuweisen(tenantId, fahrt.id, kandidat.vehicleId, { dispatchMode: "AUTO" });
+        automatischDisponiert += 1;
+        erfolgreich = true;
+        break;
+      } catch (fehler) {
+        if (!(fehler instanceof FahrzeugKonfliktError)) throw fehler;
+        letzterGrund = fehler.message;
+      }
+    }
+
+    if (!erfolgreich) {
+      await db.ride.update({
+        where: { id: fahrt.id },
+        data: { autoSkipReason: letzterGrund ?? "Kein passendes Fahrzeug verfügbar" },
+      });
       uebersprungen += 1;
     }
   }
