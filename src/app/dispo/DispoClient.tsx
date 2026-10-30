@@ -189,10 +189,17 @@ function AnrufZuweisungsAktion({
   rideId,
   beste,
   onAktualisiert,
+  nurAnsicht = false,
 }: {
   rideId: string;
   beste: VorschlagOption;
   onAktualisiert: () => void;
+  /** Live-Demo (/live): zeigt denselben Countdown/dieselben Zustände rein optisch, löst aber nie
+   * einen echten Server-Aufruf aus - die braucht eine Sitzung (requireSession), die ein anonymer
+   * Besucher nicht hat. Ohne diese Abzweigung würde der Countdown nach 15s automatisch eine
+   * unbehandelte Fehlermeldung auslösen (bis hin zu einem Seitenabsturz für den Besucher), und ein
+   * Klick könnte die eine, von allen Besuchern geteilte Demo-Fahrzeugliste real durcheinanderbringen. */
+  nurAnsicht?: boolean;
 }) {
   const [phase, setPhase] = useState<"laeuft" | "zuweisend" | "erfolgreich" | "manuell" | "fehler">("laeuft");
   const [balkenVoll, setBalkenVoll] = useState(true);
@@ -200,6 +207,12 @@ function AnrufZuweisungsAktion({
 
   const jetztZuweisen = useCallback(async () => {
     setPhase("zuweisend");
+    if (nurAnsicht) {
+      // Reines Schaufenster: keine echte Zuweisung, nur die Erfolgsansicht zeigen, wie sie im
+      // echten Dashboard aussehen würde.
+      setPhase("erfolgreich");
+      return;
+    }
     const ergebnis = await fahrzeugWaehlen(rideId, beste.vehicleId);
     if (!ergebnis.ok) {
       setFehlerText(ergebnis.grund);
@@ -207,7 +220,7 @@ function AnrufZuweisungsAktion({
       return;
     }
     setPhase("erfolgreich");
-  }, [rideId, beste.vehicleId]);
+  }, [rideId, beste.vehicleId, nurAnsicht]);
 
   // Countdown: eine Frame nach dem Einhängen auf 0 Breite animieren (CSS-Transition greift nur bei
   // einer echten Zustandsänderung nach dem ersten Render), parallel dazu nach Ablauf automatisch
@@ -229,6 +242,13 @@ function AnrufZuweisungsAktion({
   }, [phase, onAktualisiert]);
 
   async function rueckgaengig() {
+    if (nurAnsicht) {
+      // Kein echtes Zurücknehmen - der Countdown startet einfach erneut, damit Besucher den
+      // Ablauf auch beobachten können, ohne dass eine echte Fahrzeugzuweisung dahintersteckt.
+      setBalkenVoll(true);
+      setPhase("laeuft");
+      return;
+    }
     await zuweisungRueckgaengig(rideId);
     onAktualisiert();
   }
@@ -296,8 +316,9 @@ export function AnrufKarte({
    * öffentliche Live-Demo (/live) übergibt stattdessen eine eigene, offene Variante ohne Login
    * (src/app/live/actions.ts), die zusätzlich fest auf den Demo-Mandanten beschränkt ist. */
   transkriptLaden?: (callId: string) => Promise<string | null>;
-  /** false auf der öffentlichen Live-Demo (/live): "Auto zuweisen"/"Selbst übernehmen" brauchen
-   * eine echte Sitzung und würden dort nur fehlschlagen. */
+  /** false auf der öffentlichen Live-Demo (/live): "Auto zuweisen"/"Selbst übernehmen" bleiben
+   * sichtbar (Schaufenster, siehe AnrufZuweisungsAktion), lösen dort aber nie einen echten
+   * Server-Aufruf aus - der bräuchte eine echte Sitzung, die ein anonymer Besucher nicht hat. */
   aktionenErlaubt?: boolean;
 }) {
   const router = useRouter();
@@ -432,12 +453,13 @@ export function AnrufKarte({
                 <p className="truncate text-ink">{anruf.fahrt.dropoffPlace.label}</p>
               </div>
             </button>
-            {aktionenErlaubt && !anruf.fahrt.vehicle && anruf.fahrt.beste ? (
+            {!anruf.fahrt.vehicle && anruf.fahrt.beste ? (
               <AnrufZuweisungsAktion
                 key={anruf.fahrt.id}
                 rideId={anruf.fahrt.id}
                 beste={anruf.fahrt.beste}
                 onAktualisiert={aktualisieren}
+                nurAnsicht={!aktionenErlaubt}
               />
             ) : anruf.fahrt.vehicle ? (
               <p className="truncate text-xs text-muted">
@@ -503,8 +525,9 @@ export function AnrufKarussell({
   liveAnrufe: LiveAnruf[];
   onFahrtKlick: (id: string) => void;
   transkriptLaden?: (callId: string) => Promise<string | null>;
-  /** false auf der öffentlichen Live-Demo (/live): "Auto zuweisen"/"Selbst übernehmen" brauchen
-   * eine echte Sitzung und würden dort nur fehlschlagen. */
+  /** false auf der öffentlichen Live-Demo (/live): "Auto zuweisen"/"Selbst übernehmen" bleiben
+   * sichtbar (Schaufenster, siehe AnrufZuweisungsAktion), lösen dort aber nie einen echten
+   * Server-Aufruf aus - der bräuchte eine echte Sitzung, die ein anonymer Besucher nicht hat. */
   aktionenErlaubt?: boolean;
 }) {
   const [index, setIndex] = useState(0);

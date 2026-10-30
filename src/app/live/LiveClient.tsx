@@ -160,6 +160,9 @@ export function LiveClient({ initialDaten }: { initialDaten: LiveDaten }) {
                 liveAnrufe={daten.liveAnrufe}
                 onFahrtKlick={keinOp}
                 transkriptLaden={liveTranskriptLaden}
+                // "Auto zuweisen"/"Selbst übernehmen" bleiben sichtbar (Schaufenster mit echtem
+                // Countdown-Effekt), lösen hier aber nie einen echten Server-Aufruf aus - siehe
+                // AnrufZuweisungsAktion/nurAnsicht in DispoClient.tsx.
                 aktionenErlaubt={false}
               />
             ) : (
