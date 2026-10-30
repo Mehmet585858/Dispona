@@ -478,6 +478,14 @@ async function neuenAnrufBeiBedarf(tenantId: string, jetzt: Date) {
   let pickupAt = new Date(jetzt.getTime() + pickupInMinuten * 60_000);
   if (auswahl.fruehestens && pickupAt < auswahl.fruehestens) pickupAt = auswahl.fruehestens;
 
+  // Letzte Prüfung direkt vor dem Schreiben - siehe passagierKonfliktVorhanden: tagesInfo oben
+  // kann durch einen zeitgleich laufenden zweiten Cron-Durchlauf inzwischen veraltet sein.
+  if (
+    await passagierKonfliktVorhanden(db, auswahl.passagier.id, tagesStart, tagesEnde, { pickupPlace, dropoffPlace }, auswahl.transportType, auswahl.istRueckfahrt)
+  ) {
+    return;
+  }
+
   await simulierteFahrtAnlegen(tenantId, jetzt, {
     passagier: auswahl.passagier,
     pickupPlace,
@@ -570,6 +578,22 @@ async function tagesplanSicherstellen(tenantId: string, jetzt: Date) {
         if (await fahrzeugUeberschneidungVorhanden(db, fahrzeug.id, anfahrtStart, slot.ende)) {
           continue; // ein paralleler Lauf hat diesen Slot inzwischen belegt - nicht erzwingen
         }
+        // Dieselbe letzte Prüfung wie oben für das Fahrzeug, hier für den Fahrgast: ein
+        // zeitgleicher zweiter Durchlauf könnte denselben, damals noch unbenutzten Namen
+        // inzwischen selbst vergeben haben (siehe passagierKonfliktVorhanden).
+        if (
+          await passagierKonfliktVorhanden(
+            db,
+            passagier.id,
+            tagesStart,
+            tagesEnde,
+            { pickupPlace: slot.pickupPlace, dropoffPlace: slot.dropoffPlace },
+            transportType,
+            auswahl.istRueckfahrt,
+          )
+        ) {
+          continue;
+        }
 
         const schicht = await db.shift.findFirst({
           where: { vehicleId: fahrzeug.id, start: { lte: slot.pickupAt }, end: { gte: slot.pickupAt } },
@@ -607,6 +631,19 @@ async function tagesplanSicherstellen(tenantId: string, jetzt: Date) {
         // überschneidungsfrei geprüften Fahrzeug zugewiesen statt dem Automodus überlassen - der
         // müsste sonst unter vielen gleichzeitig geplanten Tagesplan-Fahrten frei wählen, was ohne
         // echten Disponenten nur unnötige "Braucht Sie"-Fälle erzeugt.
+        if (
+          await passagierKonfliktVorhanden(
+            db,
+            passagier.id,
+            tagesStart,
+            tagesEnde,
+            { pickupPlace: slot.pickupPlace, dropoffPlace: slot.dropoffPlace },
+            transportType,
+            auswahl.istRueckfahrt,
+          )
+        ) {
+          continue;
+        }
         await simulierteFahrtAnlegen(tenantId, jetzt, {
           passagier,
           pickupPlace: slot.pickupPlace,
@@ -652,6 +689,35 @@ async function fahrzeugUeberschneidungVorhanden(
     const fBis = new Date(f.pickupAt.getTime() + fahrtDauerMinuten(f.transportType, f.pickupPlace, f.dropoffPlace) * 60_000);
     return von < fBis && fVon < bis;
   });
+}
+
+/** Dieselbe Lücke wie fahrzeugUeberschneidungVorhanden, nur für Fahrgäste statt Fahrzeuge: das
+ * oben einmal geladene tagesInfo ist zwischen dem Laden und diesem Schreiben nicht mehr
+ * zwangsläufig aktuell, wenn ein zeitgleich laufender zweiter Cron-Durchlauf denselben, bis dahin
+ * noch unbenutzten Namen inzwischen selbst vergeben hat - sonst könnte derselbe Fahrgast trotz
+ * passagierWaehlen() am Ende doch zweimal unabhängig (oder ein drittes Mal) auftauchen. */
+async function passagierKonfliktVorhanden(
+  db: ReturnType<typeof withTenant>,
+  passagierId: string,
+  tagesStart: Date,
+  tagesEnde: Date,
+  route: { pickupPlace: Ort; dropoffPlace: Ort },
+  transportType: TransportTyp,
+  istRueckfahrt: boolean,
+): Promise<boolean> {
+  const bestehend = await db.ride.findMany({
+    where: { passengerId: passagierId, pickupAt: { gte: tagesStart, lte: tagesEnde }, status: { not: "STORNIERT" } },
+    select: { pickupPlaceId: true, dropoffPlaceId: true, transportType: true },
+  });
+  if (bestehend.length === 0) return false; // frisch, kein Konflikt
+  if (bestehend.length >= 2) return true; // hat heute schon Hin + Rück - kein drittes Mal
+  const [erste] = bestehend;
+  const istGueltigeRueckfahrt =
+    istRueckfahrt &&
+    erste.transportType === transportType &&
+    erste.pickupPlaceId === route.dropoffPlace.id &&
+    erste.dropoffPlaceId === route.pickupPlace.id;
+  return !istGueltigeRueckfahrt;
 }
 
 function freienSlotFinden(
