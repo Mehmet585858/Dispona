@@ -1,11 +1,12 @@
 /**
- * Setzt die öffentliche Live-Demo (src/core/demo/const.ts) regelmäßig zurück: löscht Fahrten,
- * Anrufe und die dabei live angelegten Fahrgäste, sobald sie älter als DEMO_AUFRAEUM_STUNDEN sind.
- * Bewusst eigenständig statt über die allgemeinen Löschfristen
- * (src/core/datenschutz/loeschfristen.ts, dort Tage/Wochen statt Stunden): hier kommen echte
- * Namen und Rückrufnummern echter Interessenten zusammen (keine Testdaten!), die so kurz wie
- * sinnvoll aufbewahrt werden sollen, außerdem soll die öffentliche Live-Seite nicht mit alten
- * Testanrufen vollaufen. Läuft stündlich über src/app/api/cron/demoZuruecksetzen/route.ts.
+ * Setzt die öffentliche Live-Demo (src/core/demo/const.ts) regelmäßig zurück: löscht bereits
+ * stattgefundene Fahrten, Anrufe und die dabei angelegten Fahrgäste, sobald sie älter als
+ * DEMO_AUFRAEUM_STUNDEN sind - damit die Seite nicht mit altem Betrieb vollläuft, und falls die
+ * Demo-Telefonnummer einmal live geht, auch echte Namen/Rückrufnummern echter Interessenten nicht
+ * unbegrenzt liegen bleiben. Bewusst eigenständig statt über die allgemeinen Löschfristen
+ * (src/core/datenschutz/loeschfristen.ts, dort Tage/Wochen statt Stunden). Läuft stündlich über
+ * src/app/api/cron/demoZuruecksetzen/route.ts - der laufende Betrieb (betriebSimulieren.ts) legt
+ * danach einfach wieder neue Fahrten nach, der Tag wirkt dadurch nie dauerhaft leer.
  */
 import { withTenant } from "@/lib/db";
 import { DEMO_TENANT_ID } from "./const";
@@ -16,8 +17,12 @@ export async function demoZuruecksetzen(tenantId: string = DEMO_TENANT_ID) {
   const db = withTenant(tenantId);
   const grenze = new Date(Date.now() - DEMO_AUFRAEUM_STUNDEN * 60 * 60_000);
 
+  // pickupAt < jetzt zusätzlich zu createdAt < grenze: seedDemoTenant.ts/betriebSimulieren.ts
+  // legen jetzt oft viele Fahrten auf einmal an, mit Abholzeiten über den ganzen Tag verteilt
+  // (auch Stunden in der Zukunft) - ohne diese Bedingung würde eine erst für später heute
+  // eingeplante Fahrt schon gelöscht, bevor sie überhaupt stattgefunden hat.
   const alteFahrten = await db.ride.findMany({
-    where: { createdAt: { lt: grenze } },
+    where: { createdAt: { lt: grenze }, pickupAt: { lt: new Date() } },
     select: { id: true, passengerId: true },
   });
   const fahrtIds = alteFahrten.map((f) => f.id);
