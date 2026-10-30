@@ -22,6 +22,7 @@ import {
 } from "@/app/dispo/fahrten/Zeitstrahl";
 
 export type SimulierteZeitstrahlFahrt = {
+  id: string;
   vehicleId: string;
   pickupAt: Date;
   geplantesEnde: Date;
@@ -33,15 +34,16 @@ export function LiveZeitstrahl({
   fahrten,
   fahrzeugZeilen,
   jetztProzent,
-  simulierteFahrt,
+  simulierteFahrten,
 }: {
   fahrten: FahrtMini[];
   fahrzeugZeilen: FahrzeugZeile[];
   jetztProzent: number | null;
-  /** Rein clientseitig erfundene Beispiel-Fahrt (siehe SimulierterAnruf.tsx) - deutlich anders
-   * gestaltet (gestrichelt, gedämpfte Farbe) als echte Fahrten, damit sie nie mit einer echten
-   * verwechselt wird. */
-  simulierteFahrt?: SimulierteZeitstrahlFahrt | null;
+  /** Rein clientseitig erfundene Beispiel-Fahrten (siehe SimulierterAnruf.tsx) - sammeln sich über
+   * die Sitzung und bleiben stehen (wie im echten Dashboard), statt beim nächsten simulierten
+   * Anruf zu verschwinden. Deutlich anders gestaltet (gestrichelt, gedämpfte Farbe) als echte
+   * Fahrten, damit sie nie mit einer echten verwechselt werden. */
+  simulierteFahrten?: SimulierteZeitstrahlFahrt[];
 }) {
   return (
     <div className="overflow-x-auto rounded-2xl border border-line bg-surface">
@@ -90,20 +92,23 @@ export function LiveZeitstrahl({
                     <span className="truncate text-[10px] opacity-80">{TRANSPORT_TYPE_LABEL[fahrt.transportType]}</span>
                   </div>
                 ))}
-              {simulierteFahrt && simulierteFahrt.vehicleId === zeile.id ? (
-                <div
-                  title={`Beispiel: ${uhrzeit(simulierteFahrt.pickupAt)}–${uhrzeit(simulierteFahrt.geplantesEnde)} ${simulierteFahrt.fahrgast}`}
-                  className="absolute top-1.5 bottom-1.5 flex flex-col justify-center overflow-hidden rounded-md border-2 border-dashed border-line-strong bg-surface/90 px-2 text-left text-xs leading-tight text-ink-soft"
-                  style={{
-                    left: px(zeitstrahlPosition(simulierteFahrt.pickupAt)),
-                    width: Math.max(px(zeitstrahlBreite(simulierteFahrt.pickupAt, simulierteFahrt.geplantesEnde)), 92),
-                  }}
-                >
-                  <span className="font-mono text-[11px]">{uhrzeit(simulierteFahrt.pickupAt)}</span>
-                  <span className="truncate font-semibold">Beispiel · {simulierteFahrt.fahrgast}</span>
-                  <span className="truncate text-[10px] opacity-80">{simulierteFahrt.transport}</span>
-                </div>
-              ) : null}
+              {(simulierteFahrten ?? [])
+                .filter((f) => f.vehicleId === zeile.id)
+                .map((simulierteFahrt) => (
+                  <div
+                    key={simulierteFahrt.id}
+                    title={`Beispiel: ${uhrzeit(simulierteFahrt.pickupAt)}–${uhrzeit(simulierteFahrt.geplantesEnde)} ${simulierteFahrt.fahrgast}`}
+                    className="absolute top-1.5 bottom-1.5 flex flex-col justify-center overflow-hidden rounded-md border-2 border-dashed border-line-strong bg-surface/90 px-2 text-left text-xs leading-tight text-ink-soft"
+                    style={{
+                      left: px(zeitstrahlPosition(simulierteFahrt.pickupAt)),
+                      width: Math.max(px(zeitstrahlBreite(simulierteFahrt.pickupAt, simulierteFahrt.geplantesEnde)), 92),
+                    }}
+                  >
+                    <span className="font-mono text-[11px]">{uhrzeit(simulierteFahrt.pickupAt)}</span>
+                    <span className="truncate font-semibold">Beispiel · {simulierteFahrt.fahrgast}</span>
+                    <span className="truncate text-[10px] opacity-80">{simulierteFahrt.transport}</span>
+                  </div>
+                ))}
             </div>
           </div>
         ))}
