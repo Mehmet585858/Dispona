@@ -67,10 +67,6 @@ export function uhrzeit(datum: Date): string {
   });
 }
 
-export function istAlarmFahrt(fahrt: { status: string; problems: string[] }): boolean {
-  return fahrt.problems.length > 0 || fahrt.status === "PROBLEM" || fahrt.status === "NICHT_ANGETROFFEN";
-}
-
 /** Nur noch der Zustand bestimmt die Farbe (docs/DISPO-SPEZ.md Abschnitt 4.1/4.2, chipStil()) -
  * die Transportart steht als Text im Chip, nicht mehr in der Farbe. */
 export function zustandFuerFahrt(fahrt: { status: string; driverDelayMin: number | null }): Fahrtzustand {
@@ -150,7 +146,7 @@ function SpurKompakt({
             type="button"
             onClick={() => onKlick?.(fahrt.id)}
             title={`${uhrzeit(fahrt.pickupAt)} ${fahrt.passenger.firstName} ${fahrt.passenger.lastName}`}
-            className={`absolute top-0.5 bottom-0.5 w-1.5 rounded-sm ${istAlarmFahrt(fahrt) ? "ring-2 ring-danger-ink" : ""}`}
+            className="absolute top-0.5 bottom-0.5 w-1.5 rounded-sm"
             style={{ left: `${wochePosition(fahrt.pickupAt)}%`, ...stil }}
           />
         );
@@ -298,8 +294,8 @@ function FahrtChip({
           fahrt.passenger.lastName
         } · ${TRANSPORT_TYPE_LABEL[fahrt.transportType]}${verschiebbar ? " · ziehen zum Verschieben" : ""}`}
         className={`flex h-full w-full flex-col justify-center overflow-hidden rounded-lg px-2 text-left text-xs leading-tight touch-none ${
-          istAlarmFahrt(fahrt) ? "ring-2 ring-danger-ink" : ""
-        } ${verschiebbar ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"} ${verschiebungPx ? "shadow-lg" : ""}`}
+          verschiebbar ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"
+        } ${verschiebungPx ? "shadow-lg" : ""}`}
         style={{
           opacity: verschiebungPx ? 0.9 : passt ? 1 : 0.25,
           ...stil,

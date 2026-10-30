@@ -19,7 +19,6 @@ import {
   PX_PRO_STUNDE,
   STUNDEN_TICKS,
   ZEITSTRAHL_BREITE_PX,
-  istAlarmFahrt,
   px,
   uhrzeit,
   zustandFuerFahrt,
@@ -153,7 +152,7 @@ export function LiveZeitstrahl({
                       type="button"
                       onClick={() => fahrtOeffnen(fahrt)}
                       title={`${uhrzeit(fahrt.pickupAt)}–${uhrzeit(fahrt.geplantesEnde)} ${fahrt.passenger.firstName} ${fahrt.passenger.lastName}`}
-                      className={`absolute top-1.5 bottom-1.5 flex flex-col justify-center overflow-hidden rounded-lg px-2 text-left text-xs leading-tight ${istAlarmFahrt(fahrt) ? "ring-2 ring-danger-ink" : ""}`}
+                      className="absolute top-1.5 bottom-1.5 flex flex-col justify-center overflow-hidden rounded-lg px-2 text-left text-xs leading-tight"
                       style={{
                         left: px(zeitstrahlPosition(fahrt.pickupAt)),
                         width: Math.max(px(zeitstrahlBreite(fahrt.pickupAt, fahrt.geplantesEnde)), 92),

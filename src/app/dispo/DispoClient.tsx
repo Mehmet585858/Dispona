@@ -295,8 +295,15 @@ function AnrufZuweisungsAktion({
           className="absolute inset-y-0 right-0 bg-white/20 transition-[width] duration-[15000ms] ease-linear"
           style={{ width: balkenVoll ? "100%" : "0%" }}
         />
-        <span className="relative block truncate whitespace-nowrap">
-          {phase === "zuweisend" ? "…" : `Auto zuweisen · ${beste.plate}`}
+        <span className="relative block">
+          {phase === "zuweisend" ? (
+            "…"
+          ) : (
+            <>
+              <span className="block truncate whitespace-nowrap">Auto zuweisen</span>
+              <span className="block truncate whitespace-nowrap text-[11px] font-normal opacity-90">{beste.plate}</span>
+            </>
+          )}
         </span>
       </button>
       <Button type="button" variant="secondary" onClick={() => setPhase("manuell")} disabled={phase === "zuweisend"}>
