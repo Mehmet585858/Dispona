@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { KpiTile } from "@/components/ui/KpiTile";
 import { Logo } from "@/components/ui/Logo";
+import { Bereichsnavigation } from "@/components/ui/Bereichsnavigation";
 import { AnrufKarussell, AnrufWarteKarte } from "@/app/dispo/DispoClient";
 import { zeitstrahlPosition } from "@/core/shifts/zeitstrahl";
 import { liveDemoLaden, liveTranskriptLaden } from "./actions";
@@ -18,7 +19,15 @@ const DEMO_TELEFONNUMMER = process.env.NEXT_PUBLIC_DEMO_PHONE ?? null;
 // Dieselbe Liste wie src/app/dispo/layout.tsx - hier bewusst als reiner Text nachgebaut (nicht
 // verlinkt), damit die Demo optisch 1:1 wie das echte Dashboard aussieht, ohne Besucher ohne
 // Konto auf Seiten zu schicken, die sie sofort zum Login zurückwerfen würden.
-const NAVIGATION = ["Dashboard", "Fahrzeuge", "Fahrgäste", "Orte", "Anrufe", "Auswertung", "Einstellungen"];
+const NAVIGATION = [
+  { href: "/dispo", label: "Dashboard" },
+  { href: "/dispo/fahrzeuge", label: "Fahrzeuge" },
+  { href: "/dispo/fahrgaeste", label: "Fahrgäste" },
+  { href: "/dispo/orte", label: "Orte" },
+  { href: "/dispo/anrufe", label: "Anrufe" },
+  { href: "/dispo/auswertung", label: "Auswertung" },
+  { href: "/dispo/einstellungen", label: "Einstellungen" },
+];
 
 type LiveDaten = Awaited<ReturnType<typeof liveDemoLaden>>;
 
@@ -43,18 +52,14 @@ export function LiveClient({ initialDaten }: { initialDaten: LiveDaten }) {
   return (
     <div className="min-h-screen bg-ground">
       <header className="border-b border-line bg-surface">
-        {/* Kein flex-wrap mehr - siehe dieselbe Begründung/Fix in src/app/dispo/layout.tsx:
-         * bei mittleren Breiten brach die Navigation sonst unschön über zwei Zeilen um. */}
+        {/* docs/DESIGN-GUIDE.md Abschnitt 6: Navigation wird unter ca. 1000px zum Menü - siehe
+         * dieselbe Begründung in src/app/dispo/layout.tsx. */}
         <div className="flex w-full items-center justify-between gap-3 px-6 py-4">
-          <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
-            <a href="https://dispona.de" className="mr-4 flex flex-none items-center">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <a href="https://dispona.de" className="flex flex-none items-center">
               <Logo className="h-6 text-ink" />
             </a>
-            {NAVIGATION.map((label) => (
-              <span key={label} className="flex-none rounded-lg px-3 py-2 text-sm font-medium text-ink-soft">
-                {label}
-              </span>
-            ))}
+            <Bereichsnavigation items={NAVIGATION} linksKlickbar={false} />
           </div>
           <div className="flex flex-none items-center gap-3">
             <span className="rounded-full bg-accent-soft px-3 py-1 text-xs font-semibold text-accent">Live-Demo</span>
@@ -149,7 +154,7 @@ export function LiveClient({ initialDaten }: { initialDaten: LiveDaten }) {
               <LiveZeitstrahl fahrten={daten.fahrten} fahrzeugZeilen={daten.fahrzeugZeilen} jetztProzent={jetztProzent} />
             </div>
           </div>
-          <div className="flex w-full flex-none flex-col gap-4 md:w-[380px]">
+          <div aria-live="polite" aria-atomic="false" className="flex w-full flex-none flex-col gap-4 md:w-[380px]">
             {daten.liveAnrufe.length > 0 ? (
               <AnrufKarussell liveAnrufe={daten.liveAnrufe} onFahrtKlick={keinOp} transkriptLaden={liveTranskriptLaden} />
             ) : (

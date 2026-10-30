@@ -295,7 +295,7 @@ function FahrtChip({
         title={`${uhrzeit(fahrt.pickupAt)}–${uhrzeit(fahrt.geplantesEnde)} ${fahrt.passenger.firstName} ${
           fahrt.passenger.lastName
         } · ${TRANSPORT_TYPE_LABEL[fahrt.transportType]}${verschiebbar ? " · ziehen zum Verschieben" : ""}`}
-        className={`flex h-full w-full flex-col justify-center overflow-hidden rounded-md px-2 text-left text-xs leading-tight touch-none ${
+        className={`flex h-full w-full flex-col justify-center overflow-hidden rounded-lg px-2 text-left text-xs leading-tight touch-none ${
           istAlarmFahrt(fahrt) ? "ring-2 ring-danger-ink" : ""
         } ${verschiebbar ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"} ${verschiebungPx ? "shadow-lg" : ""}`}
         style={{

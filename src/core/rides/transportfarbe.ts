@@ -33,7 +33,9 @@ export function chipStil(art: Transportart, zustand: Fahrtzustand) {
         background: farbeFuerArt(art, "solid"),
         border: "none",
         color: "#ffffff",
-        boxShadow: "0 0 0 2px var(--color-now)",
+        // --color-late (Guide: --late-ring), nicht --color-now: "verspätet" ist ein eigenes
+        // Signal ("braucht Aufmerksamkeit"), keine Variante der Jetzt-Linie im Zeitstrahl.
+        boxShadow: "0 0 0 2px var(--color-late)",
       };
     case "vorschlag":
       return { background: "#ffffff", border: `2px dashed ${farbeFuerArt(art, "solid")}`, color: farbeFuerArt(art, "ink") };

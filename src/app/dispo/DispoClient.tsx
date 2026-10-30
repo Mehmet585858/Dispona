@@ -155,6 +155,23 @@ function BrauchtSieKarte({
   );
 }
 
+/** Zerlegt ein "Sprecher: Text"-je-Zeile-Transkript in einzelne Redebeiträge (docs/DISPO-SPEZ.md
+ * 3.4: "Gesprächsverlauf als Sprechblasen: Anrufer links, KI rechts"). Zeilen, die dem Muster
+ * nicht entsprechen, werden als eigener Redebeitrag ohne Sprecher durchgereicht statt verworfen -
+ * so bleibt ein unerwartetes Transkript-Format trotzdem vollständig lesbar, nur ohne Blasen-Optik. */
+function transkriptRedebeitraege(text: string): { sprecher: string | null; text: string; istKi: boolean }[] {
+  return text
+    .split("\n")
+    .map((zeile) => zeile.trim())
+    .filter((zeile) => zeile.length > 0)
+    .map((zeile) => {
+      const treffer = zeile.match(/^([\p{L}][\p{L}\s.-]{0,39}):\s*(.*)$/u);
+      if (!treffer) return { sprecher: null, text: zeile, istKi: false };
+      const [, sprecher, rest] = treffer;
+      return { sprecher, text: rest, istKi: sprecher.trim().toLowerCase() === "lisa" };
+    });
+}
+
 export function AnrufKarte({
   anruf,
   index,
@@ -217,7 +234,7 @@ export function AnrufKarte({
             type="button"
             onClick={onVorheriger}
             aria-label="Vorheriger Anruf"
-            className="flex h-7 w-7 items-center justify-center rounded text-ink-soft hover:bg-accent-soft hover:text-accent"
+            className="flex h-9 w-9 flex-none items-center justify-center rounded-lg border border-line text-ink-soft hover:bg-accent-soft hover:text-accent"
           >
             ‹
           </button>
@@ -228,7 +245,7 @@ export function AnrufKarte({
             type="button"
             onClick={onNaechster}
             aria-label="Nächster Anruf"
-            className="flex h-7 w-7 items-center justify-center rounded text-ink-soft hover:bg-accent-soft hover:text-accent"
+            className="flex h-9 w-9 flex-none items-center justify-center rounded-lg border border-line text-ink-soft hover:bg-accent-soft hover:text-accent"
           >
             ›
           </button>
@@ -242,7 +259,26 @@ export function AnrufKarte({
           {transkript === undefined ? (
             <p className="text-sm text-muted">Lädt …</p>
           ) : transkript ? (
-            <p className="whitespace-pre-wrap text-sm text-ink-soft">{transkript}</p>
+            <div className="flex flex-col gap-1.5">
+              {transkriptRedebeitraege(transkript).map((beitrag, i) =>
+                beitrag.sprecher ? (
+                  <div key={i} className={`flex flex-col ${beitrag.istKi ? "items-end" : "items-start"}`}>
+                    <span className="mb-0.5 px-1 text-[11px] font-medium text-muted">{beitrag.sprecher}</span>
+                    <p
+                      className={`max-w-[85%] rounded-xl px-3 py-1.5 text-sm ${
+                        beitrag.istKi ? "bg-accent-soft text-ink" : "bg-surface border border-line text-ink-soft"
+                      }`}
+                    >
+                      {beitrag.text}
+                    </p>
+                  </div>
+                ) : (
+                  <p key={i} className="whitespace-pre-wrap text-sm text-ink-soft">
+                    {beitrag.text}
+                  </p>
+                ),
+              )}
+            </div>
           ) : (
             <p className="text-sm text-muted">
               Noch kein Transkript verfügbar – erscheint hier, sobald Dispona Gesprächsabschnitte erkannt hat.
@@ -591,7 +627,11 @@ export function DispoClient({
             {paket === "PRO" ? <KpiTile label="Gerade unterwegs" wert={kennzahlen.unterwegs} /> : null}
             {paket === "PRO" ? <KpiTile label="Von Dispona eingeplant" wert={kennzahlen.vonDisponaEingeplant} zusatz="heute" /> : null}
             <KpiTile label="Braucht Sie" wert={kennzahlen.brauchtSie} warnstil={kennzahlen.brauchtSie > 0} />
-            <KpiTile label="Anrufe heute" wert={kennzahlen.anrufeHeute} />
+            {/* Bei zwei Spalten (LITE: 3, PRO: 5 Kacheln - beides ungerade) hängt die letzte
+             * Kachel sonst allein in einer eigenen Reihe - siehe derselbe Fix auf /live. */}
+            <div className="col-span-2 sm:col-span-1">
+              <KpiTile label="Anrufe heute" wert={kennzahlen.anrufeHeute} />
+            </div>
           </div>
 
           <div className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4">
@@ -619,11 +659,17 @@ export function DispoClient({
         <div className="flex w-full flex-none flex-col gap-4 md:w-[380px]">
           {paket === "PRO" ? (
             <>
-              {liveAnrufe.length > 0 ? (
-                <AnrufKarussell liveAnrufe={liveAnrufe} onFahrtKlick={setOffeneFahrtId} />
-              ) : (
-                <AnrufWarteKarte anrufeHeute={kennzahlen.anrufeHeute} />
-              )}
+              {/* docs/DESIGN-GUIDE.md Abschnitt 9 (Pflicht): "Live-Änderungen (neuer Anruf, ...)
+               * per aria-live="polite" ansagen." - meldet einen neu eingehenden oder beendeten
+               * Anruf auch Screenreader-Nutzern, ohne bei jedem 5s-Poll-Tick selbst neu zu melden
+               * (aria-atomic="false": nur was sich wirklich ändert). */}
+              <div aria-live="polite" aria-atomic="false">
+                {liveAnrufe.length > 0 ? (
+                  <AnrufKarussell liveAnrufe={liveAnrufe} onFahrtKlick={setOffeneFahrtId} />
+                ) : (
+                  <AnrufWarteKarte anrufeHeute={kennzahlen.anrufeHeute} />
+                )}
+              </div>
               <BrauchtSieKarte eintraege={brauchtSie} fahrten={fahrten} fahrzeuge={fahrzeuge} onOeffnen={setOffeneFahrtId} />
             </>
           ) : (
