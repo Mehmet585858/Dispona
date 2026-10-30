@@ -14,6 +14,20 @@ const LADEZEIT_MINUTEN: Record<string, number> = {
   SITZEND: 5,
 };
 
+/** Etwas langsamer als DURCHSCHNITT_KMH angenommen (eine Leerfahrt schließt oft auch Parken/
+ * Rangieren am Start- und Zielort ein) und ohne Ladezeit (kein Fahrgast an Bord). Mindestens
+ * ANFAHRT_MIN_MINUTEN, auch über eine sehr kurze Strecke - Rüstzeit am Fahrzeug braucht es immer. */
+const ANFAHRT_KMH = 28;
+const ANFAHRT_MIN_MINUTEN = 4;
+
+/** Geschätzte Leerfahrt-Dauer von einem Standort (letzter Zielort oder Betriebshof) zu einer
+ * Abholadresse - dieselbe Luftlinien-Schätzung wie fahrtDauerMinuten(), nur ohne Transportart-
+ * abhängige Ladezeit, da hier noch niemand ein- oder aussteigt. */
+export function anfahrtMinuten(von: LatLng, bis: LatLng): number {
+  const minuten = (entfernungKm(von, bis) / ANFAHRT_KMH) * 60;
+  return Math.max(ANFAHRT_MIN_MINUTEN, Math.round(minuten));
+}
+
 export function fahrtDauerMinuten(
   transportType: string,
   pickupOrt: LatLng,

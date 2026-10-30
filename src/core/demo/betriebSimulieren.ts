@@ -26,7 +26,7 @@ import { fahrtErfassen } from "@/core/rides/erfassen";
 import { fahrtStatusAendern } from "@/core/rides/status";
 import { fahrzeugZuweisen, FahrzeugKonfliktError } from "@/core/disposition/zuweisen";
 import { fahrzeugTypLabel, fahrzeugTypTransportType } from "@/core/rides/fahrzeugTyp";
-import { fahrtDauerMinuten } from "@/core/shifts/dauer";
+import { anfahrtMinuten, fahrtDauerMinuten } from "@/core/shifts/dauer";
 import { datumIso, mitUhrzeit } from "@/core/shifts/week";
 import { TRANSPORT_TYPE_LABEL, type TRANSPORT_TYPES } from "@/core/rides/validation";
 import type { RideStatus } from "@/generated/prisma/enums";
@@ -46,9 +46,10 @@ const NEUE_FAHRT_WAHRSCHEINLICHKEIT = 0.5;
  * als nicht mehr vermittelbar storniert wird - ohne echten Disponenten, der "Braucht Sie" abarbeitet,
  * würde die Liste sonst unbegrenzt wachsen (siehe haengendeVorschlaegeAufraeumen). */
 const BRAUCHT_SIE_GEDULD_MINUTEN = 20;
-/** Angenommene Vorlaufzeit, die ein Fahrzeug losfährt, bevor es am Abholort sein muss - steuert
- * sowohl den Status-Wechsel Disponiert -> Unterwegs als auch die GPS-Interpolation dorthin. */
-const ANFAHRT_MINUTEN = 12;
+/* Anfahrtszeit (Status-Wechsel Disponiert -> Unterwegs, GPS-Interpolation, Konfliktprüfung bei der
+ * Tagesplanung) wird nicht mehr pauschal angenommen, sondern aus der echten Entfernung zwischen
+ * Start- und Abholadresse berechnet - siehe anfahrtMinuten() (src/core/shifts/dauer.ts) und
+ * vorherigerStandort() unten. */
 /** Simulierte Gesprächsdauer, bevor ein Anruf nicht mehr als "läuft gerade" gilt (AnrufKarte) -
  * großzügig bemessen, damit bei mehreren Anrufen kurz hintereinander auch wirklich mehrere
  * gleichzeitig als "live" zu sehen sind (AnrufKarussell). */
@@ -309,13 +310,45 @@ const STANDPLAETZE: LatLng[] = [
 
 export async function demoBetriebSimulieren(tenantId: string = DEMO_TENANT_ID) {
   const jetzt = new Date();
+  const depot = await depotLaden(tenantId);
 
   await alteAnrufeAbschliessen(tenantId, jetzt);
   await neuenAnrufBeiBedarf(tenantId, jetzt);
-  await tagesplanSicherstellen(tenantId, jetzt);
-  await statusFortschreiben(tenantId, jetzt);
-  await positionenAktualisieren(tenantId, jetzt);
+  await tagesplanSicherstellen(tenantId, jetzt, depot);
+  await statusFortschreiben(tenantId, jetzt, depot);
+  await positionenAktualisieren(tenantId, jetzt, depot);
   await haengendeVorschlaegeAufraeumen(tenantId, jetzt);
+}
+
+/** Betriebshof-Koordinaten aus den Mandanten-Einstellungen (dieselbe Quelle wie die echte
+ * Produktions-Disposition, siehe depot-Parameter in vorschlaegeBerechnen(),
+ * src/core/disposition/vorschlagen.ts) - Fallback auf den ersten Standplatz, falls depotAddress
+ * ausnahmsweise fehlt (sollte bei seedDemoTenant() nie vorkommen). */
+async function depotLaden(tenantId: string): Promise<LatLng> {
+  const db = withTenant(tenantId);
+  const einstellungen = await db.tenantSettings.findUnique({ where: { tenantId }, select: { depotAddress: true } });
+  const depot = einstellungen?.depotAddress as LatLng | null | undefined;
+  return depot ?? STANDPLAETZE[0];
+}
+
+/** Letzter bekannter Standort eines Fahrzeugs vor einem Zeitpunkt: der Zielort seiner letzten an
+ * diesem Tag schon erledigten Fahrt, sonst der Betriebshof (erste Fahrt des Tages) - dieselbe
+ * Grundidee wie die echte Produktions-Disposition (vorherigeFahrtFinden() in
+ * src/core/disposition/vorschlagen.ts), hier anhand der echten Adresse statt eines GPS-Live-Werts:
+ * der Punkt, von dem aus losgefahren wurde, bleibt fix, auch während das Fahrzeug schon unterwegs
+ * ist (ein GPS-Live-Wert würde sich sonst mit der laufenden Interpolation selbst verschieben). */
+async function vorherigerStandort(
+  db: ReturnType<typeof withTenant>,
+  vehicleId: string,
+  vorZeit: Date,
+  depot: LatLng,
+): Promise<LatLng> {
+  const letzteFahrt = await db.ride.findFirst({
+    where: { vehicleId, status: "ERLEDIGT", pickupAt: { lt: vorZeit } },
+    orderBy: { pickupAt: "desc" },
+    select: { dropoffPlace: { select: { lat: true, lng: true } } },
+  });
+  return letzteFahrt?.dropoffPlace ?? depot;
 }
 
 /** Ohne echten Disponenten klickt niemand "Bestätigen" für eine Fahrt, die der Automodus nicht
@@ -502,7 +535,7 @@ async function neuenAnrufBeiBedarf(tenantId: string, jetzt: Date) {
  * zu sehen sind. Fahrten, die schon vorbei sind oder gerade laufen, werden direkt mit dem
  * passenden Status angelegt (keine rückwirkende Simulation über den vollen Verlauf nötig); echte
  * Zukunft läuft ganz normal über einen simulierten Anruf plus Automodus-Zuweisung. */
-async function tagesplanSicherstellen(tenantId: string, jetzt: Date) {
+async function tagesplanSicherstellen(tenantId: string, jetzt: Date, depot: LatLng) {
   const db = withTenant(tenantId);
   const tagesStart = mitUhrzeit(jetzt, BETRIEB_START);
   let tagesEnde = mitUhrzeit(jetzt, BETRIEB_ENDE);
@@ -547,9 +580,14 @@ async function tagesplanSicherstellen(tenantId: string, jetzt: Date) {
     if (fehlend <= 0) continue;
 
     const transportType = fahrzeugTypTransportType(fahrzeug);
-    const belegt = bestehend.map((f) => ({
-      von: new Date(f.pickupAt.getTime() - ANFAHRT_MINUTEN * 60_000),
-      bis: new Date(f.pickupAt.getTime() + fahrtDauerMinuten(f.transportType, f.pickupPlace, f.dropoffPlace) * 60_000),
+    // Explizit als BelegterSlot[] statt den (um einige Felder reicheren) Prisma-Place-Typ aus
+    // bestehend inferieren zu lassen - slot.pickupPlace/dropoffPlace unten sind vom schlankeren Ort-
+    // Typ (nur die für die Anfahrt-Berechnung nötigen Felder), beide sind strukturell kompatibel.
+    const belegt: BelegterSlot[] = bestehend.map((f) => ({
+      pickupAt: f.pickupAt,
+      ende: new Date(f.pickupAt.getTime() + fahrtDauerMinuten(f.transportType, f.pickupPlace, f.dropoffPlace) * 60_000),
+      pickupOrt: f.pickupPlace,
+      dropoffOrt: f.dropoffPlace,
     }));
 
     for (let i = 0; i < fehlend; i++) {
@@ -558,11 +596,18 @@ async function tagesplanSicherstellen(tenantId: string, jetzt: Date) {
       const fruehestens = auswahl.fruehestens ?? tagesStart;
       const slot = freienSlotFinden(fruehestens, tagesEnde, belegt, transportType, wohnorte, einrichtungen, auswahl.route);
       if (!slot) break; // kein überschneidungsfreier Platz mehr gefunden - nicht erzwingen
-      belegt.push({ von: new Date(slot.pickupAt.getTime() - ANFAHRT_MINUTEN * 60_000), bis: slot.ende });
+      // Vorgänger im bisherigen Tagesplan dieses Fahrzeugs - bestimmt, von wo aus losgefahren wird
+      // (echter letzter Standort, nicht pauschal der Betriebshof) und damit die echte Anfahrtszeit.
+      const vorgaenger = belegt
+        .filter((b) => b.ende <= slot.pickupAt)
+        .sort((a, b) => b.ende.getTime() - a.ende.getTime())[0];
+      const anfahrtMin = anfahrtMinuten(vorgaenger?.dropoffOrt ?? depot, slot.pickupPlace);
+      const anfahrtStart = new Date(slot.pickupAt.getTime() - anfahrtMin * 60_000);
+      const kandidat = { pickupAt: slot.pickupAt, ende: slot.ende, pickupOrt: slot.pickupPlace, dropoffOrt: slot.dropoffPlace };
+      belegt.push(kandidat);
       neuAngelegt += 1;
 
       const passagier = auswahl.passagier;
-      const anfahrtStart = new Date(slot.pickupAt.getTime() - ANFAHRT_MINUTEN * 60_000);
 
       if (slot.ende <= jetzt || anfahrtStart <= jetzt) {
         // Ganz oder teilweise in der Vergangenheit (inklusive "läuft gerade jetzt") - sofort mit
@@ -575,7 +620,7 @@ async function tagesplanSicherstellen(tenantId: string, jetzt: Date) {
         // fahrzeugZuweisen() im else-Zweig unten - sonst keine eigene Konfliktprüfung. Ein
         // zeitgleich laufender zweiter Durchlauf könnte seit der Abfrage von "bestehend" oben
         // bereits etwas Überschneidendes für dasselbe Fahrzeug angelegt haben.
-        if (await fahrzeugUeberschneidungVorhanden(db, fahrzeug.id, anfahrtStart, slot.ende)) {
+        if (await fahrzeugUeberschneidungVorhanden(db, fahrzeug.id, kandidat)) {
           continue; // ein paralleler Lauf hat diesen Slot inzwischen belegt - nicht erzwingen
         }
         // Dieselbe letzte Prüfung wie oben für das Fahrzeug, hier für den Fahrgast: ein
@@ -666,28 +711,36 @@ async function tagesplanSicherstellen(tenantId: string, jetzt: Date) {
   }
 }
 
-/** Frische Überschneidungsprüfung für genau ein Fahrzeug und ein Zeitfenster, direkt vor einem
- * db.ride.create() im Tagesplan-Pfad - siehe Kommentar an der Aufrufstelle. Bewusst eine
+/** Frische Überschneidungsprüfung für genau ein Fahrzeug und einen Kandidaten-Slot, direkt vor
+ * einem db.ride.create() im Tagesplan-Pfad - siehe Kommentar an der Aufrufstelle. Bewusst eine
  * eigenständige, kleine Abfrage statt des größeren "bestehend"-Querys oben, damit diese letzte
- * Prüfung so kurz wie möglich vor dem Schreiben passiert. */
+ * Prüfung so kurz wie möglich vor dem Schreiben passiert. Prüft wie anfahrtKonfliktVorhanden()
+ * nicht nur Zeitüberschneidung, sondern auch die echte Anfahrtszeit zwischen den Adressen. */
 async function fahrzeugUeberschneidungVorhanden(
   db: ReturnType<typeof withTenant>,
   vehicleId: string,
-  von: Date,
-  bis: Date,
+  kandidat: { pickupAt: Date; ende: Date; pickupOrt: LatLng; dropoffOrt: LatLng },
 ): Promise<boolean> {
   const bestehend = await db.ride.findMany({
     where: {
       vehicleId,
       status: { not: "STORNIERT" },
-      pickupAt: { gte: new Date(von.getTime() - 4 * 60 * 60_000), lte: new Date(bis.getTime() + 4 * 60 * 60_000) },
+      pickupAt: {
+        gte: new Date(kandidat.pickupAt.getTime() - 4 * 60 * 60_000),
+        lte: new Date(kandidat.ende.getTime() + 4 * 60 * 60_000),
+      },
     },
     include: { pickupPlace: true, dropoffPlace: true },
   });
   return bestehend.some((f) => {
-    const fVon = new Date(f.pickupAt.getTime() - ANFAHRT_MINUTEN * 60_000);
-    const fBis = new Date(f.pickupAt.getTime() + fahrtDauerMinuten(f.transportType, f.pickupPlace, f.dropoffPlace) * 60_000);
-    return von < fBis && fVon < bis;
+    const fEnde = new Date(f.pickupAt.getTime() + fahrtDauerMinuten(f.transportType, f.pickupPlace, f.dropoffPlace) * 60_000);
+    if (kandidat.pickupAt < fEnde && f.pickupAt < kandidat.ende) return true; // direkte Überschneidung
+    if (f.pickupAt <= kandidat.pickupAt) {
+      const noetig = anfahrtMinuten(f.dropoffPlace, kandidat.pickupOrt);
+      return kandidat.pickupAt.getTime() - fEnde.getTime() < noetig * 60_000;
+    }
+    const noetig = anfahrtMinuten(kandidat.dropoffOrt, f.pickupPlace);
+    return f.pickupAt.getTime() - kandidat.ende.getTime() < noetig * 60_000;
   });
 }
 
@@ -720,10 +773,35 @@ async function passagierKonfliktVorhanden(
   return !istGueltigeRueckfahrt;
 }
 
+type BelegterSlot = { pickupAt: Date; ende: Date; pickupOrt: Ort; dropoffOrt: Ort };
+
+/** Prüft einen Kandidaten-Slot gegen die schon belegten Slots desselben Fahrzeugs - nicht nur
+ * Zeitüberschneidung, sondern auch ob zwischen den jeweils echten Adressen genug Anfahrtszeit
+ * bleibt (anfahrtMinuten()), statt einer für jedes Fahrzeug gleichen Pauschalspanne. depot zählt
+ * dabei nicht als Vorgänger/Nachfolger - der Betriebshof hat anders als ein Fahrzeug keine
+ * begrenzte Kapazität, braucht also keine eigene Konfliktprüfung. */
+function anfahrtKonfliktVorhanden(belegt: BelegterSlot[], kandidat: BelegterSlot): boolean {
+  if (belegt.some((b) => kandidat.pickupAt < b.ende && b.pickupAt < kandidat.ende)) return true; // direkte Überschneidung
+
+  const vorher = belegt.filter((b) => b.ende <= kandidat.pickupAt).sort((a, b) => b.ende.getTime() - a.ende.getTime())[0];
+  if (vorher) {
+    const noetig = anfahrtMinuten(vorher.dropoffOrt, kandidat.pickupOrt);
+    if (kandidat.pickupAt.getTime() - vorher.ende.getTime() < noetig * 60_000) return true;
+  }
+
+  const nachher = belegt.filter((b) => b.pickupAt >= kandidat.ende).sort((a, b) => a.pickupAt.getTime() - b.pickupAt.getTime())[0];
+  if (nachher) {
+    const noetig = anfahrtMinuten(kandidat.dropoffOrt, nachher.pickupOrt);
+    if (nachher.pickupAt.getTime() - kandidat.ende.getTime() < noetig * 60_000) return true;
+  }
+
+  return false;
+}
+
 function freienSlotFinden(
   fruehestens: Date,
   tagesEnde: Date,
-  belegt: { von: Date; bis: Date }[],
+  belegt: BelegterSlot[],
   transportType: TransportTyp,
   wohnorte: Ort[],
   einrichtungen: Ort[],
@@ -738,14 +816,13 @@ function freienSlotFinden(
     const { pickupPlace, dropoffPlace } = fixeRoute ?? zufallsPaar(wohnorte, einrichtungen);
     const dauerMinuten = fahrtDauerMinuten(transportType, pickupPlace, dropoffPlace);
     const ende = new Date(pickupAt.getTime() + dauerMinuten * 60_000);
-    const anfahrtStart = new Date(pickupAt.getTime() - ANFAHRT_MINUTEN * 60_000);
-    const ueberschneidet = belegt.some((b) => anfahrtStart < b.bis && b.von < ende);
-    if (!ueberschneidet) return { pickupAt, ende, pickupPlace, dropoffPlace };
+    const kandidat = { pickupAt, ende, pickupOrt: pickupPlace, dropoffOrt: dropoffPlace };
+    if (!anfahrtKonfliktVorhanden(belegt, kandidat)) return { pickupAt, ende, pickupPlace, dropoffPlace };
   }
   return null;
 }
 
-async function statusFortschreiben(tenantId: string, jetzt: Date) {
+async function statusFortschreiben(tenantId: string, jetzt: Date, depot: LatLng) {
   const db = withTenant(tenantId);
   const kandidaten = await db.ride.findMany({
     where: { status: { in: ["DISPONIERT", "UNTERWEGS", "AN_BORD"] } },
@@ -763,7 +840,10 @@ async function statusFortschreiben(tenantId: string, jetzt: Date) {
   });
   for (const fahrt of kandidaten) {
     if (fahrt.status === "DISPONIERT") {
-      if (jetzt.getTime() >= fahrt.pickupAt.getTime() - ANFAHRT_MINUTEN * 60_000) {
+      if (!fahrt.vehicleId) continue; // bei DISPONIERT eigentlich immer gesetzt, defensiv
+      const vonOrt = await vorherigerStandort(db, fahrt.vehicleId, fahrt.pickupAt, depot);
+      const anfahrt = anfahrtMinuten(vonOrt, fahrt.pickupPlace);
+      if (jetzt.getTime() >= fahrt.pickupAt.getTime() - anfahrt * 60_000) {
         await fahrtStatusAendern(tenantId, fahrt.id, "UNTERWEGS");
       }
     } else if (fahrt.status === "UNTERWEGS") {
@@ -780,7 +860,7 @@ async function statusFortschreiben(tenantId: string, jetzt: Date) {
   }
 }
 
-async function positionenAktualisieren(tenantId: string, jetzt: Date) {
+async function positionenAktualisieren(tenantId: string, jetzt: Date, depot: LatLng) {
   const db = withTenant(tenantId);
   const [fahrzeuge, aktiveFahrten] = await Promise.all([
     db.vehicle.findMany({ where: { active: true } }),
@@ -796,10 +876,14 @@ async function positionenAktualisieren(tenantId: string, jetzt: Date) {
 
     let position: LatLng | null = null;
     if (fahrt && fahrt.status === "UNTERWEGS") {
-      const start = new Date(fahrt.pickupAt.getTime() - ANFAHRT_MINUTEN * 60_000);
-      const anteil = clamp01((jetzt.getTime() - start.getTime()) / (ANFAHRT_MINUTEN * 60_000));
-      const letzte = await letztePosition(db, fahrzeug.id);
-      position = interpolieren(letzte ?? fahrt.pickupPlace, fahrt.pickupPlace, anteil);
+      // Startpunkt anhand der echten Adresse (letzte erledigte Fahrt oder Betriebshof), nicht per
+      // GPS-Live-Wert - der würde sich sonst mit der laufenden Interpolation selbst verschieben
+      // (siehe vorherigerStandort()).
+      const vonOrt = await vorherigerStandort(db, fahrzeug.id, fahrt.pickupAt, depot);
+      const anfahrt = anfahrtMinuten(vonOrt, fahrt.pickupPlace);
+      const start = new Date(fahrt.pickupAt.getTime() - anfahrt * 60_000);
+      const anteil = clamp01((jetzt.getTime() - start.getTime()) / (anfahrt * 60_000));
+      position = interpolieren(vonOrt, fahrt.pickupPlace, anteil);
     } else if (fahrt && fahrt.status === "AN_BORD") {
       const dauerMinuten = fahrtDauerMinuten(fahrt.transportType, fahrt.pickupPlace, fahrt.dropoffPlace);
       const anteil = clamp01((jetzt.getTime() - fahrt.pickupAt.getTime()) / (dauerMinuten * 60_000));
