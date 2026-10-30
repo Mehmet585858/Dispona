@@ -85,9 +85,15 @@ const BETRIEB_ENDE = "18:00";
  * Würden die mitgezählt, wäre ZIEL_AKTIVE_FAHRTEN fast den ganzen Tag "erreicht" und die
  * spontane Anruf-Simulation - das eigentliche "Live"-Feature - käme kaum noch zum Zug. */
 const LAUFENDE_STATUS: RideStatus[] = ["UNTERWEGS", "AN_BORD"];
-/** Status, die einen Fahrgast gerade "besetzt" machen - bei nur 16 erfundenen Namen im Roster
- * (DEMO_PASSAGIER_ROSTER) sonst schnell derselbe Name gleichzeitig in mehreren Fahrzeugen. */
-const AKTIVE_PASSAGIER_STATUS: RideStatus[] = ["DISPONIERT", "UNTERWEGS", "AN_BORD"];
+/** Wie wahrscheinlich ein heute schon einmal verplanter Fahrgast für eine zweite Fahrt als
+ * Rückfahrt (umgekehrte Route, gleiche Transportart) wiederverwendet wird, statt einen frischen,
+ * heute noch unbenutzten Namen zu nehmen - sonst bekäme praktisch jeder einen Rückweg, und das
+ * Roster würde ständig doppelt auftauchen. */
+const RUECKFAHRT_WAHRSCHEINLICHKEIT = 0.4;
+/** Mindest- und Zusatzwartezeit zwischen Hin- und Rückfahrt (der Termin dauert ja eine Weile) -
+ * bestimmt die früheste erlaubte Abholzeit für die Rückfahrt. */
+const RUECKFAHRT_WARTEZEIT_MIN_MINUTEN = 20;
+const RUECKFAHRT_WARTEZEIT_SPANNE_MINUTEN = 90;
 
 const TRANSPORT_GEWICHTE: [TransportTyp, number][] = [
   ["SITZEND", 55],
@@ -110,22 +116,105 @@ function zufallsElement<T>(liste: T[]): T {
   return liste[Math.floor(Math.random() * liste.length)];
 }
 
-/** IDs aller Fahrgäste, die gerade eine aktive Fahrt haben (siehe AKTIVE_PASSAGIER_STATUS) - vor
- * jeder neuen Zuteilung geprüft, damit derselbe Name nicht gleichzeitig in mehreren Fahrzeugen
- * unterwegs ist. */
-async function belegtePassagierIds(db: ReturnType<typeof withTenant>): Promise<Set<string>> {
-  const belegt = await db.ride.findMany({
-    where: { status: { in: AKTIVE_PASSAGIER_STATUS } },
-    select: { passengerId: true },
+type PassagierTagesInfo = {
+  pickupPlace: Ort;
+  dropoffPlace: Ort;
+  transportType: TransportTyp;
+  ende: Date;
+  anzahl: number;
+};
+
+/** Lädt für jeden Fahrgast, der "heute" (tagesStart bis tagesEnde) schon mindestens eine nicht
+ * stornierte Fahrt hat, Route, Transportart und Ende der letzten Fahrt - die Grundlage dafür, dass
+ * derselbe Name höchstens zweimal vorkommt, und das zweite Mal nur als echte Rückfahrt (umgekehrte
+ * Route, gleiche Transportart), nie als unabhängige weitere Fahrt. */
+async function passagierTagesInfoLaden(
+  db: ReturnType<typeof withTenant>,
+  tagesStart: Date,
+  tagesEnde: Date,
+): Promise<Map<string, PassagierTagesInfo>> {
+  const heutigeFahrten = await db.ride.findMany({
+    where: { pickupAt: { gte: tagesStart, lte: tagesEnde }, status: { not: "STORNIERT" } },
+    include: { pickupPlace: true, dropoffPlace: true },
+    orderBy: { pickupAt: "asc" },
   });
-  return new Set(belegt.map((r) => r.passengerId));
+  const info = new Map<string, PassagierTagesInfo>();
+  for (const fahrt of heutigeFahrten) {
+    const dauerMinuten = fahrtDauerMinuten(fahrt.transportType, fahrt.pickupPlace, fahrt.dropoffPlace);
+    const bestehend = info.get(fahrt.passengerId);
+    info.set(fahrt.passengerId, {
+      pickupPlace: fahrt.pickupPlace,
+      dropoffPlace: fahrt.dropoffPlace,
+      transportType: fahrt.transportType,
+      ende: new Date(fahrt.pickupAt.getTime() + dauerMinuten * 60_000),
+      anzahl: (bestehend?.anzahl ?? 0) + 1,
+    });
+  }
+  return info;
 }
 
-/** Schließt gerade besetzte Fahrgäste aus - bleibt am Ende zufällig niemand übrig (z. B. kurz nach
- * einer Lastspitze), lieber eine seltene Kollision in Kauf nehmen als gar keine neue Fahrt anlegen. */
-function verfuegbarePassagiere(passagiere: Passagier[], belegt: Set<string>): Passagier[] {
-  const frei = passagiere.filter((p) => !belegt.has(p.id));
-  return frei.length > 0 ? frei : passagiere;
+/** Trägt eine neu angelegte Fahrt in tagesInfo ein, direkt nach dem Schreiben - damit ein
+ * übernächster Slot im selben Lauf diesen Fahrgast schon als "heute verplant" sieht. */
+function tagesInfoAktualisieren(
+  tagesInfo: Map<string, PassagierTagesInfo>,
+  passagierId: string,
+  route: { pickupPlace: Ort; dropoffPlace: Ort },
+  transportType: TransportTyp,
+  ende: Date,
+) {
+  const bestehend = tagesInfo.get(passagierId);
+  tagesInfo.set(passagierId, {
+    pickupPlace: route.pickupPlace,
+    dropoffPlace: route.dropoffPlace,
+    transportType,
+    ende,
+    anzahl: (bestehend?.anzahl ?? 0) + 1,
+  });
+}
+
+/** Wählt den Fahrgast für eine neue Fahrt: bevorzugt einen heute noch unbenutzten Namen (frische
+ * Route wird vom Aufrufer bestimmt); mit RUECKFAHRT_WAHRSCHEINLICHKEIT stattdessen gezielt einen
+ * heute schon genau einmal verplanten Fahrgast für dessen Rückfahrt - Route umgekehrt, gleiche
+ * Transportart, frühestens eine Weile nach Ende der Hinfahrt. "Nie dieselben Namen, außer bei
+ * Hin- und Rückfahrt." erzwungeneTransportart (vom Fahrzeugtyp im Tagesplan vorgegeben) schränkt
+ * die Rückfahrt-Kandidaten auf passende Transportarten ein - ohne Vorgabe (spontaner Anruf) zählt
+ * jede Transportart. */
+function passagierWaehlen(
+  passagiere: Passagier[],
+  tagesInfo: Map<string, PassagierTagesInfo>,
+  erzwungeneTransportart?: TransportTyp,
+): {
+  passagier: Passagier;
+  transportType: TransportTyp;
+  istRueckfahrt: boolean;
+  route?: { pickupPlace: Ort; dropoffPlace: Ort };
+  fruehestens?: Date;
+} {
+  const rueckfahrtKandidaten = passagiere.filter((p) => {
+    const info = tagesInfo.get(p.id);
+    return !!info && info.anzahl === 1 && (!erzwungeneTransportart || info.transportType === erzwungeneTransportart);
+  });
+  if (rueckfahrtKandidaten.length > 0 && Math.random() < RUECKFAHRT_WAHRSCHEINLICHKEIT) {
+    const passagier = zufallsElement(rueckfahrtKandidaten);
+    const info = tagesInfo.get(passagier.id)!;
+    const wartenMinuten = RUECKFAHRT_WARTEZEIT_MIN_MINUTEN + Math.random() * RUECKFAHRT_WARTEZEIT_SPANNE_MINUTEN;
+    return {
+      passagier,
+      transportType: info.transportType,
+      istRueckfahrt: true,
+      route: { pickupPlace: info.dropoffPlace, dropoffPlace: info.pickupPlace },
+      fruehestens: new Date(info.ende.getTime() + wartenMinuten * 60_000),
+    };
+  }
+  // Heute noch unbenutzte Namen bevorzugen; ist das Roster für heute komplett verplant, lieber
+  // eine seltene Kollision in Kauf nehmen als gar keine neue Fahrt anlegen.
+  const frische = passagiere.filter((p) => !tagesInfo.has(p.id));
+  const kandidaten = frische.length > 0 ? frische : passagiere;
+  return {
+    passagier: zufallsElement(kandidaten),
+    transportType: erzwungeneTransportart ?? zufaelligerTransportTyp(),
+    istRueckfahrt: false,
+  };
 }
 
 function zufallsPaar(wohnorte: Ort[], einrichtungen: Ort[]): { pickupPlace: Ort; dropoffPlace: Ort } {
@@ -370,26 +459,30 @@ async function neuenAnrufBeiBedarf(tenantId: string, jetzt: Date) {
   if (aktiveAnzahl >= ZIEL_AKTIVE_FAHRTEN) return;
   if (Math.random() > NEUE_FAHRT_WAHRSCHEINLICHKEIT) return;
 
-  const [passagiere, orte, belegt] = await Promise.all([
+  const tagesStart = mitUhrzeit(jetzt, BETRIEB_START);
+  let tagesEnde = mitUhrzeit(jetzt, BETRIEB_ENDE);
+  if (jetzt > tagesEnde) tagesEnde = jetzt;
+
+  const [passagiere, orte, tagesInfo] = await Promise.all([
     fahrgastRosterSicherstellen(tenantId),
     db.place.findMany(),
-    belegtePassagierIds(db),
+    passagierTagesInfoLaden(db, tagesStart, tagesEnde),
   ]);
   const wohnorte = orte.filter((o) => o.type === "WOHNUNG");
   const einrichtungen = orte.filter((o) => o.type !== "WOHNUNG" && o.type !== "SONSTIGES");
-  const verfuegbar = verfuegbarePassagiere(passagiere, belegt);
-  if (verfuegbar.length === 0 || wohnorte.length === 0 || einrichtungen.length === 0) return;
+  if (passagiere.length === 0 || wohnorte.length === 0 || einrichtungen.length === 0) return;
 
-  const { pickupPlace, dropoffPlace } = zufallsPaar(wohnorte, einrichtungen);
-  const transportType = zufaelligerTransportTyp();
+  const auswahl = passagierWaehlen(passagiere, tagesInfo);
+  const { pickupPlace, dropoffPlace } = auswahl.route ?? zufallsPaar(wohnorte, einrichtungen);
   const pickupInMinuten = 10 + Math.floor(Math.random() * 70); // 10-80 Minuten voraus - wirkt dringend, aber plausibel
-  const pickupAt = new Date(jetzt.getTime() + pickupInMinuten * 60_000);
+  let pickupAt = new Date(jetzt.getTime() + pickupInMinuten * 60_000);
+  if (auswahl.fruehestens && pickupAt < auswahl.fruehestens) pickupAt = auswahl.fruehestens;
 
   await simulierteFahrtAnlegen(tenantId, jetzt, {
-    passagier: zufallsElement(verfuegbar),
+    passagier: auswahl.passagier,
     pickupPlace,
     dropoffPlace,
-    transportType,
+    transportType: auswahl.transportType,
     pickupAt,
   });
 }
@@ -407,14 +500,14 @@ async function tagesplanSicherstellen(tenantId: string, jetzt: Date) {
   let tagesEnde = mitUhrzeit(jetzt, BETRIEB_ENDE);
   if (jetzt > tagesEnde) tagesEnde = jetzt; // nach Betriebsschluss trotzdem nicht ins Leere planen
 
-  const [fahrzeuge, orte, passagiere, belegtePassagiere] = await Promise.all([
+  const [fahrzeuge, orte, passagiere, tagesInfo] = await Promise.all([
     // orderBy nötig: ohne stabile Sortierung kann Postgres zwischen zwei Läufen eine andere
     // Reihenfolge liefern (z. B. nach einem update() in seedDemoTenant.ts) - .slice(...) unten
     // würde dann zwischen zwei Cron-Minuten unterschiedliche Fahrzeuge als "vollausgelastet" wählen.
     db.vehicle.findMany({ where: { active: true }, orderBy: { plate: "asc" } }),
     db.place.findMany(),
     fahrgastRosterSicherstellen(tenantId),
-    belegtePassagierIds(db),
+    passagierTagesInfoLaden(db, tagesStart, tagesEnde),
   ]);
   const wohnorte = orte.filter((o) => o.type === "WOHNUNG");
   const einrichtungen = orte.filter((o) => o.type !== "WOHNUNG" && o.type !== "SONSTIGES");
@@ -453,12 +546,14 @@ async function tagesplanSicherstellen(tenantId: string, jetzt: Date) {
 
     for (let i = 0; i < fehlend; i++) {
       if (neuAngelegt >= MAX_NEUE_TAGESPLAN_FAHRTEN_PRO_LAUF) break;
-      const slot = freienSlotFinden(tagesStart, tagesEnde, belegt, transportType, wohnorte, einrichtungen);
+      const auswahl = passagierWaehlen(passagiere, tagesInfo, transportType);
+      const fruehestens = auswahl.fruehestens ?? tagesStart;
+      const slot = freienSlotFinden(fruehestens, tagesEnde, belegt, transportType, wohnorte, einrichtungen, auswahl.route);
       if (!slot) break; // kein überschneidungsfreier Platz mehr gefunden - nicht erzwingen
       belegt.push({ von: new Date(slot.pickupAt.getTime() - ANFAHRT_MINUTEN * 60_000), bis: slot.ende });
       neuAngelegt += 1;
 
-      const passagier = zufallsElement(verfuegbarePassagiere(passagiere, belegtePassagiere));
+      const passagier = auswahl.passagier;
       const anfahrtStart = new Date(slot.pickupAt.getTime() - ANFAHRT_MINUTEN * 60_000);
 
       if (slot.ende <= jetzt || anfahrtStart <= jetzt) {
@@ -497,13 +592,22 @@ async function tagesplanSicherstellen(tenantId: string, jetzt: Date) {
           },
         });
         await db.rideStatusEvent.create({ data: { tenantId, rideId: neueFahrt.id, status } });
-        if (status !== "ERLEDIGT") belegtePassagiere.add(passagier.id);
+        // Unabhängig vom Status aktualisieren (auch bei ERLEDIGT): der Fahrgast hat heute schon
+        // eine Fahrt gehabt, egal ob sie noch läuft oder schon vorbei ist - das allein soll eine
+        // weitere, unabhängige Zuteilung an denselben Namen verhindern (siehe passagierWaehlen).
+        tagesInfoAktualisieren(
+          tagesInfo,
+          passagier.id,
+          { pickupPlace: slot.pickupPlace, dropoffPlace: slot.dropoffPlace },
+          transportType,
+          slot.ende,
+        );
       } else {
         // Echte Zukunft (bis 18 Uhr): simulierter Anruf, aber direkt diesem schon
         // überschneidungsfrei geprüften Fahrzeug zugewiesen statt dem Automodus überlassen - der
         // müsste sonst unter vielen gleichzeitig geplanten Tagesplan-Fahrten frei wählen, was ohne
         // echten Disponenten nur unnötige "Braucht Sie"-Fälle erzeugt.
-        const zugewiesen = await simulierteFahrtAnlegen(tenantId, jetzt, {
+        await simulierteFahrtAnlegen(tenantId, jetzt, {
           passagier,
           pickupPlace: slot.pickupPlace,
           dropoffPlace: slot.dropoffPlace,
@@ -511,7 +615,15 @@ async function tagesplanSicherstellen(tenantId: string, jetzt: Date) {
           pickupAt: slot.pickupAt,
           vehicleId: fahrzeug.id,
         });
-        if (zugewiesen) belegtePassagiere.add(passagier.id);
+        // Die Fahrt existiert ab hier so oder so (ERFASST, ggf. ohne Fahrzeug bei einem seltenen
+        // Konflikt) - der Name gilt damit als "heute verplant", unabhängig vom Zuweisungserfolg.
+        tagesInfoAktualisieren(
+          tagesInfo,
+          passagier.id,
+          { pickupPlace: slot.pickupPlace, dropoffPlace: slot.dropoffPlace },
+          transportType,
+          slot.ende,
+        );
       }
     }
   }
@@ -543,17 +655,21 @@ async function fahrzeugUeberschneidungVorhanden(
 }
 
 function freienSlotFinden(
-  tagesStart: Date,
+  fruehestens: Date,
   tagesEnde: Date,
   belegt: { von: Date; bis: Date }[],
   transportType: TransportTyp,
   wohnorte: Ort[],
   einrichtungen: Ort[],
+  fixeRoute?: { pickupPlace: Ort; dropoffPlace: Ort },
 ): { pickupAt: Date; ende: Date; pickupPlace: Ort; dropoffPlace: Ort } | null {
+  if (fruehestens >= tagesEnde) return null; // z. B. eine Rückfahrt, deren Wartezeit über 18 Uhr hinausreicht
   for (let versuch = 0; versuch < 8; versuch++) {
     const anteil = Math.random();
-    const pickupAt = new Date(tagesStart.getTime() + anteil * (tagesEnde.getTime() - tagesStart.getTime()));
-    const { pickupPlace, dropoffPlace } = zufallsPaar(wohnorte, einrichtungen);
+    const pickupAt = new Date(fruehestens.getTime() + anteil * (tagesEnde.getTime() - fruehestens.getTime()));
+    // fixeRoute (Rückfahrt): dieselbe umgekehrte Route bei jedem Versuch, nur die Uhrzeit variiert.
+    // Sonst (frische Fahrt) wie bisher bei jedem Versuch eine neue zufällige Route.
+    const { pickupPlace, dropoffPlace } = fixeRoute ?? zufallsPaar(wohnorte, einrichtungen);
     const dauerMinuten = fahrtDauerMinuten(transportType, pickupPlace, dropoffPlace);
     const ende = new Date(pickupAt.getTime() + dauerMinuten * 60_000);
     const anfahrtStart = new Date(pickupAt.getTime() - ANFAHRT_MINUTEN * 60_000);
