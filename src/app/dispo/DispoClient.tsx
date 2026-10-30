@@ -302,12 +302,22 @@ export function AnrufKarte({
 }) {
   const router = useRouter();
   const [transkript, setTranskript] = useState<string | null | undefined>(undefined);
-  const [jetzt, setJetzt] = useState(() => new Date());
+  // Startet bei anruf.startedAt (0 Sekunden), nicht bei new Date(): eine frische new Date() im
+  // Initialwert würde serverseitig zu einem anderen Zeitpunkt ausgewertet als beim Hydrieren im
+  // Browser (Netzwerklaufzeit dazwischen) - dauerText(anruf.startedAt, jetzt) zeigt dann kurz zwei
+  // unterschiedliche Texte und React wirft einen Hydration-Fehler (#418). Mit anruf.startedAt als
+  // Start zeigen Server und Client beim ersten Rendern garantiert "00:00", bevor der Effekt unten
+  // nach dem Hydrieren zu ticken beginnt.
+  const [jetzt, setJetzt] = useState(() => anruf.startedAt);
   const aktualisieren = useCallback(() => router.refresh(), [router]);
 
   // Tickt sekündlich für sich selbst, unabhängig vom 5-10s-Nachladeintervall der Seite - die
   // Gesprächsdauer soll wirklich live wirken, nicht nur alle paar Sekunden springen.
   useEffect(() => {
+    // Als Mikrotask statt synchron im Effekt-Rumpf (wie beim selben Muster in Zeitstrahl.tsx) -
+    // zieht die Anzeige sofort nach dem Hydrieren auf die echte Uhrzeit nach, ohne auf den ersten
+    // Sekunden-Tick zu warten, aber ohne den "setState direkt im Effekt"-Lint-Fehler.
+    Promise.resolve().then(() => setJetzt(new Date()));
     const intervallId = setInterval(() => setJetzt(new Date()), 1000);
     return () => clearInterval(intervallId);
   }, []);
