@@ -10,6 +10,7 @@ import { fahrtErfassen } from "@/core/rides/erfassen";
 import { serieAnlegen as serieAnlegenKern } from "@/core/rides/serie";
 import { fahrtStornieren as fahrtStornierenKern } from "@/core/rides/stornieren";
 import { fahrzeugZuweisen, FahrzeugKonfliktError } from "@/core/disposition/zuweisen";
+import { fahrzeugTypLabel } from "@/core/rides/fahrzeugTyp";
 import { fahrgaesteAehnlicheNamen, telefonNormalisieren } from "@/core/passengers/suche";
 import { telefonMaskiert } from "@/core/notify/telefonMaskierung";
 import { berlinerMitternacht, datumIso, wochenStart } from "@/core/shifts/week";
@@ -31,15 +32,6 @@ function nachname(vollerName: string): string {
   return teile[teile.length - 1] ?? vollerName;
 }
 
-/** Höchste Fähigkeit zuerst (core/disposition/kandidaten.ts kennt dieselbe Reihenfolge). */
-/** Branchenübliche Kürzel aus dem Krankentransport statt generischer Beschreibung:
- * BTW = Behindertentransportwagen, LMW = Liegend-Mietwagen. */
-function fahrzeugTypLabel(fahrzeug: { stretcher: boolean; carryChair: boolean; wheelchairSpots: number }): string {
-  if (fahrzeug.stretcher) return "LMW";
-  if (fahrzeug.carryChair) return "Tragestuhl";
-  if (fahrzeug.wheelchairSpots > 0) return "BTW";
-  return "Taxi";
-}
 
 /**
  * Lädt alles für die Fahrplan-Seite in einem Rutsch: Fahrten, Fahrer mit ihren Schichten im

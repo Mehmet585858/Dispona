@@ -20,7 +20,6 @@ import {
   STUNDEN_TICKS,
   ZEITSTRAHL_BREITE_PX,
   istAlarmFahrt,
-  kurzname,
   px,
   uhrzeit,
   zustandFuerFahrt,
@@ -105,8 +104,9 @@ export function LiveZeitstrahl({
                 className="sticky left-0 z-10 w-[230px] flex-none bg-surface shadow-[2px_0_6px_-2px_rgba(16,24,32,0.12)]"
                 title={`${zeile.plate} · ${zeile.typ} · ${zeile.fahrerNamen || "ohne Fahrer"}`}
               >
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-1.5">
                   <p className="font-semibold text-ink">{zeile.plate}</p>
+                  <span className="rounded bg-ground px-1.5 py-0.5 text-xs font-medium text-muted">{zeile.typ}</span>
                   {zeile.fahrerNamen ? (
                     <span className="truncate rounded bg-accent-soft px-1.5 py-0.5 text-xs font-medium text-ink-soft">
                       {zeile.fahrerNamen}
@@ -148,7 +148,7 @@ export function LiveZeitstrahl({
                     >
                       <span className="font-mono text-[11px]">{uhrzeit(fahrt.pickupAt)}</span>
                       <span className="truncate font-semibold">
-                        {kurzname(fahrt.passenger.firstName, fahrt.passenger.lastName)}
+                        {fahrt.passenger.firstName} {fahrt.passenger.lastName}
                       </span>
                       <span className="truncate text-[10px] opacity-80">{TRANSPORT_TYPE_LABEL[fahrt.transportType]}</span>
                     </button>

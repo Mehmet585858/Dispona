@@ -247,15 +247,16 @@ export async function seedDemoTenant() {
   ];
   // Wohnadressen, über ganz Berlin verteilt - als Abholung/Ziel der simulierten Fahrten
   // (betriebSimulieren.ts), damit Fahrzeuge auf echten Routen quer durch die Stadt unterwegs sind
-  // statt nur am Betriebshof zu stehen.
-  const altesLabelLeer = undefined as string | undefined;
+  // statt nur am Betriebshof zu stehen. Label ist die vollständige Adresse selbst (Straße, PLZ,
+  // Stadt) statt eines generischen "Wohnung X" - im Gespräch und im Detail-Fenster steht sonst nur
+  // ein Platzhalter-Name statt einer echten Abholadresse.
   const wohnorteDaten = [
-    { label: "Wohnung Prenzlauer Berg", altesLabel: altesLabelLeer, street: "Schönhauser Allee 120", zip: "10437", city: "Berlin", lat: 52.5476, lng: 13.4126, type: "WOHNUNG" as const },
-    { label: "Wohnung Charlottenburg", altesLabel: altesLabelLeer, street: "Kantstraße 45", zip: "10625", city: "Berlin", lat: 52.5058, lng: 13.3192, type: "WOHNUNG" as const },
-    { label: "Wohnung Neukölln", altesLabel: altesLabelLeer, street: "Karl-Marx-Straße 66", zip: "12043", city: "Berlin", lat: 52.4817, lng: 13.4357, type: "WOHNUNG" as const },
-    { label: "Wohnung Spandau", altesLabel: altesLabelLeer, street: "Altstädter Ring 2", zip: "13597", city: "Berlin", lat: 52.5355, lng: 13.2007, type: "WOHNUNG" as const },
-    { label: "Wohnung Köpenick", altesLabel: altesLabelLeer, street: "Bahnhofstraße 30", zip: "12555", city: "Berlin", lat: 52.4559, lng: 13.5752, type: "WOHNUNG" as const },
-    { label: "Wohnung Reinickendorf", altesLabel: altesLabelLeer, street: "Residenzstraße 80", zip: "13409", city: "Berlin", lat: 52.5698, lng: 13.3496, type: "WOHNUNG" as const },
+    { label: "Schönhauser Allee 120, 10437 Berlin", altesLabel: "Wohnung Prenzlauer Berg", street: "Schönhauser Allee 120", zip: "10437", city: "Berlin", lat: 52.5476, lng: 13.4126, type: "WOHNUNG" as const },
+    { label: "Kantstraße 45, 10625 Berlin", altesLabel: "Wohnung Charlottenburg", street: "Kantstraße 45", zip: "10625", city: "Berlin", lat: 52.5058, lng: 13.3192, type: "WOHNUNG" as const },
+    { label: "Karl-Marx-Straße 66, 12043 Berlin", altesLabel: "Wohnung Neukölln", street: "Karl-Marx-Straße 66", zip: "12043", city: "Berlin", lat: 52.4817, lng: 13.4357, type: "WOHNUNG" as const },
+    { label: "Altstädter Ring 2, 13597 Berlin", altesLabel: "Wohnung Spandau", street: "Altstädter Ring 2", zip: "13597", city: "Berlin", lat: 52.5355, lng: 13.2007, type: "WOHNUNG" as const },
+    { label: "Bahnhofstraße 30, 12555 Berlin", altesLabel: "Wohnung Köpenick", street: "Bahnhofstraße 30", zip: "12555", city: "Berlin", lat: 52.4559, lng: 13.5752, type: "WOHNUNG" as const },
+    { label: "Residenzstraße 80, 13409 Berlin", altesLabel: "Wohnung Reinickendorf", street: "Residenzstraße 80", zip: "13409", city: "Berlin", lat: 52.5698, lng: 13.3496, type: "WOHNUNG" as const },
   ];
   const orteDaten = [...einrichtungenDaten, ...wohnorteDaten];
   for (const { altesLabel, ...daten } of orteDaten) {

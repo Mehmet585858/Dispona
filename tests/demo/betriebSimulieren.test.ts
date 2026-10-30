@@ -68,12 +68,14 @@ describe("demoBetriebSimulieren", () => {
     const fahrten = await prisma.ride.findMany({ where: { tenantId }, include: { call: true, passenger: true } });
     expect(fahrten.length).toBeGreaterThan(0);
 
-    const fahrt = fahrten[0];
-    expect(fahrt.source).toBe("ANRUF");
-    expect(fahrt.callId).not.toBeNull();
-    expect(fahrt.call?.transcript).toBeTruthy();
-    const klartext = decrypt(fahrt.call!.transcript!);
-    expect(klartext).toContain(fahrt.passenger.lastName);
+    // tagesplanSicherstellen() legt daneben auch direkt (ohne Anruf) Vergangenheits-Fahrten an -
+    // hier geht es konkret um die simulierte Anruf-Fahrt, nicht irgendeine beliebige.
+    const fahrt = fahrten.find((f) => f.callId !== null);
+    expect(fahrt).toBeDefined();
+    expect(fahrt!.source).toBe("ANRUF");
+    expect(fahrt!.call?.transcript).toBeTruthy();
+    const klartext = decrypt(fahrt!.call!.transcript!);
+    expect(klartext).toContain(fahrt!.passenger.lastName);
 
     // Fahrgast-Stamm wurde selbst angelegt (kein vorheriger seedDemoTenant()-Lauf nötig).
     const passagiere = await prisma.passenger.findMany({ where: { tenantId } });

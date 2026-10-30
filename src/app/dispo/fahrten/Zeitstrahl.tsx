@@ -121,11 +121,6 @@ export type FahrzeugZeile = {
   live: FahrzeugLiveStatus;
 };
 
-/** Kurzname für den Chip-Text, z. B. "J. Kramer" (DISPO-SPEZ.md Abschnitt 3.3). */
-export function kurzname(vorname: string, nachname: string): string {
-  return `${vorname.charAt(0)}. ${nachname}`;
-}
-
 function SpurKompakt({
   schicht,
   fahrten,
@@ -309,7 +304,9 @@ function FahrtChip({
             <span className="rounded bg-warn-bg px-1 text-warn-ink">+{fahrt.driverDelayMin}</span>
           ) : null}
         </span>
-        <span className="truncate font-semibold">{kurzname(fahrt.passenger.firstName, fahrt.passenger.lastName)}</span>
+        <span className="truncate font-semibold">
+          {fahrt.passenger.firstName} {fahrt.passenger.lastName}
+        </span>
       </button>
     </div>
   );
@@ -578,8 +575,9 @@ export function Zeitstrahl({
                 className="sticky left-0 z-10 w-[230px] flex-none bg-surface shadow-[2px_0_6px_-2px_rgba(16,24,32,0.12)]"
                 title={`${zeile.plate} · ${zeile.typ} · ${zeile.fahrerNamen || "ohne Fahrer"}`}
               >
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-1.5">
                   <p className="font-semibold text-ink">{zeile.plate}</p>
+                  <span className="rounded bg-ground px-1.5 py-0.5 text-xs font-medium text-muted">{zeile.typ}</span>
                   {zeile.fahrerNamen ? (
                     <span className="truncate rounded bg-accent-soft px-1.5 py-0.5 text-xs font-medium text-ink-soft">
                       {zeile.fahrerNamen}

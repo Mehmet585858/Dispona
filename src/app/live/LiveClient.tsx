@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { KpiTile } from "@/components/ui/KpiTile";
 import { Logo } from "@/components/ui/Logo";
-import { AnrufKarte, AnrufWarteKarte } from "@/app/dispo/DispoClient";
+import { AnrufKarussell, AnrufWarteKarte } from "@/app/dispo/DispoClient";
 import { zeitstrahlPosition } from "@/core/shifts/zeitstrahl";
 import { liveDemoLaden, liveTranskriptLaden } from "./actions";
 import { LiveZeitstrahl } from "./LiveZeitstrahl";
@@ -144,16 +144,7 @@ export function LiveClient({ initialDaten }: { initialDaten: LiveDaten }) {
           </div>
           <div className="flex w-full flex-none flex-col gap-4 md:w-[380px]">
             {daten.liveAnrufe.length > 0 ? (
-              daten.liveAnrufe.map((anruf, index) => (
-                <AnrufKarte
-                  key={anruf.id}
-                  anruf={anruf}
-                  index={index}
-                  gesamt={daten.liveAnrufe.length}
-                  onFahrtKlick={keinOp}
-                  transkriptLaden={liveTranskriptLaden}
-                />
-              ))
+              <AnrufKarussell liveAnrufe={daten.liveAnrufe} onFahrtKlick={keinOp} transkriptLaden={liveTranskriptLaden} />
             ) : (
               <AnrufWarteKarte anrufeHeute={daten.kennzahlen.anrufeHeute} />
             )}

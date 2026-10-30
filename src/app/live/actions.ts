@@ -9,36 +9,20 @@ import { withTenant } from "@/lib/db";
 import { decrypt } from "@/lib/crypto";
 import { DEMO_TENANT_ID } from "@/core/demo/const";
 
-/** Erste-Buchstaben-Darstellung statt vollem Namen - echte Anrufer der Live-Demo sind reale
- * Personen, nicht erfundene Demo-Daten, und die Seite ist ohne Login für jeden einsehbar. */
-function anonymisiert(firstName: string, lastName: string): { firstName: string; lastName: string } {
-  return {
-    firstName: firstName ? `${firstName.charAt(0)}.` : "",
-    lastName: lastName ? `${lastName.charAt(0)}.` : "",
-  };
-}
-
 export async function liveDemoLaden() {
   // oeffentlich=true lässt fahrzeugLiveStatus() den Fahrgastnamen aus "zusatz" weg (sonst z. B.
-  // "Fährt zum Fahrgast: M. Mustermann, 14:00") - der einzige Live-Status-Text, der je einen
-  // echten Namen enthält. Alle anderen Zustände (Ankunftszeit, Verspätung, "am Betriebshof")
-  // bleiben wie beim echten Dashboard sichtbar, statt komplett leer zu sein.
+  // "Fährt zum Fahrgast: M. Mustermann, 14:00") - der einzige Live-Status-Text, der je einen Namen
+  // enthält. Alle anderen Zustände (Ankunftszeit, Verspätung, "am Betriebshof") bleiben wie beim
+  // echten Dashboard sichtbar. Fahrgastnamen selbst werden NICHT mehr anonymisiert: alle Fahrten
+  // der Demo kommen jetzt aus dem festen, erfundenen Fahrgast-Stamm (src/core/demo/const.ts,
+  // DEMO_PASSAGIER_ROSTER) über die simulierte Dispona-Disposition (src/core/demo/
+  // betriebSimulieren.ts) - keine echten Anrufer mehr, die Telefonnummer ist noch gar nicht
+  // angeschaltet (siehe LiveClient.tsx). Sollte die Demo-Nummer später live gehen, braucht ECHTE
+  // Anrufer-Daten hier wieder eine eigene Anonymisierung.
   const daten = await fahrplanFuerMandantLaden(DEMO_TENANT_ID, undefined, "tag", true);
   return {
     ...daten,
-    fahrten: daten.fahrten.map((fahrt) => ({
-      ...fahrt,
-      passenger: { ...anonymisiert(fahrt.passenger.firstName, fahrt.passenger.lastName), phones: [], insurer: null },
-    })),
-    liveAnrufe: daten.liveAnrufe.map((anruf) => ({
-      ...anruf,
-      fahrt: anruf.fahrt
-        ? { ...anruf.fahrt, passenger: anonymisiert(anruf.fahrt.passenger.firstName, anruf.fahrt.passenger.lastName) }
-        : null,
-      // "Nummer bekannt von <Name>" würde einen wiederkehrenden echten Anrufer identifizieren -
-      // für die öffentliche Demo nicht nötig.
-      bekannterFahrgast: null,
-    })),
+    liveAnrufe: daten.liveAnrufe.map((anruf) => ({ ...anruf, bekannterFahrgast: null })),
   };
 }
 

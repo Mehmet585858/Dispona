@@ -284,6 +284,62 @@ export function AnrufWarteKarte({ anrufeHeute }: { anrufeHeute: number }) {
   );
 }
 
+/** Zeigt mehrere gleichzeitig laufende Anrufe als ein Karussell (Pfeile, "x von y" schon in
+ * AnrufKarte eingebaut) statt mehrerer untereinander gestapelter Karten - bei vielen Anrufen
+ * gleichzeitig wäre ein langer Stapel unübersichtlich, und nur ein Anruf braucht gerade die volle
+ * Aufmerksamkeit. Reine Anzeige-Umschaltung, der Zustand selbst kommt unverändert von oben. */
+export function AnrufKarussell({
+  liveAnrufe,
+  onFahrtKlick,
+  transkriptLaden,
+}: {
+  liveAnrufe: LiveAnruf[];
+  onFahrtKlick: (id: string) => void;
+  transkriptLaden?: (callId: string) => Promise<string | null>;
+}) {
+  const [index, setIndex] = useState(0);
+  // Rein aus dem aktuellen Render abgeleitet statt per Effekt zurückgesetzt: schrumpft die Liste
+  // (ein Anruf endet), zeigt der nächste Klick wieder einen gültigen Index, ganz ohne
+  // State-Update im Effekt.
+  const sichererIndex = liveAnrufe.length === 0 ? 0 : Math.min(index, liveAnrufe.length - 1);
+
+  if (liveAnrufe.length === 0) return null;
+  const anruf = liveAnrufe[sichererIndex];
+
+  return (
+    <div className="flex flex-col gap-2">
+      <AnrufKarte
+        key={anruf.id}
+        anruf={anruf}
+        index={sichererIndex}
+        gesamt={liveAnrufe.length}
+        onFahrtKlick={onFahrtKlick}
+        transkriptLaden={transkriptLaden}
+      />
+      {liveAnrufe.length > 1 ? (
+        <div className="flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => setIndex((sichererIndex - 1 + liveAnrufe.length) % liveAnrufe.length)}
+            aria-label="Vorheriger Anruf"
+            className="flex h-9 items-center gap-1 rounded-lg px-2 text-sm font-medium text-ink-soft hover:bg-accent-soft"
+          >
+            ‹ Vorheriger
+          </button>
+          <button
+            type="button"
+            onClick={() => setIndex((sichererIndex + 1) % liveAnrufe.length)}
+            aria-label="Nächster Anruf"
+            className="flex h-9 items-center gap-1 rounded-lg px-2 text-sm font-medium text-ink-soft hover:bg-accent-soft"
+          >
+            Nächster ›
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function DispoClient({
   paket,
   kennzahlen,
@@ -541,15 +597,7 @@ export function DispoClient({
           {paket === "PRO" ? (
             <>
               {liveAnrufe.length > 0 ? (
-                liveAnrufe.map((anruf, index) => (
-                  <AnrufKarte
-                    key={anruf.id}
-                    anruf={anruf}
-                    index={index}
-                    gesamt={liveAnrufe.length}
-                    onFahrtKlick={setOffeneFahrtId}
-                  />
-                ))
+                <AnrufKarussell liveAnrufe={liveAnrufe} onFahrtKlick={setOffeneFahrtId} />
               ) : (
                 <AnrufWarteKarte anrufeHeute={kennzahlen.anrufeHeute} />
               )}
