@@ -14,6 +14,7 @@ const BASIS: KandidatEingabe = {
   anfahrtMinuten: 10,
   fahrtMinuten: 15,
   leerKm: 3,
+  auslastungDifferenz: 0,
 };
 
 describe("bewerteKandidat", () => {
@@ -50,6 +51,19 @@ describe("bewerteKandidat", () => {
   it("lässt einen Kandidaten mit ausreichendem Puffer zur Folgefahrt zu", () => {
     const bewertung = bewerteKandidat({ ...BASIS, folgefahrtPufferMinuten: 30 });
     expect(bewertung.passtRein).toBe(true);
+  });
+
+  it("gleicht bei sonst gleichwertigen Kandidaten die Auslastung aus (weniger ausgelastetes Fahrzeug gewinnt)", () => {
+    const vielBeschaeftigt = bewerteKandidat({ ...BASIS, auslastungDifferenz: 2 });
+    const kaumBeschaeftigt = bewerteKandidat({ ...BASIS, auslastungDifferenz: -2 });
+    expect(kaumBeschaeftigt.score).toBeLessThan(vielBeschaeftigt.score);
+    expect(kaumBeschaeftigt.begruendung).toContain("gleicht Auslastung aus");
+  });
+
+  it("die Auslastung allein überstimmt nie eine deutlich kürzere Anfahrt", () => {
+    const nahAberBeschaeftigt = bewerteKandidat({ ...BASIS, anfahrtMinuten: 5, auslastungDifferenz: 2 });
+    const fernAberFrei = bewerteKandidat({ ...BASIS, anfahrtMinuten: 20, auslastungDifferenz: -2 });
+    expect(nahAberBeschaeftigt.score).toBeLessThan(fernAberFrei.score);
   });
 
   it("baut eine lesbare Begründung", () => {

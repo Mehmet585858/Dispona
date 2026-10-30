@@ -38,6 +38,28 @@ function vorherigeFahrtFinden(tagesplan: GeplanteFahrt[], vehicleId: string, pic
 }
 
 /**
+ * Fairness/Auslastungsausgleich (docs/05-disposition.md): wie viele Fahrten hat jedes infrage
+ * kommende Fahrzeug heute schon im Tagesplan, verglichen mit dem Durchschnitt aller Kandidaten?
+ * Ein Fahrzeug mit überdurchschnittlich vielen Fahrten bekommt in bewerteKandidat() dadurch einen
+ * kleinen Strafaufschlag, ein ruhigeres einen kleinen Bonus - wirkt nur als Zünglein an der Waage
+ * zwischen ungefähr gleichwertigen Kandidaten (siehe GEWICHTE.auslastung in weights.ts).
+ */
+function auslastungDifferenzBerechnen(tagesplan: GeplanteFahrt[], kandidatenIds: string[]): Map<string, number> {
+  const anzahlJeFahrzeug = new Map<string, number>();
+  for (const id of kandidatenIds) anzahlJeFahrzeug.set(id, 0);
+  for (const fahrt of tagesplan) {
+    if (anzahlJeFahrzeug.has(fahrt.vehicleId)) {
+      anzahlJeFahrzeug.set(fahrt.vehicleId, (anzahlJeFahrzeug.get(fahrt.vehicleId) ?? 0) + 1);
+    }
+  }
+  const durchschnitt =
+    [...anzahlJeFahrzeug.values()].reduce((summe, n) => summe + n, 0) / Math.max(1, kandidatenIds.length);
+  const differenzen = new Map<string, number>();
+  for (const [id, anzahl] of anzahlJeFahrzeug) differenzen.set(id, anzahl - durchschnitt);
+  return differenzen;
+}
+
+/**
  * Berechnet bis zu 3 Fahrzeugvorschläge für eine Fahrt (docs/05-disposition.md).
  * Reine Eingabedaten werden vorher geladen; nur der RoutingProvider macht Netzwerkaufrufe.
  */
@@ -60,6 +82,11 @@ export async function vorschlaegeBerechnen(params: {
   if (kandidaten.length === 0) {
     return { vorschlaege: [], keinKandidat: true };
   }
+
+  const auslastungDifferenzen = auslastungDifferenzBerechnen(
+    tagesplan,
+    kandidaten.map((f) => f.id),
+  );
 
   const bewertungen: Bewertung[] = [];
 
@@ -128,6 +155,7 @@ export async function vorschlaegeBerechnen(params: {
         fahrtMinuten,
         leerKm: entfernungKm(startOrt, fahrt.pickupOrt),
         folgefahrtPufferMinuten,
+        auslastungDifferenz: auslastungDifferenzen.get(fahrzeug.id) ?? 0,
       }),
     );
   }

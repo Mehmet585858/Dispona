@@ -1,11 +1,16 @@
 import type { TransportType } from "@/generated/prisma/enums";
 
-/** score = anfahrt*W.anfahrt + verspaetung*W.verspaetung + leerKm*W.leerKm + (folgefahrtVerschoben?10:0)*W.folgefahrtVerschoben */
+/** score = anfahrt*W.anfahrt + verspaetung*W.verspaetung + leerKm*W.leerKm
+ *        + (folgefahrtVerschoben?10:0)*W.folgefahrtVerschoben + auslastungDifferenz*W.auslastung */
 export const GEWICHTE = {
   anfahrt: 1.0,
   verspaetung: 3.0,
   leerKm: 0.5,
   folgefahrtVerschoben: 2.0,
+  // Bewusst klein gehalten (ähnlich leerKm) - soll nur zwischen ungefähr gleichwertigen
+  // Kandidaten den Ausschlag geben (Fairness/Auslastungsausgleich zwischen Fahrzeugen), nie einen
+  // klar näheren/pünktlicheren Kandidaten überstimmen. Siehe auslastungDifferenz in bewertung.ts.
+  auslastung: 0.4,
 };
 
 export const FOLGEFAHRT_STRAFPUNKTE = 10;

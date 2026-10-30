@@ -37,6 +37,13 @@ export type KandidatEingabe = {
    * undefined/null, wenn keine Folgefahrt ansteht.
    */
   folgefahrtPufferMinuten?: number | null;
+  /**
+   * Fairness/Auslastungsausgleich: wie viele Fahrten dieses Fahrzeug heute schon mehr (positiv)
+   * oder weniger (negativ) hat als der Durchschnitt aller infrage kommenden Fahrzeuge - siehe
+   * auslastungDifferenzBerechnen() in vorschlagen.ts. Ein überdurchschnittlich ausgelastetes
+   * Fahrzeug bekommt dadurch einen kleinen Strafaufschlag, ein ruhigeres einen kleinen Bonus.
+   */
+  auslastungDifferenz: number;
 };
 
 export type Bewertung = {
@@ -81,11 +88,13 @@ export function bewerteKandidat(eingabe: KandidatEingabe): Bewertung {
     GEWICHTE.anfahrt * eingabe.anfahrtMinuten +
     GEWICHTE.verspaetung * verspaetungMinuten +
     GEWICHTE.leerKm * eingabe.leerKm +
-    GEWICHTE.folgefahrtVerschoben * (folgefahrtVerschoben ? FOLGEFAHRT_STRAFPUNKTE : 0);
+    GEWICHTE.folgefahrtVerschoben * (folgefahrtVerschoben ? FOLGEFAHRT_STRAFPUNKTE : 0) +
+    GEWICHTE.auslastung * eingabe.auslastungDifferenz;
 
   const teile = [`Anfahrt ${Math.round(eingabe.anfahrtMinuten)} Min`];
   teile.push(zuSpaet ? "zu spät zum Termin" : "pünktlich am Ziel");
   if (folgefahrtVerschoben) teile.push("verschiebt die nächste Fahrt leicht");
+  if (eingabe.auslastungDifferenz < 0) teile.push("gleicht Auslastung aus");
 
   return {
     vehicleId: eingabe.vehicleId,
