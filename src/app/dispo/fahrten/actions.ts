@@ -9,7 +9,7 @@ import { fahrtAendern } from "@/core/rides/aendern";
 import { fahrtErfassen } from "@/core/rides/erfassen";
 import { serieAnlegen as serieAnlegenKern } from "@/core/rides/serie";
 import { fahrtStornieren as fahrtStornierenKern } from "@/core/rides/stornieren";
-import { fahrzeugZuweisen, FahrzeugKonfliktError } from "@/core/disposition/zuweisen";
+import { fahrzeugZuweisen, fahrzeugZuweisungAufheben, FahrzeugKonfliktError } from "@/core/disposition/zuweisen";
 import { fahrzeugTypLabel } from "@/core/rides/fahrzeugTyp";
 import { fahrgaesteAehnlicheNamen, telefonNormalisieren } from "@/core/passengers/suche";
 import { telefonMaskiert } from "@/core/notify/telefonMaskierung";
@@ -180,6 +180,7 @@ export async function fahrplanFuerMandantLaden(
       pickupPlace: { label: string };
       dropoffPlace: { label: string };
       vehicle: { plate: string } | null;
+      beste: VorschlagOption | null;
     } | null;
     bekannterFahrgast: { name: string; anzahlFahrten: number } | null;
   }[] = [];
@@ -229,6 +230,10 @@ export async function fahrplanFuerMandantLaden(
               pickupPlace: { select: { label: true } },
               dropoffPlace: { select: { label: true } },
               vehicle: { select: { plate: true } },
+              // Für "Auto zuweisen" direkt an der Anruf-Karte (docs/DISPO-SPEZ.md 3.4) - derselbe
+              // Vorschlag, den auch der Zeitstrahl gestrichelt einzeichnet (siehe besterVorschlag
+              // oben).
+              suggestions: { where: { decision: "OFFEN" }, orderBy: { createdAt: "desc" }, take: 1 },
             },
           },
         },
@@ -304,6 +309,9 @@ export async function fahrplanFuerMandantLaden(
               pickupPlace: fahrt.pickupPlace,
               dropoffPlace: fahrt.dropoffPlace,
               vehicle: fahrt.vehicle,
+              beste: fahrt.vehicle
+                ? null
+                : ((fahrt.suggestions[0]?.options as VorschlagOption[] | undefined)?.[0] ?? null),
             }
           : null,
         bekannterFahrgast: bekannterFahrgast
@@ -421,6 +429,19 @@ export async function fahrzeugWaehlen(rideId: string, vehicleId: string): Promis
     revalidatePath("/dispo");
     if (fehler instanceof FahrzeugKonfliktError) return { ok: false, grund: fehler.message };
     throw fehler;
+  }
+  revalidatePath("/dispo");
+  return { ok: true };
+}
+
+/** "Rückgängig" nach "Auto zuweisen" im Anruf-Panel (docs/DISPO-SPEZ.md 3.4). */
+export async function zuweisungRueckgaengig(rideId: string): Promise<{ ok: true } | { ok: false; grund: string }> {
+  const { tenantId, userId } = await requireSession();
+  try {
+    await fahrzeugZuweisungAufheben(tenantId, rideId, { userId });
+  } catch (fehler) {
+    revalidatePath("/dispo");
+    return { ok: false, grund: fehler instanceof Error ? fehler.message : "Konnte nicht rückgängig gemacht werden." };
   }
   revalidatePath("/dispo");
   return { ok: true };

@@ -156,7 +156,12 @@ export function LiveClient({ initialDaten }: { initialDaten: LiveDaten }) {
           </div>
           <div aria-live="polite" aria-atomic="false" className="flex w-full flex-none flex-col gap-4 md:w-[380px]">
             {daten.liveAnrufe.length > 0 ? (
-              <AnrufKarussell liveAnrufe={daten.liveAnrufe} onFahrtKlick={keinOp} transkriptLaden={liveTranskriptLaden} />
+              <AnrufKarussell
+                liveAnrufe={daten.liveAnrufe}
+                onFahrtKlick={keinOp}
+                transkriptLaden={liveTranskriptLaden}
+                aktionenErlaubt={false}
+              />
             ) : (
               <AnrufWarteKarte anrufeHeute={daten.kennzahlen.anrufeHeute} />
             )}

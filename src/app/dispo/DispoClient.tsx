@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Chip } from "@/components/ui/Chip";
@@ -26,7 +26,7 @@ import { anrufTranskriptLaden } from "./anrufe/actions";
 import { FahrgastAuswahl } from "./fahrten/FahrgastAuswahl";
 import { OrtAuswahl } from "./fahrten/OrtAuswahl";
 import { TripModal } from "./fahrten/TripModal";
-import { fahrtAnlegen, serieAnlegen } from "./fahrten/actions";
+import { fahrtAnlegen, fahrzeugWaehlen, serieAnlegen, zuweisungRueckgaengig } from "./fahrten/actions";
 import { Zeitstrahl, type FahrerZeile, type FahrtMini, type FahrzeugZeile } from "./fahrten/Zeitstrahl";
 
 const AKTUALISIERUNG_MS = 10_000;
@@ -60,6 +60,9 @@ export type LiveAnruf = {
     pickupPlace: { label: string };
     dropoffPlace: { label: string };
     vehicle: { plate: string } | null;
+    /** Bester Fahrzeug-Vorschlag für diese Fahrt, falls schon berechnet (sonst null, z. B. direkt
+     * nach Gesprächsbeginn, bevor alle Felder erkannt sind). Grundlage für "Auto zuweisen". */
+    beste: VorschlagOption | null;
   } | null;
   bekannterFahrgast: { name: string; anzahlFahrten: number } | null;
 };
@@ -172,6 +175,105 @@ function transkriptRedebeitraege(text: string): { sprecher: string | null; text:
     });
 }
 
+const AUTO_ZUWEISEN_SEKUNDEN = 15;
+/** Wie lange die Erfolgszeile mit "Rückgängig" stehen bleibt, bevor die Karte auf den echten,
+ * neu geladenen Datenstand wechselt (docs/DISPO-SPEZ.md 3.4: "30 Sek. oder bis zur nächsten
+ * Aktion" - hier kürzer, weil die Karte ohnehin alle paar Sekunden neu lädt). */
+const ERFOLG_SICHTBAR_MS = 8_000;
+
+/** "Auto zuweisen" (Primär, mit Countdown-Leiste - läuft die Zeit ab, wird automatisch zugewiesen,
+ * genau wie ein Automodus-Vorschlag) und "Selbst übernehmen" (Sekundär: Disponent plant manuell,
+ * docs/DISPO-SPEZ.md 3.4/7.2) direkt an der laufenden Anruf-Karte, statt dass der Disponent dafür
+ * erst über "Braucht Sie" umwegen muss. */
+function AnrufZuweisungsAktion({
+  rideId,
+  beste,
+  onAktualisiert,
+}: {
+  rideId: string;
+  beste: VorschlagOption;
+  onAktualisiert: () => void;
+}) {
+  const [phase, setPhase] = useState<"laeuft" | "zuweisend" | "erfolgreich" | "manuell" | "fehler">("laeuft");
+  const [balkenVoll, setBalkenVoll] = useState(true);
+  const [fehlerText, setFehlerText] = useState<string | null>(null);
+
+  const jetztZuweisen = useCallback(async () => {
+    setPhase("zuweisend");
+    const ergebnis = await fahrzeugWaehlen(rideId, beste.vehicleId);
+    if (!ergebnis.ok) {
+      setFehlerText(ergebnis.grund);
+      setPhase("fehler");
+      return;
+    }
+    setPhase("erfolgreich");
+  }, [rideId, beste.vehicleId]);
+
+  // Countdown: eine Frame nach dem Einhängen auf 0 Breite animieren (CSS-Transition greift nur bei
+  // einer echten Zustandsänderung nach dem ersten Render), parallel dazu nach Ablauf automatisch
+  // zuweisen, sofern nicht vorher geklickt wurde.
+  useEffect(() => {
+    if (phase !== "laeuft") return;
+    const rafId = requestAnimationFrame(() => setBalkenVoll(false));
+    const timeoutId = setTimeout(jetztZuweisen, AUTO_ZUWEISEN_SEKUNDEN * 1000);
+    return () => {
+      cancelAnimationFrame(rafId);
+      clearTimeout(timeoutId);
+    };
+  }, [phase, jetztZuweisen]);
+
+  useEffect(() => {
+    if (phase !== "erfolgreich") return;
+    const timeoutId = setTimeout(onAktualisiert, ERFOLG_SICHTBAR_MS);
+    return () => clearTimeout(timeoutId);
+  }, [phase, onAktualisiert]);
+
+  async function rueckgaengig() {
+    await zuweisungRueckgaengig(rideId);
+    onAktualisiert();
+  }
+
+  if (phase === "manuell") {
+    return <p className="text-xs text-muted">Wird manuell geplant.</p>;
+  }
+  if (phase === "erfolgreich") {
+    return (
+      <div className="flex items-center justify-between gap-2 text-xs">
+        <span className="text-accent">✓ An {beste.plate} zugewiesen · Fahrer benachrichtigt</span>
+        <button type="button" onClick={rueckgaengig} className="flex-none font-medium text-ink-soft underline hover:text-accent">
+          Rückgängig
+        </button>
+      </div>
+    );
+  }
+  if (phase === "fehler") {
+    return <p className="text-xs text-warn-ink">{fehlerText}</p>;
+  }
+
+  return (
+    <div className="flex gap-2">
+      <button
+        type="button"
+        onClick={jetztZuweisen}
+        disabled={phase === "zuweisend"}
+        className="relative flex-1 overflow-hidden rounded-[10px] bg-accent px-3 py-2 text-left text-xs font-semibold text-surface disabled:opacity-70"
+      >
+        {/* Rechts voll (am rechten Rand verankert), links wird über 15s leer - "noch so viel Zeit
+         * bis zur automatischen Zuweisung". */}
+        <span
+          aria-hidden="true"
+          className="absolute inset-y-0 right-0 bg-white/20 transition-[width] duration-[15000ms] ease-linear"
+          style={{ width: balkenVoll ? "100%" : "0%" }}
+        />
+        <span className="relative">{phase === "zuweisend" ? "…" : `Auto zuweisen · ${beste.plate}`}</span>
+      </button>
+      <Button type="button" variant="secondary" onClick={() => setPhase("manuell")} disabled={phase === "zuweisend"}>
+        Selbst übernehmen
+      </Button>
+    </div>
+  );
+}
+
 export function AnrufKarte({
   anruf,
   index,
@@ -180,6 +282,7 @@ export function AnrufKarte({
   onVorheriger,
   onNaechster,
   transkriptLaden = anrufTranskriptLaden,
+  aktionenErlaubt = true,
 }: {
   anruf: LiveAnruf;
   index: number;
@@ -193,9 +296,14 @@ export function AnrufKarte({
    * öffentliche Live-Demo (/live) übergibt stattdessen eine eigene, offene Variante ohne Login
    * (src/app/live/actions.ts), die zusätzlich fest auf den Demo-Mandanten beschränkt ist. */
   transkriptLaden?: (callId: string) => Promise<string | null>;
+  /** false auf der öffentlichen Live-Demo (/live): "Auto zuweisen"/"Selbst übernehmen" brauchen
+   * eine echte Sitzung und würden dort nur fehlschlagen. */
+  aktionenErlaubt?: boolean;
 }) {
+  const router = useRouter();
   const [transkript, setTranskript] = useState<string | null | undefined>(undefined);
   const [jetzt, setJetzt] = useState(() => new Date());
+  const aktualisieren = useCallback(() => router.refresh(), [router]);
 
   // Tickt sekündlich für sich selbst, unabhängig vom 5-10s-Nachladeintervall der Seite - die
   // Gesprächsdauer soll wirklich live wirken, nicht nur alle paar Sekunden springen.
@@ -287,39 +395,50 @@ export function AnrufKarte({
         </div>
       </div>
 
-      <div className="h-[8.5rem] flex-none overflow-hidden border-t border-line pt-2.5">
+      <div className="min-h-[8.5rem] flex-none border-t border-line pt-2.5">
         {anruf.fahrt ? (
-          <button
-            type="button"
-            onClick={() => onFahrtKlick(anruf.fahrt!.id)}
-            className="grid h-full w-full grid-cols-2 gap-2 text-left text-sm hover:bg-accent-soft"
-          >
-            <div>
-              <p className="text-xs text-muted">Fahrgast</p>
-              <p className="truncate text-ink">
-                {anruf.fahrt.passenger.firstName} {anruf.fahrt.passenger.lastName}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted">Transport</p>
-              <p className="text-ink">{TRANSPORT_TYPE_LABEL[anruf.fahrt.transportType]}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted">Abholung</p>
-              <p className="truncate text-ink">{anruf.fahrt.pickupPlace.label}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted">Ziel</p>
-              <p className="truncate text-ink">{anruf.fahrt.dropoffPlace.label}</p>
-            </div>
-            {anruf.fahrt.vehicle ? (
-              <div className="col-span-2">
-                <p className="text-xs text-muted">Eingeplant bei</p>
-                <p className="truncate font-medium text-ink">{anruf.fahrt.vehicle.plate}</p>
+          <div className="flex h-full flex-col gap-2">
+            <button
+              type="button"
+              onClick={() => onFahrtKlick(anruf.fahrt!.id)}
+              className="grid flex-1 grid-cols-2 gap-2 text-left text-sm hover:bg-accent-soft"
+            >
+              <div>
+                <p className="text-xs text-muted">Fahrgast</p>
+                <p className="truncate text-ink">
+                  {anruf.fahrt.passenger.firstName} {anruf.fahrt.passenger.lastName}
+                </p>
               </div>
-            ) : null}
-            <p className="col-span-2 self-end text-xs text-accent">Details öffnen →</p>
-          </button>
+              <div>
+                <p className="text-xs text-muted">Transport</p>
+                <p className="text-ink">{TRANSPORT_TYPE_LABEL[anruf.fahrt.transportType]}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted">Abholung</p>
+                <p className="truncate text-ink">{anruf.fahrt.pickupPlace.label}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted">Ziel</p>
+                <p className="truncate text-ink">{anruf.fahrt.dropoffPlace.label}</p>
+              </div>
+            </button>
+            {aktionenErlaubt && !anruf.fahrt.vehicle && anruf.fahrt.beste ? (
+              <AnrufZuweisungsAktion
+                key={anruf.fahrt.id}
+                rideId={anruf.fahrt.id}
+                beste={anruf.fahrt.beste}
+                onAktualisiert={aktualisieren}
+              />
+            ) : anruf.fahrt.vehicle ? (
+              <p className="truncate text-xs text-muted">
+                Eingeplant bei <span className="font-medium text-ink">{anruf.fahrt.vehicle.plate}</span>
+              </p>
+            ) : (
+              <button type="button" onClick={() => onFahrtKlick(anruf.fahrt!.id)} className="text-left text-xs text-accent">
+                Details öffnen →
+              </button>
+            )}
+          </div>
         ) : anruf.bekannterFahrgast ? (
           <div className="text-sm">
             <p className="text-xs text-muted">Nummer bekannt von</p>
@@ -369,10 +488,14 @@ export function AnrufKarussell({
   liveAnrufe,
   onFahrtKlick,
   transkriptLaden,
+  aktionenErlaubt = true,
 }: {
   liveAnrufe: LiveAnruf[];
   onFahrtKlick: (id: string) => void;
   transkriptLaden?: (callId: string) => Promise<string | null>;
+  /** false auf der öffentlichen Live-Demo (/live): "Auto zuweisen"/"Selbst übernehmen" brauchen
+   * eine echte Sitzung und würden dort nur fehlschlagen. */
+  aktionenErlaubt?: boolean;
 }) {
   const [index, setIndex] = useState(0);
   // Rein aus dem aktuellen Render abgeleitet statt per Effekt zurückgesetzt: schrumpft die Liste
@@ -391,6 +514,7 @@ export function AnrufKarussell({
       gesamt={liveAnrufe.length}
       onFahrtKlick={onFahrtKlick}
       transkriptLaden={transkriptLaden}
+      aktionenErlaubt={aktionenErlaubt}
       onVorheriger={
         liveAnrufe.length > 1 ? () => setIndex((sichererIndex - 1 + liveAnrufe.length) % liveAnrufe.length) : undefined
       }

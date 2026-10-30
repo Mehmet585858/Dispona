@@ -128,3 +128,38 @@ export async function fahrzeugZuweisen(
     });
   }
 }
+
+/** Hebt eine Fahrzeugzuweisung wieder auf ("Rückgängig" nach "Auto zuweisen", docs/DISPO-SPEZ.md
+ * 3.4) - setzt die Fahrt zurück auf ERFASST ohne Fahrzeug/Fahrer und benachrichtigt den bisherigen
+ * Fahrer, falls einer zugewiesen war, symmetrisch zu fahrzeugZuweisen() selbst. Nur aus DISPONIERT
+ * erlaubt (passend zum Übergang in status.ts) - eine schon losgefahrene Fahrt lässt sich nicht
+ * einfach zurücknehmen. */
+export async function fahrzeugZuweisungAufheben(tenantId: string, rideId: string, optionen: { userId?: string }) {
+  const db = withTenant(tenantId);
+  const fahrt = await db.ride.findUnique({
+    where: { id: rideId },
+    select: { status: true, driverId: true, pickupAt: true },
+  });
+  if (!fahrt) throw new Error("Fahrt nicht gefunden.");
+  if (fahrt.status !== "DISPONIERT") {
+    throw new Error("Diese Zuweisung kann nicht mehr rückgängig gemacht werden.");
+  }
+  const bisherigerFahrerId = fahrt.driverId;
+
+  await fahrtStatusAendern(tenantId, rideId, "ERFASST", { userId: optionen.userId });
+  await db.ride.update({
+    where: { id: rideId },
+    data: { vehicleId: null, driverId: null, dispatchMode: null, driverAckAt: null },
+  });
+
+  if (bisherigerFahrerId) {
+    await pushAnFahrer(tenantId, bisherigerFahrerId, {
+      title: "Fahrt entzogen",
+      body: fahrtEntzogenText(uhrzeitBerlin(fahrt.pickupAt)),
+      url: "/fahrer",
+    });
+    await db.notification.create({
+      data: { tenantId, channel: "PUSH", toRef: bisherigerFahrerId, rideId, kind: "FAHRT_ENTZOGEN" },
+    });
+  }
+}
