@@ -79,10 +79,19 @@ export async function fahrzeugZuweisen(
 
   await db.ride.update({
     where: { id: rideId },
-    // driverId braucht das explizite "?? null": Prisma lässt ein undefined-Feld unangetastet,
-    // ohne Schicht (kein Fahrer für Fahrzeug+Uhrzeit gefunden) würde sonst der vorherige Fahrer in
-    // der Datenbank stehen bleiben, obwohl niemand mehr zuständig ist.
-    data: { vehicleId, driverId: schicht?.driverId ?? null, dispatchMode: optionen.dispatchMode, driverAckAt: null },
+    data: {
+      vehicleId,
+      // driverId braucht das explizite "?? null": Prisma lässt ein undefined-Feld unangetastet,
+      // ohne Schicht (kein Fahrer für Fahrzeug+Uhrzeit gefunden) würde sonst der vorherige Fahrer
+      // in der Datenbank stehen bleiben, obwohl niemand mehr zuständig ist.
+      driverId: schicht?.driverId ?? null,
+      dispatchMode: optionen.dispatchMode,
+      driverAckAt: null,
+      // Veralteter Grund eines früheren, gescheiterten Automodus-Versuchs darf nach erfolgreicher
+      // Zuweisung nicht stehen bleiben - sonst zeigt die Fahrt dauerhaft einen längst überholten
+      // Grund an, obwohl sie jetzt erfolgreich disponiert ist.
+      autoSkipReason: null,
+    },
   });
   await fahrtStatusAendern(tenantId, rideId, "DISPONIERT", { userId: optionen.userId });
 

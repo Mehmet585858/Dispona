@@ -110,6 +110,13 @@ export async function fahrplanFuerMandantLaden(
       // Zeigt im Detail-Fenster (TripModal/LiveFahrtDetails) die tatsächliche Berechnung hinter
       // einem noch unbestätigten Vorschlag, statt ihn als Blackbox zu präsentieren.
       vorschlagBegruendung: besterVorschlag?.reason ?? null,
+      // fahrt.autoSkipReason (aus dem "...fahrt"-Spread oben) bleibt auf der Fahrt stehen, auch
+      // nachdem sie längst disponiert wurde (automatischDisponieren() setzt es nur beim
+      // Scheitern, löscht es aber nie wieder) - ohne diese Überschreibung würde das Detail-
+      // Fenster bei einer schon erfolgreich zugewiesenen Fahrt fälschlich den Grund eines
+      // früheren, längst überholten Versuchs anzeigen. Nur noch relevant, solange die Fahrt
+      // wirklich noch unbestätigt ist (derselbe Zustand wie vorschlagVehicleId oben).
+      autoSkipReason: fahrt.status === "VORGESCHLAGEN" && !fahrt.vehicleId ? fahrt.autoSkipReason : null,
     };
   });
 
