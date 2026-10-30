@@ -31,6 +31,7 @@ export async function fahrzeugZuweisen(
       pickupAt: true,
       driverId: true,
       transportType: true,
+      problems: true,
       pickupPlace: { select: { label: true, lat: true, lng: true } },
       dropoffPlace: { select: { label: true, lat: true, lng: true } },
     },
@@ -91,6 +92,12 @@ export async function fahrzeugZuweisen(
       // Zuweisung nicht stehen bleiben - sonst zeigt die Fahrt dauerhaft einen längst überholten
       // Grund an, obwohl sie jetzt erfolgreich disponiert ist.
       autoSkipReason: null,
+      // "KEIN_FAHRZEUG" widerspricht sich selbst, sobald genau das hier passiert (ein Fahrzeug
+      // wird zugewiesen) - ohne diese Bereinigung blieb die Fahrt für immer in "Braucht Sie"
+      // hängen (alarmFahrten dort prüft NUR problems.length > 0, unabhängig vom Status), auch
+      // wenn sie längst erfolgreich disponiert war. Andere Probleme (z. B. GENEHMIGUNG_FEHLT)
+      // betreffen die Fahrt selbst, nicht die Fahrzeugverfügbarkeit, und bleiben bewusst stehen.
+      problems: fahrt.problems.filter((p) => p !== "KEIN_FAHRZEUG"),
     },
   });
   await fahrtStatusAendern(tenantId, rideId, "DISPONIERT", { userId: optionen.userId });
