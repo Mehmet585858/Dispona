@@ -160,9 +160,7 @@ export function LiveClient({ initialDaten }: { initialDaten: LiveDaten }) {
                 liveAnrufe={daten.liveAnrufe}
                 onFahrtKlick={keinOp}
                 transkriptLaden={liveTranskriptLaden}
-                // NUR VORÜBERGEHEND für einen Screenshot zur Ansicht - wird gleich wieder auf
-                // false zurückgesetzt, siehe Kommentar an der Prop-Definition in DispoClient.tsx.
-                aktionenErlaubt={true}
+                aktionenErlaubt={false}
               />
             ) : (
               <AnrufWarteKarte anrufeHeute={daten.kennzahlen.anrufeHeute} />
