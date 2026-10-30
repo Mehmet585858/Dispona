@@ -88,8 +88,12 @@ function uhrzeit(datum: Date): string {
   });
 }
 
-function minutenSeit(datum: Date): number {
-  return Math.max(0, Math.round((Date.now() - new Date(datum).getTime()) / 60_000));
+/** MM:SS statt gerundeter Minuten - tickt sekündlich selbst (siehe AnrufKarte), unabhängig vom
+ * 5-10s-Nachladeintervall der Seite, damit die Dauer wirklich live wirkt. */
+function dauerText(seit: Date, jetzt: Date): string {
+  const sekunden = Math.max(0, Math.floor((jetzt.getTime() - new Date(seit).getTime()) / 1000));
+  const minuten = Math.floor(sekunden / 60);
+  return `${String(minuten).padStart(2, "0")}:${String(sekunden % 60).padStart(2, "0")}`;
 }
 
 function BrauchtSieKarte({
@@ -156,18 +160,32 @@ export function AnrufKarte({
   index,
   gesamt,
   onFahrtKlick,
+  onVorheriger,
+  onNaechster,
   transkriptLaden = anrufTranskriptLaden,
 }: {
   anruf: LiveAnruf;
   index: number;
   gesamt: number;
   onFahrtKlick: (id: string) => void;
+  /** Nur gesetzt (und nur dann als Pfeile sichtbar), wenn mehrere Anrufe gleichzeitig laufen - der
+   * Aufrufer (AnrufKarussell) regelt die Umschaltung, diese Karte zeigt nur die Pfeile an. */
+  onVorheriger?: () => void;
+  onNaechster?: () => void;
   /** Standardmäßig die Dispo-interne, angemeldete Variante (Audit-Log, braucht Sitzung) - die
    * öffentliche Live-Demo (/live) übergibt stattdessen eine eigene, offene Variante ohne Login
    * (src/app/live/actions.ts), die zusätzlich fest auf den Demo-Mandanten beschränkt ist. */
   transkriptLaden?: (callId: string) => Promise<string | null>;
 }) {
   const [transkript, setTranskript] = useState<string | null | undefined>(undefined);
+  const [jetzt, setJetzt] = useState(() => new Date());
+
+  // Tickt sekündlich für sich selbst, unabhängig vom 5-10s-Nachladeintervall der Seite - die
+  // Gesprächsdauer soll wirklich live wirken, nicht nur alle paar Sekunden springen.
+  useEffect(() => {
+    const intervallId = setInterval(() => setJetzt(new Date()), 1000);
+    return () => clearInterval(intervallId);
+  }, []);
 
   useEffect(() => {
     let abgebrochen = false;
@@ -184,22 +202,43 @@ export function AnrufKarte({
   }, [anruf.id, transkriptLaden]);
 
   return (
-    <Card className="flex min-h-[22rem] flex-col gap-3 border-line-strong">
+    // Feste Höhe (nicht nur min-h) plus feste Innenaufteilung (Kopf/Transkript/Details je ein
+    // eigener Bereich mit eigener Höhe) - die Karte springt dadurch nie, egal wie lang Transkript
+    // oder Details gerade sind, auch beim Wechsel zwischen mehreren Anrufen (AnrufKarussell).
+    <Card className="flex h-[28rem] flex-col gap-2 border-line-strong">
       <div className="flex items-center gap-2">
         <span className="h-2.5 w-2.5 rounded-full bg-accent" />
         <b className="text-ink">Anruf läuft</b>
-        {gesamt > 1 ? (
-          <span className="rounded-full bg-ground px-2 py-0.5 text-xs font-medium text-muted">
-            {index + 1} von {gesamt}
-          </span>
-        ) : null}
-        <span className="ml-auto font-mono text-sm text-muted">seit {minutenSeit(anruf.startedAt)} Min.</span>
+        <span className="ml-auto font-mono text-sm text-muted">{dauerText(anruf.startedAt, jetzt)}</span>
       </div>
+      {gesamt > 1 ? (
+        <div className="flex items-center justify-between rounded-lg bg-ground px-1 py-1">
+          <button
+            type="button"
+            onClick={onVorheriger}
+            aria-label="Vorheriger Anruf"
+            className="flex h-7 w-7 items-center justify-center rounded text-ink-soft hover:bg-accent-soft hover:text-accent"
+          >
+            ‹
+          </button>
+          <span className="text-xs font-medium text-muted">
+            Anruf {index + 1} von {gesamt}
+          </span>
+          <button
+            type="button"
+            onClick={onNaechster}
+            aria-label="Nächster Anruf"
+            className="flex h-7 w-7 items-center justify-center rounded text-ink-soft hover:bg-accent-soft hover:text-accent"
+          >
+            ›
+          </button>
+        </div>
+      ) : null}
       {anruf.fromNumber ? <p className="text-sm text-muted">{anruf.fromNumber}</p> : null}
 
-      <div className="flex-1">
+      <div className="min-h-0 flex-1">
         <p className="mb-1 text-xs font-medium text-muted">Transkript</p>
-        <div className="max-h-64 overflow-y-auto rounded-xl bg-surface2 p-3">
+        <div className="h-[calc(100%-1.25rem)] overflow-y-auto rounded-xl bg-surface2 p-3">
           {transkript === undefined ? (
             <p className="text-sm text-muted">Lädt …</p>
           ) : transkript ? (
@@ -212,53 +251,55 @@ export function AnrufKarte({
         </div>
       </div>
 
-      {anruf.fahrt ? (
-        <button
-          type="button"
-          onClick={() => onFahrtKlick(anruf.fahrt!.id)}
-          className="grid grid-cols-2 gap-2 rounded-xl border-t border-line pt-2.5 text-left text-sm hover:bg-accent-soft"
-        >
-          <div>
-            <p className="text-xs text-muted">Fahrgast</p>
+      <div className="h-[8.5rem] flex-none overflow-hidden border-t border-line pt-2.5">
+        {anruf.fahrt ? (
+          <button
+            type="button"
+            onClick={() => onFahrtKlick(anruf.fahrt!.id)}
+            className="grid h-full w-full grid-cols-2 gap-2 text-left text-sm hover:bg-accent-soft"
+          >
+            <div>
+              <p className="text-xs text-muted">Fahrgast</p>
+              <p className="truncate text-ink">
+                {anruf.fahrt.passenger.firstName} {anruf.fahrt.passenger.lastName}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted">Transport</p>
+              <p className="text-ink">{TRANSPORT_TYPE_LABEL[anruf.fahrt.transportType]}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted">Abholung</p>
+              <p className="truncate text-ink">{anruf.fahrt.pickupPlace.label}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted">Ziel</p>
+              <p className="truncate text-ink">{anruf.fahrt.dropoffPlace.label}</p>
+            </div>
+            {anruf.fahrt.vehicle ? (
+              <div className="col-span-2">
+                <p className="text-xs text-muted">Eingeplant bei</p>
+                <p className="truncate font-medium text-ink">{anruf.fahrt.vehicle.plate}</p>
+              </div>
+            ) : null}
+            <p className="col-span-2 self-end text-xs text-accent">Details öffnen →</p>
+          </button>
+        ) : anruf.bekannterFahrgast ? (
+          <div className="text-sm">
+            <p className="text-xs text-muted">Nummer bekannt von</p>
             <p className="text-ink">
-              {anruf.fahrt.passenger.firstName} {anruf.fahrt.passenger.lastName}
+              {anruf.bekannterFahrgast.name}
+              <span className="text-muted">
+                {" "}
+                · {anruf.bekannterFahrgast.anzahlFahrten}{" "}
+                {anruf.bekannterFahrgast.anzahlFahrten === 1 ? "Fahrt bisher" : "Fahrten bisher"}
+              </span>
             </p>
           </div>
-          <div>
-            <p className="text-xs text-muted">Transport</p>
-            <p className="text-ink">{TRANSPORT_TYPE_LABEL[anruf.fahrt.transportType]}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted">Abholung</p>
-            <p className="text-ink">{anruf.fahrt.pickupPlace.label}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted">Ziel</p>
-            <p className="text-ink">{anruf.fahrt.dropoffPlace.label}</p>
-          </div>
-          {anruf.fahrt.vehicle ? (
-            <div className="col-span-2">
-              <p className="text-xs text-muted">Eingeplant bei</p>
-              <p className="font-medium text-ink">{anruf.fahrt.vehicle.plate}</p>
-            </div>
-          ) : null}
-          <p className="col-span-2 text-xs text-accent">Details öffnen →</p>
-        </button>
-      ) : anruf.bekannterFahrgast ? (
-        <div className="border-t border-line pt-2.5 text-sm">
-          <p className="text-xs text-muted">Nummer bekannt von</p>
-          <p className="text-ink">
-            {anruf.bekannterFahrgast.name}
-            <span className="text-muted">
-              {" "}
-              · {anruf.bekannterFahrgast.anzahlFahrten}{" "}
-              {anruf.bekannterFahrgast.anzahlFahrten === 1 ? "Fahrt bisher" : "Fahrten bisher"}
-            </span>
-          </p>
-        </div>
-      ) : (
-        <p className="text-sm text-muted">Details erscheinen hier, sobald Dispona sie aus dem Gespräch erkannt hat.</p>
-      )}
+        ) : (
+          <p className="text-sm text-muted">Details erscheinen hier, sobald Dispona sie aus dem Gespräch erkannt hat.</p>
+        )}
+      </div>
     </Card>
   );
 }
@@ -307,36 +348,18 @@ export function AnrufKarussell({
   const anruf = liveAnrufe[sichererIndex];
 
   return (
-    <div className="flex flex-col gap-2">
-      <AnrufKarte
-        key={anruf.id}
-        anruf={anruf}
-        index={sichererIndex}
-        gesamt={liveAnrufe.length}
-        onFahrtKlick={onFahrtKlick}
-        transkriptLaden={transkriptLaden}
-      />
-      {liveAnrufe.length > 1 ? (
-        <div className="flex items-center justify-between">
-          <button
-            type="button"
-            onClick={() => setIndex((sichererIndex - 1 + liveAnrufe.length) % liveAnrufe.length)}
-            aria-label="Vorheriger Anruf"
-            className="flex h-9 items-center gap-1 rounded-lg px-2 text-sm font-medium text-ink-soft hover:bg-accent-soft"
-          >
-            ‹ Vorheriger
-          </button>
-          <button
-            type="button"
-            onClick={() => setIndex((sichererIndex + 1) % liveAnrufe.length)}
-            aria-label="Nächster Anruf"
-            className="flex h-9 items-center gap-1 rounded-lg px-2 text-sm font-medium text-ink-soft hover:bg-accent-soft"
-          >
-            Nächster ›
-          </button>
-        </div>
-      ) : null}
-    </div>
+    <AnrufKarte
+      key={anruf.id}
+      anruf={anruf}
+      index={sichererIndex}
+      gesamt={liveAnrufe.length}
+      onFahrtKlick={onFahrtKlick}
+      transkriptLaden={transkriptLaden}
+      onVorheriger={
+        liveAnrufe.length > 1 ? () => setIndex((sichererIndex - 1 + liveAnrufe.length) % liveAnrufe.length) : undefined
+      }
+      onNaechster={liveAnrufe.length > 1 ? () => setIndex((sichererIndex + 1) % liveAnrufe.length) : undefined}
+    />
   );
 }
 

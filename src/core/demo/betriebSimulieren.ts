@@ -2,22 +2,29 @@
  * Hält den öffentlichen Demo-Mandanten (src/core/demo/seedDemoTenant.ts) "am Leben": legt in
  * realistischem Tempo neue Fahrten an (wie ein echter Anruf bei der KI), sorgt dafür, dass der Tag
  * nie leer wirkt (jedes Fahrzeug hat ein paar Fahrten heute, sechs Fahrzeuge einen vollen Tagesplan
- * bis 18 Uhr), lässt neue Fahrten über die ganz normale Disposition laufen (Automodus-Cron
- * übernimmt die Zuweisung, siehe src/core/disposition/automatischDisponieren.ts) und schreibt den
- * Status fälliger Fahrten automatisch fort (Disponiert -> Unterwegs -> Fahrgast im Auto ->
- * Erledigt), inklusive simulierter GPS-Positionen für den Zeitstrahl und die Karte. Für einen
- * Cron-Job gedacht (jede Minute, wie automodus.ts).
+ * bis 18 Uhr), schreibt den Status fälliger Fahrten automatisch fort (Disponiert -> Unterwegs ->
+ * Fahrgast im Auto -> Erledigt), inklusive simulierter GPS-Positionen für den Zeitstrahl und die
+ * Karte, und räumt Fahrten auf, die ohne echten Disponenten als "Braucht Sie" hängen bleiben
+ * würden. Für einen Cron-Job gedacht (jede Minute, wie automodus.ts).
  *
- * Bewusst über die echten, gemeinsamen Bausteine (fahrtErfassen, fahrtStatusAendern) statt eigener
- * Schreiblogik - eine simulierte Fahrt ist dadurch in jeder Hinsicht eine ganz normale Fahrt, nicht
- * clientseitige Deko. Strikt auf DEMO_TENANT_ID beschränkt (dieselbe Konstante wie überall sonst in
- * der Live-Demo), nie auf einen echten Mandanten anwendbar.
+ * Zuweisung: spontane Anrufe (neuenAnrufBeiBedarf) lässt bewusst den Automodus-Cron frei
+ * entscheiden (realistisch - irgendein passendes Fahrzeug); Tagesplan-Fahrten
+ * (tagesplanSicherstellen) weist direkt dem dafür vorgesehenen, schon überschneidungsfrei
+ * geprüften Fahrzeug zu, damit viele gleichzeitig geplante Fahrten sich nicht gegenseitig beim
+ * Automodus ins Gehege kommen.
+ *
+ * Bewusst über die echten, gemeinsamen Bausteine (fahrtErfassen, fahrzeugZuweisen,
+ * fahrtStatusAendern) statt eigener Schreiblogik - eine simulierte Fahrt ist dadurch in jeder
+ * Hinsicht eine ganz normale Fahrt, nicht clientseitige Deko. Strikt auf DEMO_TENANT_ID beschränkt
+ * (dieselbe Konstante wie überall sonst in der Live-Demo), nie auf einen echten Mandanten
+ * anwendbar.
  */
 import { randomUUID } from "node:crypto";
 import { withTenant } from "@/lib/db";
 import { encrypt } from "@/lib/crypto";
 import { fahrtErfassen } from "@/core/rides/erfassen";
 import { fahrtStatusAendern } from "@/core/rides/status";
+import { fahrzeugZuweisen, FahrzeugKonfliktError } from "@/core/disposition/zuweisen";
 import { fahrzeugTypLabel, fahrzeugTypTransportType } from "@/core/rides/fahrzeugTyp";
 import { fahrtDauerMinuten } from "@/core/shifts/dauer";
 import { datumIso, mitUhrzeit } from "@/core/shifts/week";
@@ -30,11 +37,15 @@ type LatLng = { lat: number; lng: number };
 type Ort = { id: string; label: string; lat: number; lng: number; type: string };
 type Passagier = { id: string; firstName: string; lastName: string };
 
-const ZIEL_AKTIVE_FAHRTEN = 6;
+const ZIEL_AKTIVE_FAHRTEN = 5;
 /** Verhindert, dass bei mehreren aktiven Besuchern gleichzeitig ein Schwall neuer Fahrten
  * entsteht - pro Cron-Minute kommt höchstens mit dieser Wahrscheinlichkeit eine Fahrt dazu,
  * solange ZIEL_AKTIVE_FAHRTEN noch nicht erreicht ist. */
-const NEUE_FAHRT_WAHRSCHEINLICHKEIT = 0.7;
+const NEUE_FAHRT_WAHRSCHEINLICHKEIT = 0.5;
+/** Wie lange eine Fahrt unbestätigt als Vorschlag (oder ohne Fahrzeug) herumstehen darf, bevor sie
+ * als nicht mehr vermittelbar storniert wird - ohne echten Disponenten, der "Braucht Sie" abarbeitet,
+ * würde die Liste sonst unbegrenzt wachsen (siehe haengendeVorschlaegeAufraeumen). */
+const BRAUCHT_SIE_GEDULD_MINUTEN = 20;
 /** Angenommene Vorlaufzeit, die ein Fahrzeug losfährt, bevor es am Abholort sein muss - steuert
  * sowohl den Status-Wechsel Disponiert -> Unterwegs als auch die GPS-Interpolation dorthin. */
 const ANFAHRT_MINUTEN = 12;
@@ -175,6 +186,27 @@ export async function demoBetriebSimulieren(tenantId: string = DEMO_TENANT_ID) {
   await tagesplanSicherstellen(tenantId, jetzt);
   await statusFortschreiben(tenantId, jetzt);
   await positionenAktualisieren(tenantId, jetzt);
+  await haengendeVorschlaegeAufraeumen(tenantId, jetzt);
+}
+
+/** Ohne echten Disponenten klickt niemand "Bestätigen" für eine Fahrt, die der Automodus nicht
+ * selbst zuweisen konnte - "Braucht Sie" würde sonst unbegrenzt wachsen. Nach
+ * BRAUCHT_SIE_GEDULD_MINUTEN gilt eine hängende Fahrt als nicht mehr vermittelbar und wird
+ * storniert (wirkt wie eine Absage), genau wie ein echter Disponent sie irgendwann abschließen
+ * würde, statt sie für immer offen zu lassen. */
+async function haengendeVorschlaegeAufraeumen(tenantId: string, jetzt: Date) {
+  const db = withTenant(tenantId);
+  const grenze = new Date(jetzt.getTime() - BRAUCHT_SIE_GEDULD_MINUTEN * 60_000);
+  const haengend = await db.ride.findMany({
+    where: {
+      createdAt: { lt: grenze },
+      OR: [{ status: "VORGESCHLAGEN" }, { status: "ERFASST", problems: { has: "KEIN_FAHRZEUG" } }],
+    },
+    select: { id: true },
+  });
+  for (const fahrt of haengend) {
+    await fahrtStatusAendern(tenantId, fahrt.id, "STORNIERT");
+  }
 }
 
 /** demoZuruecksetzen.ts löscht einen Fahrgast, sobald er keine Fahrt mehr hat (Privatsphäre für
@@ -196,8 +228,11 @@ async function fahrgastRosterSicherstellen(tenantId: string): Promise<Passagier[
 }
 
 /** Legt einen simulierten Anruf (echtes, verschlüsseltes Transkript) plus die daraus erfasste
- * Fahrt an - genau wie ein echter Anruf bei der KI. Die Zuweisung übernimmt wie immer der
- * Automodus-Cron, nicht diese Funktion. */
+ * Fahrt an - genau wie ein echter Anruf bei der KI. Ohne vehicleId übernimmt die Zuweisung wie
+ * immer der Automodus-Cron (für spontane Anrufe genau richtig - "irgendein passendes Fahrzeug").
+ * Mit vehicleId (Tagesplan, siehe tagesplanSicherstellen) wird direkt diesem schon konfliktfrei
+ * geprüften Fahrzeug zugewiesen, statt den Automodus über mehrere gleichzeitig geplante Fahrten
+ * frei entscheiden zu lassen - das war sonst eine häufige Quelle unnötiger "Braucht Sie"-Fälle. */
 async function simulierteFahrtAnlegen(
   tenantId: string,
   jetzt: Date,
@@ -207,6 +242,7 @@ async function simulierteFahrtAnlegen(
     dropoffPlace: Ort;
     transportType: TransportTyp;
     pickupAt: Date;
+    vehicleId?: string;
   },
 ) {
   const db = withTenant(tenantId);
@@ -234,7 +270,7 @@ async function simulierteFahrtAnlegen(
     select: { id: true },
   });
 
-  await fahrtErfassen(
+  const { rideId } = await fahrtErfassen(
     tenantId,
     {
       passengerId: angaben.passagier.id,
@@ -253,6 +289,17 @@ async function simulierteFahrtAnlegen(
     },
     { source: "ANRUF", callId: call.id },
   );
+
+  if (angaben.vehicleId) {
+    try {
+      await fahrzeugZuweisen(tenantId, rideId, angaben.vehicleId, { dispatchMode: "AUTO" });
+    } catch (fehler) {
+      // Trotz eigener Überschneidungsprüfung im Tagesplan belegt (z. B. durch einen Anruf, der
+      // zeitgleich dasselbe Fahrzeug bekam) - bleibt dann ganz normal als Vorschlag liegen, wie
+      // jede andere nicht automatisch zuweisbare Fahrt auch.
+      if (!(fehler instanceof FahrzeugKonfliktError)) throw fehler;
+    }
+  }
 }
 
 async function alteAnrufeAbschliessen(tenantId: string, jetzt: Date) {
@@ -379,15 +426,17 @@ async function tagesplanSicherstellen(tenantId: string, jetzt: Date) {
         });
         await db.rideStatusEvent.create({ data: { tenantId, rideId: neueFahrt.id, status } });
       } else {
-        // Echte Zukunft (bis 18 Uhr): ganz normaler simulierter Anruf, Zuweisung übernimmt wie
-        // immer der Automodus-Cron - kann dabei auch an ein anderes, gerade besser passendes
-        // Fahrzeug gehen, das ist hier bewusst in Kauf genommen statt erzwungen.
+        // Echte Zukunft (bis 18 Uhr): simulierter Anruf, aber direkt diesem schon
+        // überschneidungsfrei geprüften Fahrzeug zugewiesen statt dem Automodus überlassen - der
+        // müsste sonst unter vielen gleichzeitig geplanten Tagesplan-Fahrten frei wählen, was ohne
+        // echten Disponenten nur unnötige "Braucht Sie"-Fälle erzeugt.
         await simulierteFahrtAnlegen(tenantId, jetzt, {
           passagier,
           pickupPlace: slot.pickupPlace,
           dropoffPlace: slot.dropoffPlace,
           transportType,
           pickupAt: slot.pickupAt,
+          vehicleId: fahrzeug.id,
         });
       }
     }
