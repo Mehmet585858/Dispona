@@ -31,7 +31,7 @@ function wochePosition(datum: Date): number {
   return Math.min(100, Math.max(0, (minuten / ((WOCHE_ENDE_STUNDE - WOCHE_START_STUNDE) * 60)) * 100));
 }
 
-const LIVE_PUNKT_FARBE: Record<FahrzeugLiveStatus["punkt"], string> = {
+export const LIVE_PUNKT_FARBE: Record<FahrzeugLiveStatus["punkt"], string> = {
   go: "var(--live-go)",
   in: "var(--live-in)",
   at: "var(--live-at)",
@@ -364,7 +364,7 @@ function SpurTag({
   );
 }
 
-function Legende() {
+export function Legende() {
   const artZeile = TRANSPORT_TYPES.map((art) => (
     <span key={art} className="inline-flex items-center gap-1.5">
       <span className="inline-block h-3 w-4 rounded-sm" style={{ background: farbeFuerArt(art, "solid") }} />

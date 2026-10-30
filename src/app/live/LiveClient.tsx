@@ -71,7 +71,7 @@ export function LiveClient({ initialDaten }: { initialDaten: LiveDaten }) {
         </div>
       </header>
 
-      <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6">
+      <main className="flex w-full flex-1 flex-col gap-5 px-6 py-8">
         <Card className="flex flex-col gap-2 border-line-strong">
           <h1 className="text-xl font-bold text-ink">So arbeitet Dispona – live</h1>
           {DEMO_TELEFONNUMMER ? (
@@ -133,29 +133,30 @@ export function LiveClient({ initialDaten }: { initialDaten: LiveDaten }) {
           </Button>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-          <KpiTile
-            label="Fahrten heute"
-            wert={daten.kennzahlen.fahrtenHeute}
-            zusatz={`· ${daten.fahrten.filter((f) => f.status === "ERLEDIGT").length} erledigt`}
-          />
-          <KpiTile label="Gerade unterwegs" wert={daten.kennzahlen.unterwegs} />
-          <KpiTile label="Von Dispona eingeplant" wert={daten.kennzahlen.vonDisponaEingeplant} zusatz="heute" />
-          <KpiTile label="Braucht Sie" wert={daten.kennzahlen.brauchtSie} warnstil={daten.kennzahlen.brauchtSie > 0} />
-          <KpiTile label="Anrufe heute" wert={daten.kennzahlen.anrufeHeute} />
-        </div>
-
         <div className="flex flex-wrap items-start gap-4">
-          <div className="min-w-0 flex-1 basis-[640px]">
-            <LiveZeitstrahl
-              fahrten={daten.fahrten}
-              fahrzeugZeilen={daten.fahrzeugZeilen}
-              jetztProzent={jetztProzent}
-              simulierteFahrten={simulierteFahrten.flatMap((fahrt) => {
-                const zeile = daten.fahrzeugZeilen.find((z) => z.plate === fahrt.plate);
-                return zeile ? [{ ...fahrt, vehicleId: zeile.id }] : [];
-              })}
-            />
+          <div className="flex min-w-0 flex-1 basis-[640px] flex-col gap-3">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+              <KpiTile
+                label="Fahrten heute"
+                wert={daten.kennzahlen.fahrtenHeute}
+                zusatz={`· ${daten.fahrten.filter((f) => f.status === "ERLEDIGT").length} erledigt`}
+              />
+              <KpiTile label="Gerade unterwegs" wert={daten.kennzahlen.unterwegs} />
+              <KpiTile label="Von Dispona eingeplant" wert={daten.kennzahlen.vonDisponaEingeplant} zusatz="heute" />
+              <KpiTile label="Braucht Sie" wert={daten.kennzahlen.brauchtSie} warnstil={daten.kennzahlen.brauchtSie > 0} />
+              <KpiTile label="Anrufe heute" wert={daten.kennzahlen.anrufeHeute} />
+            </div>
+            <div className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4">
+              <LiveZeitstrahl
+                fahrten={daten.fahrten}
+                fahrzeugZeilen={daten.fahrzeugZeilen}
+                jetztProzent={jetztProzent}
+                simulierteFahrten={simulierteFahrten.flatMap((fahrt) => {
+                  const zeile = daten.fahrzeugZeilen.find((z) => z.plate === fahrt.plate);
+                  return zeile ? [{ ...fahrt, vehicleId: zeile.id }] : [];
+                })}
+              />
+            </div>
           </div>
           <div className="flex w-full flex-none flex-col gap-4 md:w-[380px]">
             {daten.liveAnrufe.map((anruf, index) => (
