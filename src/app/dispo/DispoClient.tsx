@@ -281,7 +281,14 @@ function AnrufZuweisungsAktion({
   }
 
   return (
-    <div className="flex gap-2">
+    <div className="flex flex-col gap-1.5">
+      {/* Zeigt die tatsächliche Berechnung hinter dem Vorschlag (Anfahrt/Pünktlichkeit/
+       * Leerkilometer/Auslastung, siehe bewerteKandidat() in bewertung.ts) statt den Vorschlag
+       * als Blackbox zu präsentieren. */}
+      <p className="truncate text-xs text-muted" title={beste.reason}>
+        {beste.reason}
+      </p>
+      <div className="flex gap-2">
       <button
         type="button"
         onClick={jetztZuweisen}
@@ -309,6 +316,7 @@ function AnrufZuweisungsAktion({
       <Button type="button" variant="secondary" onClick={() => setPhase("manuell")} disabled={phase === "zuweisend"}>
         Selbst übernehmen
       </Button>
+      </div>
     </div>
   );
 }

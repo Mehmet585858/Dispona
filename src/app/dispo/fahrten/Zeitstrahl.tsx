@@ -130,6 +130,9 @@ export type FahrtMini = {
    * Fahrzeugzeile erscheinen (Zustand "vorschlag", siehe chipStil), statt bis zur Bestätigung
    * komplett unsichtbar zu bleiben. */
   vorschlagVehicleId: string | null;
+  /** Begründung des besten Vorschlags (z. B. "Anfahrt 10 Min · pünktlich am Ziel"), siehe
+   * bewerteKandidat() in bewertung.ts - nur gesetzt, wenn auch vorschlagVehicleId gesetzt ist. */
+  vorschlagBegruendung: string | null;
   passenger: { firstName: string; lastName: string; phones?: string[]; insurer?: string | null };
   pickupPlace: { label: string };
   dropoffPlace: { label: string };

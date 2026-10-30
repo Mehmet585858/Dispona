@@ -14,6 +14,10 @@ export type LiveFahrtAnzeige = {
   dropoffLabel: string;
   vehiclePlate: string | null;
   fahrerName?: string | null;
+  /** Begründung des besten Vorschlags (z. B. "Anfahrt 10 Min · pünktlich am Ziel · gleicht
+   * Auslastung aus"), siehe bewerteKandidat() in src/core/disposition/bewertung.ts - nur gesetzt,
+   * solange die Fahrt noch kein echtes Fahrzeug hat (Zustand "Vorgeschlagen"). */
+  vorschlagBegruendung?: string | null;
 };
 
 /** Rein lesende Fahrt-Details für die öffentliche Live-Demo (Klick auf eine Fahrt im Zeitstrahl,
@@ -54,6 +58,12 @@ export function LiveFahrtDetails({ fahrt, onClose }: { fahrt: LiveFahrtAnzeige; 
           <p className="text-xs text-muted">Besatzung</p>
           <p className="text-ink">{fahrt.fahrerName ?? "—"}</p>
         </div>
+        {fahrt.vorschlagBegruendung ? (
+          <div className="sm:col-span-2">
+            <p className="text-xs text-muted">Berechnung</p>
+            <p className="text-ink">{fahrt.vorschlagBegruendung}</p>
+          </div>
+        ) : null}
       </div>
     </Modal>
   );

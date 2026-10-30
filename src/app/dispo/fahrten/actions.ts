@@ -100,13 +100,16 @@ export async function fahrplanFuerMandantLaden(
     // findet oder der Automatikmodus sie übernimmt.
     const besterVorschlag =
       fahrt.status === "VORGESCHLAGEN" && !fahrt.vehicleId
-        ? ((fahrt.suggestions[0]?.options as { vehicleId: string }[] | undefined)?.[0] ?? null)
+        ? ((fahrt.suggestions[0]?.options as VorschlagOption[] | undefined)?.[0] ?? null)
         : null;
     return {
       ...fahrt,
       fahrerName: fahrt.driverId ? (fahrerNameNachId.get(fahrt.driverId) ?? null) : null,
       geplantesEnde: geplantesEnde(fahrt.pickupAt, fahrt.transportType, fahrt.pickupPlace, fahrt.dropoffPlace),
       vorschlagVehicleId: besterVorschlag?.vehicleId ?? null,
+      // Zeigt im Detail-Fenster (TripModal/LiveFahrtDetails) die tatsächliche Berechnung hinter
+      // einem noch unbestätigten Vorschlag, statt ihn als Blackbox zu präsentieren.
+      vorschlagBegruendung: besterVorschlag?.reason ?? null,
     };
   });
 
