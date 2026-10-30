@@ -62,6 +62,15 @@ const VOLLAUSLASTUNG_TRAGESTUHL = 1;
 const VOLLAUSLASTUNG_LMW = 1;
 const FAHRTEN_TAGESZIEL_STANDARD = 2;
 const FAHRTEN_TAGESZIEL_VOLL = 5;
+/** Obergrenze für neu angelegte Tagesplan-Fahrten pro Cron-Minute - jede davon braucht mehrere
+ * sequentielle Datenbank-Umläufe (Anruf, Fahrt erfassen, Fahrzeug zuweisen). Ohne Deckel könnte ein
+ * großer Rückstand (z. B. nach einer Pause) einen einzelnen Lauf so lange dauern lassen, dass er
+ * das Zeitlimit reißt - fehlende Fahrten werden dann einfach über die nächsten Minuten verteilt
+ * nachgeholt statt alle auf einmal. */
+const MAX_NEUE_TAGESPLAN_FAHRTEN_PRO_LAUF = 6;
+/** Dieselbe Begrenzung für die Aufräumrunde (haengendeVorschlaegeAufraeumen) - jede Stornierung
+ * braucht ebenfalls mehrere Datenbank-Umläufe. */
+const MAX_AUFRAEUM_PRO_LAUF = 10;
 const BETRIEB_START = "08:00";
 const BETRIEB_ENDE = "18:00";
 
@@ -203,6 +212,7 @@ async function haengendeVorschlaegeAufraeumen(tenantId: string, jetzt: Date) {
       OR: [{ status: "VORGESCHLAGEN" }, { status: "ERFASST", problems: { has: "KEIN_FAHRZEUG" } }],
     },
     select: { id: true },
+    take: MAX_AUFRAEUM_PRO_LAUF, // Rest holt der nächste Lauf nach, siehe MAX_NEUE_TAGESPLAN_FAHRTEN_PRO_LAUF
   });
   for (const fahrt of haengend) {
     await fahrtStatusAendern(tenantId, fahrt.id, "STORNIERT");
@@ -377,7 +387,9 @@ async function tagesplanSicherstellen(tenantId: string, jetzt: Date) {
     ].map((f) => f.id),
   );
 
+  let neuAngelegt = 0;
   for (const fahrzeug of fahrzeuge) {
+    if (neuAngelegt >= MAX_NEUE_TAGESPLAN_FAHRTEN_PRO_LAUF) break; // Rest holt der nächste Lauf nach
     const ziel = vollausgelastetIds.has(fahrzeug.id) ? FAHRTEN_TAGESZIEL_VOLL : FAHRTEN_TAGESZIEL_STANDARD;
     const bestehend = await db.ride.findMany({
       where: { vehicleId: fahrzeug.id, pickupAt: { gte: tagesStart, lte: tagesEnde }, status: { not: "STORNIERT" } },
@@ -393,9 +405,11 @@ async function tagesplanSicherstellen(tenantId: string, jetzt: Date) {
     }));
 
     for (let i = 0; i < fehlend; i++) {
+      if (neuAngelegt >= MAX_NEUE_TAGESPLAN_FAHRTEN_PRO_LAUF) break;
       const slot = freienSlotFinden(tagesStart, tagesEnde, belegt, transportType, wohnorte, einrichtungen);
       if (!slot) break; // kein überschneidungsfreier Platz mehr gefunden - nicht erzwingen
       belegt.push({ von: new Date(slot.pickupAt.getTime() - ANFAHRT_MINUTEN * 60_000), bis: slot.ende });
+      neuAngelegt += 1;
 
       const passagier = zufallsElement(passagiere);
       const anfahrtStart = new Date(slot.pickupAt.getTime() - ANFAHRT_MINUTEN * 60_000);
