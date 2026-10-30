@@ -58,7 +58,7 @@ export const SIMULATIONS_SZENARIEN: SimulationsSzenario[] = [
     ziel: "Dialysezentrum Aachen",
     offsetMinuten: 200,
     dauerMinuten: 35,
-    fahrzeug: "DEMO-201",
+    fahrzeug: "AC-DEM 201",
   },
   {
     anruferName: "Ingrid Wagner",
@@ -80,7 +80,7 @@ export const SIMULATIONS_SZENARIEN: SimulationsSzenario[] = [
     ziel: "Burgstraße 25",
     offsetMinuten: 28,
     dauerMinuten: 20,
-    fahrzeug: "DEMO-101",
+    fahrzeug: "AC-DEM 101",
   },
   {
     anruferName: "Klaus Meyer",
@@ -102,7 +102,7 @@ export const SIMULATIONS_SZENARIEN: SimulationsSzenario[] = [
     ziel: "Lindenweg 4",
     offsetMinuten: 15,
     dauerMinuten: 20,
-    fahrzeug: "DEMO-102",
+    fahrzeug: "AC-DEM 102",
   },
   {
     anruferName: "Anrufer",
@@ -126,6 +126,6 @@ export const SIMULATIONS_SZENARIEN: SimulationsSzenario[] = [
     ziel: "Pflegeheim Sonnenhof",
     offsetMinuten: 330,
     dauerMinuten: 40,
-    fahrzeug: "DEMO-401",
+    fahrzeug: "AC-DEM 401",
   },
 ];

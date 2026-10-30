@@ -89,26 +89,30 @@ export async function seedDemoTenant() {
     telefonnummerZugeordnet = true;
   }
 
+  // Kennzeichen im echten deutschen Format (Stadt-Kürzel "AC" für Aachen) statt "DEMO-101" -
+  // altesKennzeichen lässt ein schon angelegtes Fahrzeug umbenennen (self-healing per Rename statt
+  // Löschen+Neuanlegen), damit bestehende Schichten/Fahrten weiter auf dieselbe Fahrzeug-ID zeigen.
   const fahrzeugDaten = [
-    { plate: "DEMO-100", seats: 4, wheelchairSpots: 0, carryChair: false, stretcher: false },
-    { plate: "DEMO-101", seats: 4, wheelchairSpots: 0, carryChair: false, stretcher: false },
-    { plate: "DEMO-102", seats: 3, wheelchairSpots: 0, carryChair: false, stretcher: false },
-    { plate: "DEMO-200", seats: 3, wheelchairSpots: 1, carryChair: false, stretcher: false },
-    { plate: "DEMO-201", seats: 2, wheelchairSpots: 2, carryChair: false, stretcher: false },
-    { plate: "DEMO-202", seats: 3, wheelchairSpots: 1, carryChair: false, stretcher: false },
-    { plate: "DEMO-300", seats: 2, wheelchairSpots: 0, carryChair: true, stretcher: false },
-    { plate: "DEMO-301", seats: 2, wheelchairSpots: 0, carryChair: true, stretcher: false },
-    { plate: "DEMO-400", seats: 1, wheelchairSpots: 0, carryChair: false, stretcher: true },
-    { plate: "DEMO-401", seats: 1, wheelchairSpots: 0, carryChair: false, stretcher: true },
+    { plate: "AC-DEM 100", altesKennzeichen: "DEMO-100", seats: 4, wheelchairSpots: 0, carryChair: false, stretcher: false },
+    { plate: "AC-DEM 101", altesKennzeichen: "DEMO-101", seats: 4, wheelchairSpots: 0, carryChair: false, stretcher: false },
+    { plate: "AC-DEM 102", altesKennzeichen: "DEMO-102", seats: 3, wheelchairSpots: 0, carryChair: false, stretcher: false },
+    { plate: "AC-DEM 200", altesKennzeichen: "DEMO-200", seats: 3, wheelchairSpots: 1, carryChair: false, stretcher: false },
+    { plate: "AC-DEM 201", altesKennzeichen: "DEMO-201", seats: 2, wheelchairSpots: 2, carryChair: false, stretcher: false },
+    { plate: "AC-DEM 202", altesKennzeichen: "DEMO-202", seats: 3, wheelchairSpots: 1, carryChair: false, stretcher: false },
+    { plate: "AC-DEM 300", altesKennzeichen: "DEMO-300", seats: 2, wheelchairSpots: 0, carryChair: true, stretcher: false },
+    { plate: "AC-DEM 301", altesKennzeichen: "DEMO-301", seats: 2, wheelchairSpots: 0, carryChair: true, stretcher: false },
+    { plate: "AC-DEM 400", altesKennzeichen: "DEMO-400", seats: 1, wheelchairSpots: 0, carryChair: false, stretcher: true },
+    { plate: "AC-DEM 401", altesKennzeichen: "DEMO-401", seats: 1, wheelchairSpots: 0, carryChair: false, stretcher: true },
   ];
   const fahrzeuge = [];
-  for (const daten of fahrzeugDaten) {
+  for (const { altesKennzeichen, ...daten } of fahrzeugDaten) {
+    const vorhanden = await db.vehicle.findFirst({
+      where: { tenantId: DEMO_TENANT_ID, plate: { in: [daten.plate, altesKennzeichen] } },
+    });
     fahrzeuge.push(
-      await db.vehicle.upsert({
-        where: { tenantId_plate: { tenantId: DEMO_TENANT_ID, plate: daten.plate } },
-        create: { tenantId: DEMO_TENANT_ID, active: true, ...daten },
-        update: { active: true },
-      }),
+      vorhanden
+        ? await db.vehicle.update({ where: { id: vorhanden.id }, data: { ...daten, active: true } })
+        : await db.vehicle.create({ data: { tenantId: DEMO_TENANT_ID, active: true, ...daten } }),
     );
   }
 
