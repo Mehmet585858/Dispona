@@ -18,7 +18,10 @@ export function useGemesseneHoehe<T extends HTMLElement>(anfangsHoehe: number) {
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const beobachter = new ResizeObserver(([eintrag]) => setHoehe(eintrag.contentRect.height));
+    // getBoundingClientRect() statt contentRect: contentRect liefert nur die Höhe INNERHALB von
+    // Padding/Rand - bei der Zeitstrahl-Karte (p-4 + border) wären das knapp 34px zu wenig, die
+    // Anruf-Karte daneben also entsprechend zu kurz.
+    const beobachter = new ResizeObserver(() => setHoehe(el.getBoundingClientRect().height));
     beobachter.observe(el);
     return () => beobachter.disconnect();
   }, []);
