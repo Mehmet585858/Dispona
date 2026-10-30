@@ -93,9 +93,12 @@ p{margin:0}
 .nav-toggle-input{position:absolute;opacity:0;pointer-events:none}
 .nav-toggle{display:none}
 @media (max-width:720px){
-  .nav-toggle{display:flex;align-items:center;justify-content:center;width:40px;height:40px;margin-right:auto;border-radius:10px;color:var(--ink);cursor:pointer}
+  /* Nur EIN Auto-Margin-Punkt in dieser Flex-Zeile (hier, nicht auch bei .nav-toggle) - zwei
+     auto-margins in derselben umbrechenden Zeile konkurrieren um den Freiraum und schieben das
+     Menü-Symbol dann unvorhersehbar von Logo weg statt direkt danebenzubleiben. */
+  .nav-toggle{display:flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:10px;color:var(--ink);cursor:pointer}
   .nav-toggle:hover{background:var(--bg2)}
-  .nav{display:none;flex-basis:100%;order:4;flex-direction:column;align-items:flex-start;gap:16px;padding-top:6px}
+  .nav{display:none;flex-basis:100%;flex-direction:column;align-items:flex-start;gap:16px;padding-top:6px}
   .nav-toggle-input:checked ~ .nav{display:flex}
   .login{margin-left:auto}
 }
@@ -199,11 +202,11 @@ tbody td:nth-child(2){text-decoration-color:var(--line)}
 .calc label{display:flex;flex-direction:column;gap:10px;font-weight:600}
 .calc label span{display:flex;justify-content:space-between}
 .calc input[type=range]{width:100%;height:32px;accent-color:var(--acc)}
-.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
 .res{display:flex;flex-direction:column;gap:8px;padding:18px;border-radius:14px;background:var(--surf);border:1px solid var(--line)}
-.row{display:flex;justify-content:space-between;gap:12px;color:var(--ink2)}
+.row{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 12px;color:var(--ink2)}
 .row.total{align-items:baseline;padding-top:10px;border-top:1px solid var(--line2);color:var(--ink)}
-.row.total strong:last-child{font-size:28px}
+.row.total strong:last-child{font-size:clamp(22px,7vw,28px)}
 .hour{display:flex;flex-direction:column;gap:6px;padding:18px;border-radius:14px;background:var(--ok-bg);border:1px solid color-mix(in srgb,var(--ok) 30%,transparent);color:var(--ok-fg)}
 .hour strong{font-size:36px;letter-spacing:-.02em;color:var(--ink)}
 
@@ -484,7 +487,7 @@ section[id]{scroll-margin-top:84px}
       <details><summary>Muss ich jede Fahrt selbst einplanen?</summary><p>Im Paket Lite planen Sie selbst – Dispona nimmt die Anrufe an und legt Ihnen alle Fahrten im Dashboard bereit. Im Paket Pro nicht: Dispona plant jede Fahrt automatisch beim nächstbesten passenden Fahrzeug ein und benachrichtigt den Fahrer. Sie sehen jede Entscheidung live, können jederzeit umplanen und auf Wunsch festlegen, welche Fälle Sie lieber selbst prüfen möchten.</p></details>
       <details><summary>Woher weiß Dispona, welcher Wagen der beste ist?</summary><p>Dispona prüft, ob das Fahrzeug die Transportart fahren darf, ob es im Zeitfenster frei ist (mit Puffer) und welcher Wagen die kürzeste Anfahrt hat. Bei Gleichstand wird die Arbeit gleichmäßig verteilt.</p></details>
       <details><summary>Was genau kostet Dispona?</summary><p>Einmalig 249 € für die Einrichtung, danach pro Anruf, den Dispona annimmt: 1,95 € im Paket Lite (Dispona nimmt ab, Sie planen selbst) oder 2,49 € im Paket Pro mit Fahrer-App und automatischer Einplanung (jeweils zzgl. MwSt.). Keine Grundgebühr. Bei 25 Anrufen am Tag sind das rund 1.460 € (Lite) bzw. 1.870 € (Pro) im Monat.</p></details>
-      <details><summary>Wie schnell sind wir startklar?</summary><p>Wir richten Dispona gemeinsam mit Ihnen ein: Fahrzeuge, Fahrer, Telefonnummer und Abläufe. Rechnen Sie mit [X] Tagen bis zum Start.</p></details>
+      <details><summary>Wie schnell sind wir startklar?</summary><p>Wir richten Dispona gemeinsam mit Ihnen ein: Fahrzeuge, Fahrer, Telefonnummer und Abläufe. Je nach Umfang sind Sie innerhalb weniger Tage startklar.</p></details>
       <details><summary>Wie sicher sind die Patientendaten?</summary><p>Alle Daten werden verschlüsselt übertragen und gespeichert. Mit jedem Kunden schließen wir einen Auftragsverarbeitungsvertrag nach DSGVO.</p></details>
     </div>
   </div>
