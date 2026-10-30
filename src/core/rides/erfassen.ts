@@ -25,6 +25,11 @@ async function einzelneFahrtAnlegen(
   tag: Date,
   optionen: FahrtErfassenOptionen,
   vertauschePickupDropoff: boolean,
+  // Abholzeit einer bewusst zusammengehörigen Hin-/Rückfahrt, die von der Doppelbuchungsprüfung
+  // ausgenommen werden soll (siehe fahrtErfassen() unten und die Begründung dort) - istDoppelbuchung()
+  // kennt nur Uhrzeiten, keine Routen, kann also nicht selbst erkennen, dass zwei Abholzeiten
+  // desselben Fahrgasts innerhalb von 60 Minuten eine gewollte Rückfahrt sind statt ein Fehler.
+  ignoriereAbholzeit?: Date,
 ): Promise<{ rideId: string; probleme: Problem[] }> {
   const db = withTenant(tenantId);
   const pickupPlaceId = vertauschePickupDropoff ? daten.dropoffPlaceId : daten.pickupPlaceId;
@@ -48,7 +53,9 @@ async function einzelneFahrtAnlegen(
   const probleme = fahrtPruefen({
     pickupOrt: pickupOrt ? { lat: pickupOrt.lat, lng: pickupOrt.lng } : null,
     pickupAt,
-    bestehendeAbholzeitenDesFahrgasts: bestehendeFahrten.map((f) => f.pickupAt),
+    bestehendeAbholzeitenDesFahrgasts: bestehendeFahrten
+      .map((f) => f.pickupAt)
+      .filter((zeit) => !ignoriereAbholzeit || zeit.getTime() !== ignoriereAbholzeit.getTime()),
     approval: daten.approval,
     genehmigungen: fahrgast?.approvals ?? [],
     serviceAreaCenter: settings?.serviceAreaCenter
@@ -87,15 +94,26 @@ export async function fahrtErfassen(
   tenantId: string,
   eingabe: FahrtEingabe,
   optionen: FahrtErfassenOptionen,
+  // Bewusst kein Teil von FahrtEingabe/optionen - nur für Aufrufer gedacht, die eine Hin- und eine
+  // zusammengehörige Rückfahrt über ZWEI GETRENNTE fahrtErfassen()-Aufrufe anlegen (anders als der
+  // rueckfahrt-Zweig unten, der beide in einem Aufruf anlegt und das selbst übernimmt) - z. B. die
+  // Demo-Simulation (src/core/demo/betriebSimulieren.ts), die eine Rückfahrt als eigenen,
+  // zeitversetzten simulierten Anruf nachbildet. Übergibt die Abholzeit der schon bestehenden,
+  // zusammengehörigen Fahrt, damit istDoppelbuchung() sie nicht fälschlich blockiert.
+  ignoriereDoppelbuchungAbholzeit?: Date,
 ): Promise<{ rideId: string; probleme: Problem[]; rueckfahrtRideId?: string }> {
   const daten = fahrtSchema.parse(eingabe);
   const tag = berlinerMitternacht(daten.datum);
 
-  const hin = await einzelneFahrtAnlegen(tenantId, daten, tag, optionen, false);
+  const hin = await einzelneFahrtAnlegen(tenantId, daten, tag, optionen, false, ignoriereDoppelbuchungAbholzeit);
 
   if (daten.rueckfahrt && daten.rueckfahrtzeit) {
     const db = withTenant(tenantId);
-    const rueck = await einzelneFahrtAnlegen(tenantId, daten, tag, optionen, true);
+    // Die Rückfahrt dieses gemeinsamen Aufrufs ist per Definition dieselbe Hinfahrt, deren
+    // Abholzeit hier noch mal exakt so berechnet wird wie oben in einzelneFahrtAnlegen() -
+    // istDoppelbuchung() darf diese beiden einander bewusst nie als Konflikt werten.
+    const hinPickupAt = mitUhrzeit(tag, daten.abholzeit);
+    const rueck = await einzelneFahrtAnlegen(tenantId, daten, tag, optionen, true, hinPickupAt);
     await db.ride.update({ where: { id: rueck.rideId }, data: { returnOfId: hin.rideId } });
     return { ...hin, rueckfahrtRideId: rueck.rideId };
   }

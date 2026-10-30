@@ -126,6 +126,7 @@ type PassagierTagesInfo = {
   pickupPlace: Ort;
   dropoffPlace: Ort;
   transportType: TransportTyp;
+  pickupAt: Date;
   ende: Date;
   anzahl: number;
 };
@@ -152,6 +153,7 @@ async function passagierTagesInfoLaden(
       pickupPlace: fahrt.pickupPlace,
       dropoffPlace: fahrt.dropoffPlace,
       transportType: fahrt.transportType,
+      pickupAt: fahrt.pickupAt,
       ende: new Date(fahrt.pickupAt.getTime() + dauerMinuten * 60_000),
       anzahl: (bestehend?.anzahl ?? 0) + 1,
     });
@@ -166,6 +168,7 @@ function tagesInfoAktualisieren(
   passagierId: string,
   route: { pickupPlace: Ort; dropoffPlace: Ort },
   transportType: TransportTyp,
+  pickupAt: Date,
   ende: Date,
 ) {
   const bestehend = tagesInfo.get(passagierId);
@@ -173,6 +176,7 @@ function tagesInfoAktualisieren(
     pickupPlace: route.pickupPlace,
     dropoffPlace: route.dropoffPlace,
     transportType,
+    pickupAt,
     ende,
     anzahl: (bestehend?.anzahl ?? 0) + 1,
   });
@@ -195,6 +199,10 @@ function passagierWaehlen(
   istRueckfahrt: boolean;
   route?: { pickupPlace: Ort; dropoffPlace: Ort };
   fruehestens?: Date;
+  /** Abholzeit der Hinfahrt, nur gesetzt wenn istRueckfahrt - reicht bis zu fahrtErfassen() durch,
+   * damit istDoppelbuchung() diese bewusste Rückfahrt nicht fälschlich blockiert (siehe
+   * simulierteFahrtAnlegen() und die Begründung in src/core/rides/erfassen.ts). */
+  vorherigeAbholzeit?: Date;
 } {
   const rueckfahrtKandidaten = passagiere.filter((p) => {
     const info = tagesInfo.get(p.id);
@@ -210,6 +218,7 @@ function passagierWaehlen(
       istRueckfahrt: true,
       route: { pickupPlace: info.dropoffPlace, dropoffPlace: info.pickupPlace },
       fruehestens: new Date(info.ende.getTime() + wartenMinuten * 60_000),
+      vorherigeAbholzeit: info.pickupAt,
     };
   }
   // Heute noch unbenutzte Namen bevorzugen; ist das Roster für heute komplett verplant, lieber
@@ -411,6 +420,11 @@ async function simulierteFahrtAnlegen(
     transportType: TransportTyp;
     pickupAt: Date;
     vehicleId?: string;
+    /** Abholzeit der zusammengehörigen Hinfahrt, wenn dies eine simulierte Rückfahrt ist - siehe
+     * passagierWaehlen() und die Begründung in src/core/rides/erfassen.ts. Ohne das würde
+     * istDoppelbuchung() diese gewollte Rückfahrt fälschlich als Problem "DOPPELBUCHUNG" flaggen,
+     * sobald sie innerhalb von 60 Minuten nach der Hinfahrt liegt. */
+    ignoriereDoppelbuchungAbholzeit?: Date;
   },
 ): Promise<boolean> {
   const db = withTenant(tenantId);
@@ -456,6 +470,7 @@ async function simulierteFahrtAnlegen(
       approval: "NICHT_NOETIG",
     },
     { source: "ANRUF", callId: call.id },
+    angaben.ignoriereDoppelbuchungAbholzeit,
   );
 
   if (angaben.vehicleId) {
@@ -530,6 +545,7 @@ async function neuenAnrufBeiBedarf(tenantId: string, jetzt: Date) {
     dropoffPlace,
     transportType: auswahl.transportType,
     pickupAt,
+    ignoriereDoppelbuchungAbholzeit: auswahl.istRueckfahrt ? auswahl.vorherigeAbholzeit : undefined,
   });
 }
 
@@ -674,6 +690,7 @@ async function tagesplanSicherstellen(tenantId: string, jetzt: Date, depot: LatL
           passagier.id,
           { pickupPlace: slot.pickupPlace, dropoffPlace: slot.dropoffPlace },
           transportType,
+          slot.pickupAt,
           slot.ende,
         );
       } else {
@@ -701,6 +718,7 @@ async function tagesplanSicherstellen(tenantId: string, jetzt: Date, depot: LatL
           transportType,
           pickupAt: slot.pickupAt,
           vehicleId: fahrzeug.id,
+          ignoriereDoppelbuchungAbholzeit: auswahl.istRueckfahrt ? auswahl.vorherigeAbholzeit : undefined,
         });
         // Die Fahrt existiert ab hier so oder so (ERFASST, ggf. ohne Fahrzeug bei einem seltenen
         // Konflikt) - der Name gilt damit als "heute verplant", unabhängig vom Zuweisungserfolg.
@@ -709,6 +727,7 @@ async function tagesplanSicherstellen(tenantId: string, jetzt: Date, depot: LatL
           passagier.id,
           { pickupPlace: slot.pickupPlace, dropoffPlace: slot.dropoffPlace },
           transportType,
+          slot.pickupAt,
           slot.ende,
         );
       }
