@@ -92,7 +92,7 @@ export async function fahrplanFuerMandantLaden(
     db.tenantSettings.findUnique({ where: { tenantId } }),
     db.tenant.findUnique({ where: { id: tenantId }, select: { paket: true } }),
     db.vehicle.findMany({ where: { active: true }, orderBy: { plate: "asc" } }),
-    db.ride.count({ where: { status: "UNTERWEGS" } }),
+    db.ride.count({ where: { status: "UNTERWEGS", pickupAt: { gte: von, lt: bis } } }),
   ]);
 
   const fahrerNameNachId = new Map(fahrerRoh.map((f) => [f.id, f.user.name]));
