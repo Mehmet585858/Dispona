@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { uhrzeit } from "@/app/dispo/fahrten/Zeitstrahl";
-import { SIMULATIONS_SZENARIEN } from "./simulationsSzenarien";
+import { SIMULATIONS_SZENARIEN, type SimulationsZeile } from "./simulationsSzenarien";
 import type { SimulierteZeitstrahlFahrt } from "./LiveZeitstrahl";
 
 // Spürbar gemächlicher als ein reines Lese-Tempo - wirkt sonst wie vorgespult statt wie ein
@@ -26,8 +26,12 @@ type Phase = "gespraech" | "geplant";
  * Meldet jede neu "eingeplante" Beispiel-Fahrt einmalig nach oben (onFahrtErfasst), damit
  * LiveClient sie dauerhaft als Beispiel-Kachel im Zeitstrahl sammelt - einmal eingeplante Fahrten
  * bleiben stehen (wie im echten Dashboard), statt beim nächsten Gespräch zu verschwinden.
- * Pickup-/Endzeit immer relativ zu "jetzt" berechnet (offsetMinuten/dauerMinuten), nie aus einer
- * im Gespräch genannten Uhrzeit.
+ *
+ * zielZeit (= "jetzt" + offsetMinuten) wird einmal pro Szenario berechnet, nicht erst am Ende -
+ * sonst konnte die im Gespräch genannte Uhrzeit (Platzhalter "{{ZEIT}}" in simulationsSzenarien.ts,
+ * z. B. "Heute um {{ZEIT}} Uhr") von der tatsächlich eingeplanten abweichen, wenn "jetzt" zwischen
+ * Gesprächsbeginn und -ende weiterlief. Beide - gesprochener Text und eingeplante Fahrt - nutzen
+ * jetzt denselben Wert, können also nie mehr auseinanderlaufen.
  */
 export function SimulierterAnruf({
   onFahrtErfasst,
@@ -38,23 +42,40 @@ export function SimulierterAnruf({
   const [zeilenIndex, setZeilenIndex] = useState(0);
   const [zeichenIndex, setZeichenIndex] = useState(0);
   const [phase, setPhase] = useState<Phase>("gespraech");
-  const [geplanteZeiten, setGeplanteZeiten] = useState<{ pickupAt: Date; geplantesEnde: Date } | null>(null);
+  const [zielZeit, setZielZeit] = useState<Date>(
+    () => new Date(Date.now() + SIMULATIONS_SZENARIEN[0].offsetMinuten * 60_000),
+  );
 
   const szenario = SIMULATIONS_SZENARIEN[szenarioIndex % SIMULATIONS_SZENARIEN.length];
   const aktuelleZeile = szenario.linien[zeilenIndex];
 
+  function zeileText(zeile: SimulationsZeile): string {
+    return zeile.text.replace("{{ZEIT}}", uhrzeit(zielZeit));
+  }
+  const aktuelleZeileText = aktuelleZeile ? zeileText(aktuelleZeile) : undefined;
+
+  // Neu berechnet, sobald ein neues Szenario beginnt (inklusive des allerersten) - danach bleibt
+  // zielZeit für das gesamte Gespräch fest, siehe Kommentar oben.
+  useEffect(() => {
+    setZielZeit(new Date(Date.now() + szenario.offsetMinuten * 60_000));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [szenarioIndex]);
+
   useEffect(() => {
     if (phase !== "gespraech") return;
-    if (!aktuelleZeile) {
-      const jetzt = new Date();
-      const pickupAt = new Date(jetzt.getTime() + szenario.offsetMinuten * 60_000);
-      const geplantesEnde = new Date(pickupAt.getTime() + szenario.dauerMinuten * 60_000);
-      setGeplanteZeiten({ pickupAt, geplantesEnde });
-      onFahrtErfasst?.({ plate: szenario.fahrzeug, pickupAt, geplantesEnde, fahrgast: szenario.fahrgast, transport: szenario.transport });
+    if (!aktuelleZeileText) {
+      const geplantesEnde = new Date(zielZeit.getTime() + szenario.dauerMinuten * 60_000);
+      onFahrtErfasst?.({
+        plate: szenario.fahrzeug,
+        pickupAt: zielZeit,
+        geplantesEnde,
+        fahrgast: szenario.fahrgast,
+        transport: szenario.transport,
+      });
       setPhase("geplant");
       return;
     }
-    if (zeichenIndex < aktuelleZeile.text.length) {
+    if (zeichenIndex < aktuelleZeileText.length) {
       const timer = setTimeout(() => setZeichenIndex((n) => n + 1), ZEICHEN_MS);
       return () => clearTimeout(timer);
     }
@@ -65,7 +86,7 @@ export function SimulierterAnruf({
       setZeichenIndex(0);
     }, pause);
     return () => clearTimeout(timer);
-  }, [phase, zeichenIndex, aktuelleZeile, szenario, zeilenIndex, onFahrtErfasst]);
+  }, [phase, zeichenIndex, aktuelleZeileText, szenario, zeilenIndex, zielZeit, onFahrtErfasst]);
 
   useEffect(() => {
     if (phase !== "geplant") return;
@@ -73,7 +94,6 @@ export function SimulierterAnruf({
       setSzenarioIndex((i) => i + 1);
       setZeilenIndex(0);
       setZeichenIndex(0);
-      setGeplanteZeiten(null);
       setPhase("gespraech");
     }, GEPLANT_MS);
     return () => clearTimeout(timer);
@@ -98,13 +118,13 @@ export function SimulierterAnruf({
             {fertigeZeilen.map((zeile, index) => (
               <p key={index} className="text-sm text-ink-soft">
                 <span className="font-medium text-ink">{zeile.sprecher === "ki" ? "Lisa" : szenario.anruferName}:</span>{" "}
-                {zeile.text}
+                {zeileText(zeile)}
               </p>
             ))}
-            {aktuelleZeile ? (
+            {aktuelleZeileText !== undefined ? (
               <p className="text-sm text-ink-soft">
-                <span className="font-medium text-ink">{aktuelleZeile.sprecher === "ki" ? "Lisa" : szenario.anruferName}:</span>{" "}
-                {aktuelleZeile.text.slice(0, zeichenIndex)}
+                <span className="font-medium text-ink">{aktuelleZeile!.sprecher === "ki" ? "Lisa" : szenario.anruferName}:</span>{" "}
+                {aktuelleZeileText.slice(0, zeichenIndex)}
                 <span className="animate-pulse">▍</span>
               </p>
             ) : null}
@@ -133,8 +153,7 @@ export function SimulierterAnruf({
           <div className="col-span-2">
             <p className="text-xs text-muted">Eingeplant bei</p>
             <p className="font-medium text-ink">
-              {szenario.fahrzeug}
-              {geplanteZeiten ? ` · ${uhrzeit(geplanteZeiten.pickupAt)}` : ""}
+              {szenario.fahrzeug} · {uhrzeit(zielZeit)}
             </p>
           </div>
         </div>

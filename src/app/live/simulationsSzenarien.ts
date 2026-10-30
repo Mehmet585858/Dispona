@@ -8,11 +8,17 @@
  * vor dem ersten Gesprächs-Schnipsel bereits ab (wie bei einem echten Anruf) und wird hier nicht
  * wiederholt gezeigt - die Zeilen beginnen direkt mit dem eigentlichen Anliegen.
  *
- * offsetMinuten/dauerMinuten sind rein für die Platzierung im Zeitstrahl (immer relativ zu
- * "jetzt" berechnet, siehe LiveClient.tsx) - unabhängig von der im Gespräch genannten Uhrzeit,
- * die nur Gesprächs-Deko ist. Wichtig: der letzte Satz von Lisa darf der Zeit nie widersprechen -
- * eine Fahrt in mehreren Stunden bekommt "ist eingeplant für X Uhr" statt einer Minuten-Ansage,
- * die nur für eine Fahrt in Kürze stimmt.
+ * offsetMinuten/dauerMinuten sind sowohl für die Platzierung im Zeitstrahl als auch für die im
+ * Gespräch genannte Uhrzeit maßgeblich (immer relativ zu "jetzt" berechnet, siehe
+ * SimulierterAnruf.tsx) - nie unabhängig voneinander, sonst sagt die KI z. B. "14 Uhr", während
+ * tatsächlich 15 Uhr eingeplant wird. Ein Szenario, das eine konkrete Uhrzeit nennt (statt nur
+ * einer relativen Dauer wie "in 15 Minuten"), schreibt dafür NIE eine feste Uhrzeit in den Text,
+ * sondern den Platzhalter "{{ZEIT}}" - SimulierterAnruf.tsx ersetzt ihn durch "jetzt" +
+ * offsetMinuten, einmal pro Gespräch berechnet, identisch zu der tatsächlich eingeplanten Zeit.
+ * Wichtig: der letzte Satz von Lisa darf der Zeit nie widersprechen - eine Fahrt in mehreren
+ * Stunden bekommt "ist eingeplant für {{ZEIT}} Uhr" statt einer Minuten-Ansage, die nur für eine
+ * Fahrt in Kürze stimmt (siehe die kurzen Szenarien, die stattdessen bei relativen
+ * Minuten-Angaben bleiben - die sind unabhängig von der absoluten Uhrzeit immer korrekt).
  */
 export type SimulationsZeile = { sprecher: "ki" | "anrufer"; text: string };
 
@@ -41,10 +47,10 @@ export const SIMULATIONS_SZENARIEN: SimulationsSzenario[] = [
       { sprecher: "ki", text: "Sitzend, oder braucht er den Rollstuhl?" },
       { sprecher: "anrufer", text: "Rollstuhl, bitte." },
       { sprecher: "ki", text: "Wann soll es losgehen?" },
-      { sprecher: "anrufer", text: "Heute um vierzehn Uhr." },
-      { sprecher: "ki", text: "Heute um vierzehn Uhr, Lindenweg vier zum Dialysezentrum Aachen, mit Rollstuhl, für Herbert Thormann. Passt das?" },
+      { sprecher: "anrufer", text: "Heute um {{ZEIT}} Uhr." },
+      { sprecher: "ki", text: "Heute um {{ZEIT}} Uhr, Lindenweg vier zum Dialysezentrum Aachen, mit Rollstuhl, für Herbert Thormann. Passt das?" },
       { sprecher: "anrufer", text: "Ja, passt." },
-      { sprecher: "ki", text: "Die Fahrt ist für vierzehn Uhr eingeplant. Gute Besserung, Herr Thormann." },
+      { sprecher: "ki", text: "Die Fahrt ist für {{ZEIT}} Uhr eingeplant. Gute Besserung, Herr Thormann." },
     ],
     fahrgast: "Herbert Thormann",
     transport: "Rollstuhl",
@@ -109,10 +115,10 @@ export const SIMULATIONS_SZENARIEN: SimulationsSzenario[] = [
       { sprecher: "ki", text: "Und wohin soll es gehen?" },
       { sprecher: "anrufer", text: "Ins Pflegeheim Sonnenhof." },
       { sprecher: "ki", text: "Wann ist er abholbereit?" },
-      { sprecher: "anrufer", text: "Heute gegen sechzehn Uhr." },
-      { sprecher: "ki", text: "Heute um sechzehn Uhr, Liegendtransport vom Klinikum Aachen-Mitte zum Pflegeheim Sonnenhof, für Said Yilmaz. Passt das?" },
+      { sprecher: "anrufer", text: "Heute gegen {{ZEIT}} Uhr." },
+      { sprecher: "ki", text: "Heute um {{ZEIT}} Uhr, Liegendtransport vom Klinikum Aachen-Mitte zum Pflegeheim Sonnenhof, für Said Yilmaz. Passt das?" },
       { sprecher: "anrufer", text: "Ja, passt." },
-      { sprecher: "ki", text: "Die Fahrt ist für sechzehn Uhr eingeplant. Gute Besserung für Ihren Vater." },
+      { sprecher: "ki", text: "Die Fahrt ist für {{ZEIT}} Uhr eingeplant. Gute Besserung für Ihren Vater." },
     ],
     fahrgast: "Said Yilmaz",
     transport: "Liegend",
