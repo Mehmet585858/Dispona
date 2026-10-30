@@ -43,20 +43,22 @@ export function LiveClient({ initialDaten }: { initialDaten: LiveDaten }) {
   return (
     <div className="min-h-screen bg-ground">
       <header className="border-b border-line bg-surface">
-        <div className="flex w-full flex-wrap items-center justify-between gap-3 px-6 py-4">
-          <div className="flex flex-wrap items-center gap-1">
-            <a href="https://dispona.de" className="mr-4 flex items-center">
+        {/* Kein flex-wrap mehr - siehe dieselbe Begründung/Fix in src/app/dispo/layout.tsx:
+         * bei mittleren Breiten brach die Navigation sonst unschön über zwei Zeilen um. */}
+        <div className="flex w-full items-center justify-between gap-3 px-6 py-4">
+          <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
+            <a href="https://dispona.de" className="mr-4 flex flex-none items-center">
               <Logo className="h-6 text-ink" />
             </a>
             {NAVIGATION.map((label) => (
-              <span key={label} className="rounded-lg px-3 py-2 text-sm font-medium text-ink-soft">
+              <span key={label} className="flex-none rounded-lg px-3 py-2 text-sm font-medium text-ink-soft">
                 {label}
               </span>
             ))}
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-none items-center gap-3">
             <span className="rounded-full bg-accent-soft px-3 py-1 text-xs font-semibold text-accent">Live-Demo</span>
-            <a href="https://dispona.de#demo" className="text-sm font-medium text-accent hover:underline">
+            <a href="https://dispona.de#demo" className="hidden text-sm font-medium text-accent hover:underline sm:inline">
               ← Zurück zu dispona.de
             </a>
           </div>
