@@ -51,5 +51,36 @@ export async function demoZuruecksetzen(tenantId: string = DEMO_TENANT_ID) {
     where: { startedAt: { lt: grenze }, rides: { none: {} } },
   });
 
-  return { fahrtenGeloescht: fahrtIds.length, fahrgaesteGeloescht, anrufeGeloescht: alteAnrufe.count };
+  const positionenGeloescht = await vehicleLocationsAufraeumen(db, grenze);
+
+  return {
+    fahrtenGeloescht: fahrtIds.length,
+    fahrgaesteGeloescht,
+    anrufeGeloescht: alteAnrufe.count,
+    positionenGeloescht,
+  };
+}
+
+/** VehicleLocation hat keine rideId-Beziehung und hängt dadurch an keinem Fahrt-Lebenszyklus - im
+ * Gegensatz zu RideStatusEvent/Suggestion/Notification oben wird hier nie etwas gelöscht, obwohl
+ * positionenAktualisieren() (betriebSimulieren.ts) für jedes aktive Fahrzeug jede Minute eine neue
+ * Zeile anlegt. Ohne diese Aufräumung wächst die Tabelle seit Produktionsstart unbegrenzt weiter.
+ * Die jeweils neueste Zeile pro Fahrzeug bleibt immer erhalten (auch wenn sie älter als die Grenze
+ * ist), sonst würde ein lange geparktes, nie neu positioniertes Fahrzeug seine einzige bekannte
+ * Position verlieren. */
+async function vehicleLocationsAufraeumen(db: ReturnType<typeof withTenant>, grenze: Date): Promise<number> {
+  const fahrzeuge = await db.vehicle.findMany({ select: { id: true } });
+  let geloescht = 0;
+  for (const fahrzeug of fahrzeuge) {
+    const neueste = await db.vehicleLocation.findFirst({
+      where: { vehicleId: fahrzeug.id },
+      orderBy: { at: "desc" },
+      select: { id: true },
+    });
+    const { count } = await db.vehicleLocation.deleteMany({
+      where: { vehicleId: fahrzeug.id, at: { lt: grenze }, id: neueste ? { not: neueste.id } : undefined },
+    });
+    geloescht += count;
+  }
+  return geloescht;
 }

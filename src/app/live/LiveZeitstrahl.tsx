@@ -9,7 +9,7 @@
 // src/core/demo/betriebSimulieren.ts) - keine clientseitige Deko mehr. Layout, Kopfzeile,
 // Live-Status pro Fahrzeug und Legende sind aus dem Original importiert statt nachgebaut, damit
 // beide Ansichten nie wieder auseinanderlaufen.
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { chipStil } from "@/core/rides/transportfarbe";
 import { TRANSPORT_TYPE_LABEL } from "@/core/rides/validation";
 import { ZEITSTRAHL_ENDE_STUNDE, ZEITSTRAHL_START_STUNDE, zeitstrahlBreite, zeitstrahlPosition } from "@/core/shifts/zeitstrahl";
@@ -57,6 +57,20 @@ export function LiveZeitstrahl({
   const unterwegsCount = fahrten.filter((f) => f.status === "UNTERWEGS" || f.status === "AN_BORD").length;
   const verspaetetCount = fahrten.filter((f) => !!f.driverDelayMin && f.driverDelayMin > 0).length;
 
+  // Anders als die angemeldete Ansicht (Zeitstrahl.tsx) fehlte hier bisher jeder Auto-Scroll: die
+  // Leiste startete immer bei 00:00, ein Besucher musste manuell bis zur aktuellen Uhrzeit
+  // scrollen, um überhaupt laufende Fahrten zu sehen. Nur einmal beim ersten Laden springen (ein
+  // Ref statt eines State, damit der 5s-Poll die Scrollposition danach nicht wieder zurücksetzt).
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const hatAutoGescrollt = useRef(false);
+  useEffect(() => {
+    if (hatAutoGescrollt.current) return;
+    const el = scrollRef.current;
+    if (!el || jetztProzent === null) return;
+    el.scrollLeft = Math.max(0, px(jetztProzent) - el.clientWidth / 3);
+    hatAutoGescrollt.current = true;
+  }, [jetztProzent]);
+
   function fahrtOeffnen(fahrt: (typeof fahrten)[number]) {
     setOffeneFahrt({
       titel: `${fahrt.passenger.firstName} ${fahrt.passenger.lastName}`,
@@ -81,7 +95,7 @@ export function LiveZeitstrahl({
           {fahrten.length} Fahrten · {unterwegsCount} unterwegs · {verspaetetCount} verspätet
         </span>
       </div>
-      <div className="overflow-x-auto rounded-2xl border border-line bg-surface">
+      <div ref={scrollRef} className="overflow-x-auto rounded-2xl border border-line bg-surface">
         <div className="flex flex-col gap-y-2 p-4" style={{ width: 230 + ZEITSTRAHL_BREITE_PX }}>
           <div className="flex items-center gap-x-2">
             <div className="sticky left-0 z-10 w-[230px] flex-none bg-surface shadow-[2px_0_6px_-2px_rgba(16,24,32,0.12)]" />

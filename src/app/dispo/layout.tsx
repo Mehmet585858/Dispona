@@ -20,23 +20,28 @@ export default async function DispoLayout({ children }: { children: ReactNode })
   return (
     <div className="flex min-h-screen flex-col">
       <header className="border-b border-line bg-surface">
-        <div className="flex w-full flex-wrap items-center justify-between gap-3 px-6 py-4">
-          <div className="flex flex-wrap items-center gap-1">
-            <Link href="/dispo" className="mr-4 flex items-center">
+        {/* Kein flex-wrap mehr: bei mittleren Breiten (~591-800px, z. B. kleineres Laptop-Fenster
+         * oder Tablet quer) brach die Navigation sonst unschön über zwei Zeilen um, mit der
+         * letzten Reihe allein hängend. Stattdessen scrollt der Link-Block jetzt horizontal,
+         * während Name/Abmelden rechts immer sichtbar fix stehen bleiben - bei voller
+         * Desktop-Breite unverändert einzeilig, ohne jeden Scrollbedarf. */}
+        <div className="flex w-full items-center justify-between gap-3 px-6 py-4">
+          <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
+            <Link href="/dispo" className="mr-4 flex flex-none items-center">
               <Logo className="h-6 text-ink" />
             </Link>
             {navigation.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
-                className="rounded-lg px-3 py-2 text-sm font-medium text-ink-soft hover:bg-accent-soft hover:text-accent"
+                className="flex-none rounded-lg px-3 py-2 text-sm font-medium text-ink-soft hover:bg-accent-soft hover:text-accent"
               >
                 {item.label}
               </Link>
             ))}
           </div>
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-muted">{session?.user.name}</span>
+          <div className="flex flex-none items-center gap-3">
+            <span className="hidden text-sm text-muted sm:inline">{session?.user.name}</span>
             <SignOutButton />
           </div>
         </div>

@@ -287,6 +287,11 @@ function FahrtChip({
       <button
         type="button"
         onPointerDown={aufPointerDown}
+        // Für nicht verschiebbare Fahrten (unterwegs, an Bord, erledigt, storniert, nicht
+        // angetroffen) bricht aufPointerDown sofort ab, bevor die pointermove/pointerup-Listener
+        // hängen, die sonst einen Klick erkennen - ohne dieses onClick würde ein Klick auf eine
+        // dieser Fahrten (die Mehrheit im Tagesbetrieb) einfach nichts tun.
+        onClick={!verschiebbar ? () => onKlick?.(fahrt.id) : undefined}
         title={`${uhrzeit(fahrt.pickupAt)}–${uhrzeit(fahrt.geplantesEnde)} ${fahrt.passenger.firstName} ${
           fahrt.passenger.lastName
         } · ${TRANSPORT_TYPE_LABEL[fahrt.transportType]}${verschiebbar ? " · ziehen zum Verschieben" : ""}`}

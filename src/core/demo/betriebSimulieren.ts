@@ -71,10 +71,23 @@ const MAX_NEUE_TAGESPLAN_FAHRTEN_PRO_LAUF = 6;
 /** Dieselbe Begrenzung für die Aufräumrunde (haengendeVorschlaegeAufraeumen) - jede Stornierung
  * braucht ebenfalls mehrere Datenbank-Umläufe. */
 const MAX_AUFRAEUM_PRO_LAUF = 10;
+/** Dieselbe Begrenzung für statusFortschreiben - jeder Statuswechsel braucht ebenfalls mehrere
+ * Datenbank-Umläufe (fahrtStatusAendern: Prüfung, Update, Event, ggf. Benachrichtigung). Ohne
+ * Deckel war das die einzige der drei großen Schleifen, die nach einem großen Rückstand erneut
+ * das Zeitlimit reißen konnte - derselbe Bug-Typ wie der bereits einmal gefixte Produktions-Freeze. */
+const MAX_STATUS_FORTSCHREIBEN_PRO_LAUF = 20;
 const BETRIEB_START = "08:00";
 const BETRIEB_ENDE = "18:00";
 
-const AKTIVE_STATUS: RideStatus[] = ["ERFASST", "VORGESCHLAGEN", "DISPONIERT", "UNTERWEGS", "AN_BORD"];
+/** Für das Aktivitäts-Gate in neuenAnrufBeiBedarf: bewusst nur WIRKLICH laufende Fahrten, nicht
+ * DISPONIERT/ERFASST/VORGESCHLAGEN - der Tagesplan (tagesplanSicherstellen) legt pro Tag ~30-40
+ * direkt zugewiesene (also sofort DISPONIERT) Fahrten an, oft schon in den ersten Cron-Minuten.
+ * Würden die mitgezählt, wäre ZIEL_AKTIVE_FAHRTEN fast den ganzen Tag "erreicht" und die
+ * spontane Anruf-Simulation - das eigentliche "Live"-Feature - käme kaum noch zum Zug. */
+const LAUFENDE_STATUS: RideStatus[] = ["UNTERWEGS", "AN_BORD"];
+/** Status, die einen Fahrgast gerade "besetzt" machen - bei nur 16 erfundenen Namen im Roster
+ * (DEMO_PASSAGIER_ROSTER) sonst schnell derselbe Name gleichzeitig in mehreren Fahrzeugen. */
+const AKTIVE_PASSAGIER_STATUS: RideStatus[] = ["DISPONIERT", "UNTERWEGS", "AN_BORD"];
 
 const TRANSPORT_GEWICHTE: [TransportTyp, number][] = [
   ["SITZEND", 55],
@@ -95,6 +108,24 @@ function zufaelligerTransportTyp(): TransportTyp {
 
 function zufallsElement<T>(liste: T[]): T {
   return liste[Math.floor(Math.random() * liste.length)];
+}
+
+/** IDs aller Fahrgäste, die gerade eine aktive Fahrt haben (siehe AKTIVE_PASSAGIER_STATUS) - vor
+ * jeder neuen Zuteilung geprüft, damit derselbe Name nicht gleichzeitig in mehreren Fahrzeugen
+ * unterwegs ist. */
+async function belegtePassagierIds(db: ReturnType<typeof withTenant>): Promise<Set<string>> {
+  const belegt = await db.ride.findMany({
+    where: { status: { in: AKTIVE_PASSAGIER_STATUS } },
+    select: { passengerId: true },
+  });
+  return new Set(belegt.map((r) => r.passengerId));
+}
+
+/** Schließt gerade besetzte Fahrgäste aus - bleibt am Ende zufällig niemand übrig (z. B. kurz nach
+ * einer Lastspitze), lieber eine seltene Kollision in Kauf nehmen als gar keine neue Fahrt anlegen. */
+function verfuegbarePassagiere(passagiere: Passagier[], belegt: Set<string>): Passagier[] {
+  const frei = passagiere.filter((p) => !belegt.has(p.id));
+  return frei.length > 0 ? frei : passagiere;
 }
 
 function zufallsPaar(wohnorte: Ort[], einrichtungen: Ort[]): { pickupPlace: Ort; dropoffPlace: Ort } {
@@ -254,7 +285,7 @@ async function simulierteFahrtAnlegen(
     pickupAt: Date;
     vehicleId?: string;
   },
-) {
+): Promise<boolean> {
   const db = withTenant(tenantId);
   const telefon = await db.phoneNumber.findFirst();
   const zeit = uhrzeitHHMM(angaben.pickupAt);
@@ -303,13 +334,20 @@ async function simulierteFahrtAnlegen(
   if (angaben.vehicleId) {
     try {
       await fahrzeugZuweisen(tenantId, rideId, angaben.vehicleId, { dispatchMode: "AUTO" });
+      return true;
     } catch (fehler) {
-      // Trotz eigener Überschneidungsprüfung im Tagesplan belegt (z. B. durch einen Anruf, der
-      // zeitgleich dasselbe Fahrzeug bekam) - bleibt dann ganz normal als Vorschlag liegen, wie
-      // jede andere nicht automatisch zuweisbare Fahrt auch.
       if (!(fehler instanceof FahrzeugKonfliktError)) throw fehler;
+      // Trotz eigener Überschneidungsprüfung im Tagesplan doch belegt (z. B. durch einen Anruf,
+      // der zeitgleich dasselbe Fahrzeug bekam) - die Fahrt bleibt als ERFASST ohne Fahrzeug
+      // stehen. Ohne dieses Flag fällt sie durch BEIDE Netze (haengendeVorschlaegeAufraeumen
+      // sucht gezielt ERFASST+KEIN_FAHRZEUG, "Braucht Sie" zählt dasselbe) und bliebe für immer
+      // unsichtbar liegen, weil fahrtErfassen() zum Erfassungszeitpunkt ja noch ein Fahrzeug
+      // kannte und das Flag deshalb von sich aus nicht gesetzt hat.
+      await db.ride.update({ where: { id: rideId }, data: { problems: { push: "KEIN_FAHRZEUG" } } });
+      return false;
     }
   }
+  return false; // kein vehicleId (spontaner Anruf) - der separate Automodus-Cron entscheidet später
 }
 
 async function alteAnrufeAbschliessen(tenantId: string, jetzt: Date) {
@@ -328,14 +366,19 @@ async function alteAnrufeAbschliessen(tenantId: string, jetzt: Date) {
 
 async function neuenAnrufBeiBedarf(tenantId: string, jetzt: Date) {
   const db = withTenant(tenantId);
-  const aktiveAnzahl = await db.ride.count({ where: { status: { in: AKTIVE_STATUS } } });
+  const aktiveAnzahl = await db.ride.count({ where: { status: { in: LAUFENDE_STATUS } } });
   if (aktiveAnzahl >= ZIEL_AKTIVE_FAHRTEN) return;
   if (Math.random() > NEUE_FAHRT_WAHRSCHEINLICHKEIT) return;
 
-  const [passagiere, orte] = await Promise.all([fahrgastRosterSicherstellen(tenantId), db.place.findMany()]);
+  const [passagiere, orte, belegt] = await Promise.all([
+    fahrgastRosterSicherstellen(tenantId),
+    db.place.findMany(),
+    belegtePassagierIds(db),
+  ]);
   const wohnorte = orte.filter((o) => o.type === "WOHNUNG");
   const einrichtungen = orte.filter((o) => o.type !== "WOHNUNG" && o.type !== "SONSTIGES");
-  if (passagiere.length === 0 || wohnorte.length === 0 || einrichtungen.length === 0) return;
+  const verfuegbar = verfuegbarePassagiere(passagiere, belegt);
+  if (verfuegbar.length === 0 || wohnorte.length === 0 || einrichtungen.length === 0) return;
 
   const { pickupPlace, dropoffPlace } = zufallsPaar(wohnorte, einrichtungen);
   const transportType = zufaelligerTransportTyp();
@@ -343,7 +386,7 @@ async function neuenAnrufBeiBedarf(tenantId: string, jetzt: Date) {
   const pickupAt = new Date(jetzt.getTime() + pickupInMinuten * 60_000);
 
   await simulierteFahrtAnlegen(tenantId, jetzt, {
-    passagier: zufallsElement(passagiere),
+    passagier: zufallsElement(verfuegbar),
     pickupPlace,
     dropoffPlace,
     transportType,
@@ -364,10 +407,14 @@ async function tagesplanSicherstellen(tenantId: string, jetzt: Date) {
   let tagesEnde = mitUhrzeit(jetzt, BETRIEB_ENDE);
   if (jetzt > tagesEnde) tagesEnde = jetzt; // nach Betriebsschluss trotzdem nicht ins Leere planen
 
-  const [fahrzeuge, orte, passagiere] = await Promise.all([
-    db.vehicle.findMany({ where: { active: true } }),
+  const [fahrzeuge, orte, passagiere, belegtePassagiere] = await Promise.all([
+    // orderBy nötig: ohne stabile Sortierung kann Postgres zwischen zwei Läufen eine andere
+    // Reihenfolge liefern (z. B. nach einem update() in seedDemoTenant.ts) - .slice(...) unten
+    // würde dann zwischen zwei Cron-Minuten unterschiedliche Fahrzeuge als "vollausgelastet" wählen.
+    db.vehicle.findMany({ where: { active: true }, orderBy: { plate: "asc" } }),
     db.place.findMany(),
     fahrgastRosterSicherstellen(tenantId),
+    belegtePassagierIds(db),
   ]);
   const wohnorte = orte.filter((o) => o.type === "WOHNUNG");
   const einrichtungen = orte.filter((o) => o.type !== "WOHNUNG" && o.type !== "SONSTIGES");
@@ -411,13 +458,24 @@ async function tagesplanSicherstellen(tenantId: string, jetzt: Date) {
       belegt.push({ von: new Date(slot.pickupAt.getTime() - ANFAHRT_MINUTEN * 60_000), bis: slot.ende });
       neuAngelegt += 1;
 
-      const passagier = zufallsElement(passagiere);
+      const passagier = zufallsElement(verfuegbarePassagiere(passagiere, belegtePassagiere));
       const anfahrtStart = new Date(slot.pickupAt.getTime() - ANFAHRT_MINUTEN * 60_000);
 
       if (slot.ende <= jetzt || anfahrtStart <= jetzt) {
         // Ganz oder teilweise in der Vergangenheit (inklusive "läuft gerade jetzt") - sofort mit
         // dem dazu passenden Status anlegen, statt auf echte Zeit zu warten.
         const status: RideStatus = slot.ende <= jetzt ? "ERLEDIGT" : jetzt >= slot.pickupAt ? "AN_BORD" : "UNTERWEGS";
+
+        // Letzte Prüfung direkt vor dem Schreiben, mit frischer Datenbankabfrage statt des oben
+        // nur einmal berechneten "belegt"-Arrays: der Cron läuft minütlich ohne Garantie
+        // exklusiver Ausführung, und dieser direkte Create-Pfad hat - anders als
+        // fahrzeugZuweisen() im else-Zweig unten - sonst keine eigene Konfliktprüfung. Ein
+        // zeitgleich laufender zweiter Durchlauf könnte seit der Abfrage von "bestehend" oben
+        // bereits etwas Überschneidendes für dasselbe Fahrzeug angelegt haben.
+        if (await fahrzeugUeberschneidungVorhanden(db, fahrzeug.id, anfahrtStart, slot.ende)) {
+          continue; // ein paralleler Lauf hat diesen Slot inzwischen belegt - nicht erzwingen
+        }
+
         const schicht = await db.shift.findFirst({
           where: { vehicleId: fahrzeug.id, start: { lte: slot.pickupAt }, end: { gte: slot.pickupAt } },
           select: { driverId: true },
@@ -439,12 +497,13 @@ async function tagesplanSicherstellen(tenantId: string, jetzt: Date) {
           },
         });
         await db.rideStatusEvent.create({ data: { tenantId, rideId: neueFahrt.id, status } });
+        if (status !== "ERLEDIGT") belegtePassagiere.add(passagier.id);
       } else {
         // Echte Zukunft (bis 18 Uhr): simulierter Anruf, aber direkt diesem schon
         // überschneidungsfrei geprüften Fahrzeug zugewiesen statt dem Automodus überlassen - der
         // müsste sonst unter vielen gleichzeitig geplanten Tagesplan-Fahrten frei wählen, was ohne
         // echten Disponenten nur unnötige "Braucht Sie"-Fälle erzeugt.
-        await simulierteFahrtAnlegen(tenantId, jetzt, {
+        const zugewiesen = await simulierteFahrtAnlegen(tenantId, jetzt, {
           passagier,
           pickupPlace: slot.pickupPlace,
           dropoffPlace: slot.dropoffPlace,
@@ -452,9 +511,35 @@ async function tagesplanSicherstellen(tenantId: string, jetzt: Date) {
           pickupAt: slot.pickupAt,
           vehicleId: fahrzeug.id,
         });
+        if (zugewiesen) belegtePassagiere.add(passagier.id);
       }
     }
   }
+}
+
+/** Frische Überschneidungsprüfung für genau ein Fahrzeug und ein Zeitfenster, direkt vor einem
+ * db.ride.create() im Tagesplan-Pfad - siehe Kommentar an der Aufrufstelle. Bewusst eine
+ * eigenständige, kleine Abfrage statt des größeren "bestehend"-Querys oben, damit diese letzte
+ * Prüfung so kurz wie möglich vor dem Schreiben passiert. */
+async function fahrzeugUeberschneidungVorhanden(
+  db: ReturnType<typeof withTenant>,
+  vehicleId: string,
+  von: Date,
+  bis: Date,
+): Promise<boolean> {
+  const bestehend = await db.ride.findMany({
+    where: {
+      vehicleId,
+      status: { not: "STORNIERT" },
+      pickupAt: { gte: new Date(von.getTime() - 4 * 60 * 60_000), lte: new Date(bis.getTime() + 4 * 60 * 60_000) },
+    },
+    include: { pickupPlace: true, dropoffPlace: true },
+  });
+  return bestehend.some((f) => {
+    const fVon = new Date(f.pickupAt.getTime() - ANFAHRT_MINUTEN * 60_000);
+    const fBis = new Date(f.pickupAt.getTime() + fahrtDauerMinuten(f.transportType, f.pickupPlace, f.dropoffPlace) * 60_000);
+    return von < fBis && fVon < bis;
+  });
 }
 
 function freienSlotFinden(
@@ -483,6 +568,7 @@ async function statusFortschreiben(tenantId: string, jetzt: Date) {
   const kandidaten = await db.ride.findMany({
     where: { status: { in: ["DISPONIERT", "UNTERWEGS", "AN_BORD"] } },
     include: { pickupPlace: true, dropoffPlace: true },
+    take: MAX_STATUS_FORTSCHREIBEN_PRO_LAUF, // Rest holt der nächste Lauf nach, siehe MAX_NEUE_TAGESPLAN_FAHRTEN_PRO_LAUF
   });
   for (const fahrt of kandidaten) {
     if (fahrt.status === "DISPONIERT") {

@@ -136,7 +136,12 @@ export function LiveClient({ initialDaten }: { initialDaten: LiveDaten }) {
               <KpiTile label="Gerade unterwegs" wert={daten.kennzahlen.unterwegs} />
               <KpiTile label="Von Dispona eingeplant" wert={daten.kennzahlen.vonDisponaEingeplant} zusatz="heute" />
               <KpiTile label="Braucht Sie" wert={daten.kennzahlen.brauchtSie} warnstil={daten.kennzahlen.brauchtSie > 0} />
-              <KpiTile label="Anrufe heute" wert={daten.kennzahlen.anrufeHeute} />
+              {/* Bei zwei Spalten (unter dem sm-Breakpoint) hängt die fünfte Kachel sonst allein in
+               * einer eigenen Reihe - hier bewusst über die volle Breite gezogen statt als
+               * unausgewogener Einzelkasten. Ab sm (5 Spalten) wieder ganz normal eine Kachel. */}
+              <div className="col-span-2 sm:col-span-1">
+                <KpiTile label="Anrufe heute" wert={daten.kennzahlen.anrufeHeute} />
+              </div>
             </div>
             <div className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4">
               <LiveZeitstrahl fahrten={daten.fahrten} fahrzeugZeilen={daten.fahrzeugZeilen} jetztProzent={jetztProzent} />
