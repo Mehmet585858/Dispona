@@ -141,6 +141,8 @@ export async function seedDemoTenant() {
   const schichtEnde = new Date(schichtStart.getTime());
   schichtEnde.setFullYear(schichtEnde.getFullYear() + 2);
 
+  const fahrerIds: string[] = [];
+  const fahrzeugIdJeFahrer = new Map<string, string>(); // driverId -> vehicleId, für die Aufräumrunde unten
   for (const [index, daten] of fahrerDaten.entries()) {
     const user = await db.user.upsert({
       where: { email: daten.email },
@@ -160,7 +162,9 @@ export async function seedDemoTenant() {
     if (!driver) {
       driver = await db.driver.create({ data: { tenantId: DEMO_TENANT_ID, userId: user.id } });
     }
+    fahrerIds.push(driver.id);
     const vehicle = fahrzeuge[index];
+    fahrzeugIdJeFahrer.set(driver.id, vehicle.id);
     const vorhandeneSchicht = await db.shift.findFirst({ where: { driverId: driver.id, vehicleId: vehicle.id } });
     if (!vorhandeneSchicht) {
       await db.shift.create({
@@ -168,6 +172,16 @@ export async function seedDemoTenant() {
       });
     }
   }
+  // Räumt Schichten auf einem anderen Fahrzeug auf, die ein Demo-Fahrer aus einer früheren Flotten-
+  // größe (z. B. vor der Erweiterung auf 10 Fahrzeuge) noch hat - sonst zeigt eine Fahrzeugzeile
+  // mehrere Fahrernamen ("Winter · Keller") statt des einen, der dem Fahrzeug jetzt zugeordnet ist.
+  await db.shift.deleteMany({
+    where: {
+      tenantId: DEMO_TENANT_ID,
+      driverId: { in: fahrerIds },
+      NOT: fahrerIds.map((driverId) => ({ driverId, vehicleId: fahrzeugIdJeFahrer.get(driverId) })),
+    },
+  });
 
   // Echte Aachener Adressen statt "Beispielweg"/"Musterstadt" - altesLabel lässt eine schon
   // angelegte Platzhalter-Adresse auf die neue umschreiben (self-healing per Rename statt
