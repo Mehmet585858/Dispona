@@ -20,14 +20,15 @@ export async function seedDemoTenant() {
       // Ein erfundener, aber konkreter Firmenname wirkt für Demo-Anrufer glaubwürdiger als
       // "Dispona Live-Demo" (Nutzerwunsch) - siehe DEMO_TENANT_ID in const.ts.
       name: "Mediway Krankenfahrdienst",
-      street: "Musterstraße 1",
-      zip: "52062",
+      // Echte Aachener Adresse statt "Musterstraße" - wirkt für Demo-Anrufer glaubwürdiger.
+      street: "Jülicher Straße 112",
+      zip: "52070",
       city: "Aachen",
       paket: "PRO",
     },
-    // Name auch bei erneutem Lauf setzen (self-healing), falls der Mandant vor der Umbenennung
+    // Auch bei erneutem Lauf setzen (self-healing), falls der Mandant vor diesen Namen/Adressen
     // angelegt wurde.
-    update: { name: "Mediway Krankenfahrdienst" },
+    update: { name: "Mediway Krankenfahrdienst", street: "Jülicher Straße 112", zip: "52070", city: "Aachen" },
   });
 
   await db.tenantSettings.upsert({
@@ -111,12 +112,23 @@ export async function seedDemoTenant() {
     );
   }
 
-  // Nachnamen statt durchnummerierter "Demo Fahrer N" - nachname() (actions.ts) zeigt im
-  // Zeitstrahl nur das letzte Wort des Namens an und hätte sonst die Zahl selbst als "Nachname"
-  // angezeigt (z. B. "2 · 4" statt eines Namens).
-  const DEMO_NACHNAMEN = ["Berger", "Winter", "Falk", "Keller", "Vogel", "Brandt", "Lindner", "Schuster", "Fink", "Weiss"];
+  // Echte Vor- und Nachnamen statt durchnummerierter "Demo Fahrer N" - wirkt glaubwürdiger und
+  // nachname() (actions.ts) zeigt im Zeitstrahl ohnehin nur das letzte Wort des Namens an, hätte
+  // bei "Demo Fahrer 2" sonst die Zahl selbst als "Nachname" angezeigt (z. B. "2 · 4").
+  const DEMO_FAHRER_NAMEN = [
+    "Thomas Berger",
+    "Sabine Winter",
+    "Markus Falk",
+    "Julia Keller",
+    "Stefan Vogel",
+    "Nicole Brandt",
+    "Michael Lindner",
+    "Anna Schuster",
+    "Daniel Fink",
+    "Laura Weiss",
+  ];
   const fahrerDaten = fahrzeugDaten.map((_, i) => ({
-    name: `Demo ${DEMO_NACHNAMEN[i % DEMO_NACHNAMEN.length]}`,
+    name: DEMO_FAHRER_NAMEN[i % DEMO_FAHRER_NAMEN.length],
     email: `demo-fahrer-${i + 1}@dispona-demo.invalid`,
   }));
   // Eine einzige, sehr lang laufende Schicht statt täglich neuer - die Demo soll jederzeit
@@ -153,16 +165,41 @@ export async function seedDemoTenant() {
     }
   }
 
+  // Echte Aachener Adressen statt "Beispielweg"/"Musterstadt" - altesLabel lässt eine schon
+  // angelegte Platzhalter-Adresse auf die neue umschreiben (self-healing per Rename statt
+  // Löschen+Neuanlegen), falls eine laufende Demo-Fahrt noch auf die alte ID zeigt.
   const orteDaten = [
-    { label: "Dispona-Betriebshof", street: "Musterstraße 1", zip: "52062", city: "Aachen", lat: 50.7753, lng: 6.0839, type: "SONSTIGES" as const },
-    { label: "Klinikum Musterstadt", street: "Beispielweg 10", zip: "52070", city: "Aachen", lat: 50.785, lng: 6.0956, type: "KLINIK" as const },
-    { label: "Pflegeheim Sonnenhof", street: "Beispielweg 20", zip: "52064", city: "Aachen", lat: 50.7701, lng: 6.0752, type: "PFLEGEHEIM" as const },
-    { label: "Praxis am Markt", street: "Beispielweg 30", zip: "52062", city: "Aachen", lat: 50.7765, lng: 6.0875, type: "PRAXIS" as const },
-    { label: "Dialysezentrum Musterstadt", street: "Beispielweg 40", zip: "52074", city: "Aachen", lat: 50.7822, lng: 6.0569, type: "DIALYSE" as const },
+    { label: "Dispona-Betriebshof", street: "Jülicher Straße 112", zip: "52070", city: "Aachen", lat: 50.7847, lng: 6.0825, type: "SONSTIGES" as const },
+    {
+      label: "Klinikum Aachen-Mitte",
+      altesLabel: "Klinikum Musterstadt",
+      street: "Goethestraße 1",
+      zip: "52064",
+      city: "Aachen",
+      lat: 50.7762,
+      lng: 6.0865,
+      type: "KLINIK" as const,
+    },
+    { label: "Pflegeheim Sonnenhof", street: "Lousbergstraße 10", zip: "52064", city: "Aachen", lat: 50.7831, lng: 6.0774, type: "PFLEGEHEIM" as const },
+    { label: "Praxis am Markt", street: "Am Markt 5", zip: "52062", city: "Aachen", lat: 50.7753, lng: 6.0839, type: "PRAXIS" as const },
+    {
+      label: "Dialysezentrum Aachen",
+      altesLabel: "Dialysezentrum Musterstadt",
+      street: "Roermonder Straße 20",
+      zip: "52072",
+      city: "Aachen",
+      lat: 50.7682,
+      lng: 6.0651,
+      type: "DIALYSE" as const,
+    },
   ];
-  for (const daten of orteDaten) {
-    const vorhanden = await db.place.findFirst({ where: { tenantId: DEMO_TENANT_ID, label: daten.label } });
-    if (!vorhanden) {
+  for (const { altesLabel, ...daten } of orteDaten) {
+    const vorhanden = await db.place.findFirst({
+      where: { tenantId: DEMO_TENANT_ID, label: { in: [daten.label, ...(altesLabel ? [altesLabel] : [])] } },
+    });
+    if (vorhanden) {
+      await db.place.update({ where: { id: vorhanden.id }, data: daten });
+    } else {
       await db.place.create({ data: { tenantId: DEMO_TENANT_ID, usageCount: 0, ...daten } });
     }
   }
