@@ -96,11 +96,22 @@ export async function fahrplanFuerMandantLaden(
   ]);
 
   const fahrerNameNachId = new Map(fahrerRoh.map((f) => [f.id, f.user.name]));
-  const fahrten = fahrtenRoh.map((fahrt) => ({
-    ...fahrt,
-    fahrerName: fahrt.driverId ? (fahrerNameNachId.get(fahrt.driverId) ?? null) : null,
-    geplantesEnde: geplantesEnde(fahrt.pickupAt, fahrt.transportType, fahrt.pickupPlace, fahrt.dropoffPlace),
-  }));
+  const fahrten = fahrtenRoh.map((fahrt) => {
+    // Noch niemandem zugewiesene, aber schon berechnete Vorschläge sollen im Zeitstrahl beim
+    // vorgeschlagenen Fahrzeug auftauchen (gestrichelt, Zustand "vorschlag" - siehe chipStil()) -
+    // sonst sind diese Fahrten nirgends sichtbar, bis ein Disponent sie zufällig in der Liste
+    // findet oder der Automatikmodus sie übernimmt.
+    const besterVorschlag =
+      fahrt.status === "VORGESCHLAGEN" && !fahrt.vehicleId
+        ? ((fahrt.suggestions[0]?.options as { vehicleId: string }[] | undefined)?.[0] ?? null)
+        : null;
+    return {
+      ...fahrt,
+      fahrerName: fahrt.driverId ? (fahrerNameNachId.get(fahrt.driverId) ?? null) : null,
+      geplantesEnde: geplantesEnde(fahrt.pickupAt, fahrt.transportType, fahrt.pickupPlace, fahrt.dropoffPlace),
+      vorschlagVehicleId: besterVorschlag?.vehicleId ?? null,
+    };
+  });
 
   const letztePositionen = await db.vehicleLocation.findMany({
     where: { vehicleId: { in: fahrzeugeAktiv.map((f) => f.id) } },

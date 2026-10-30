@@ -90,6 +90,11 @@ export type FahrtMini = {
   transportType: (typeof TRANSPORT_TYPES)[number];
   driverDelayMin: number | null;
   vehicleId: string | null;
+  /** Fahrzeug des besten (noch unbestätigten) Vorschlags - nur gesetzt, wenn status VORGESCHLAGEN
+   * und noch kein vehicleId vergeben ist. Lässt die Fahrt trotzdem schon auf der richtigen
+   * Fahrzeugzeile erscheinen (gestrichelt, siehe chipStil "vorschlag"), statt bis zur Bestätigung
+   * komplett unsichtbar zu bleiben. */
+  vorschlagVehicleId: string | null;
   passenger: { firstName: string; lastName: string; phones?: string[]; insurer?: string | null };
   pickupPlace: { label: string };
   dropoffPlace: { label: string };
@@ -597,7 +602,9 @@ export function Zeitstrahl({
               </div>
               <SpurTag
                 schicht={null}
-                fahrten={fahrten.filter((f) => f.vehicleId === zeile.id)}
+                fahrten={fahrten.filter(
+                  (f) => f.vehicleId === zeile.id || (!f.vehicleId && f.vorschlagVehicleId === zeile.id),
+                )}
                 jetztProzent={jetztProzentHeute}
                 fahrzeugId={zeile.id}
                 passtZurSuche={passtZurSuche}
