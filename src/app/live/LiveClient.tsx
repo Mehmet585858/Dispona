@@ -42,10 +42,20 @@ export function LiveClient({ initialDaten }: { initialDaten: LiveDaten }) {
   const { ref: zeitstrahlKarteRef, hoehe: zeitstrahlKarteHoehe } = useGemesseneHoehe<HTMLDivElement>(448);
 
   useEffect(() => {
+    // Jede Anfrage bekommt eine fortlaufende Nummer - eine spätere Anfrage kann (je nach
+    // Serverlast) schneller antworten als eine frühere. Ohne diese Prüfung konnte eine verspätet
+    // eintreffende, ältere Antwort eine schon angezeigte, frischere Antwort überschreiben - die
+    // Seite "sprang" dann kurz auf einen veralteten Fahrzeug-/Fahrgast-Status zurück, bevor beim
+    // nächsten Poll wieder der richtige Stand kam. Nur die Antwort der zuletzt gestellten Anfrage
+    // wird noch übernommen.
+    let aktuellsteAnfrage = 0;
     function aktualisieren() {
       setJetztProzent(zeitstrahlPosition(new Date()));
+      const anfrageId = ++aktuellsteAnfrage;
       liveDemoLaden()
-        .then(setDaten)
+        .then((neueDaten) => {
+          if (anfrageId === aktuellsteAnfrage) setDaten(neueDaten);
+        })
         .catch(() => {});
     }
     aktualisieren();
