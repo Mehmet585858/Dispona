@@ -1,12 +1,13 @@
 "use client";
 
 // Rein lesbare Variante des internen Zeitstrahls (src/app/dispo/fahrten/Zeitstrahl.tsx) für die
-// öffentliche Live-Demo: keine Buttons, kein Ziehen, kein Klick öffnet etwas - bewusst dupliziert
-// statt des interaktiven Original-Bausteins wiederverwendet, weil dessen Verschieben-per-Ziehen
-// serverseitig eine Anmeldung voraussetzt (requireSession) und bei einem anonymen Besucher nur
-// mit einer unbehandelten Fehlermeldung und einer für immer "hängenden" Kachel enden würde.
-// Layout, Kopfzeile, Live-Status pro Fahrzeug und Legende sind dagegen aus dem Original importiert
-// statt nachgebaut, damit beide Ansichten nie wieder auseinanderlaufen.
+// öffentliche Live-Demo: kein Ziehen (das Verschieben-per-Ziehen braucht serverseitig eine
+// Anmeldung und würde bei einem anonymen Besucher nur mit einer unbehandelten Fehlermeldung und
+// einer für immer "hängenden" Kachel enden) - ein Klick öffnet aber, genau wie im echten
+// Dashboard, ein rein lesendes Detail-Fenster (LiveFahrtDetails.tsx), ohne jede Aktion, die eine
+// Anmeldung bräuchte. Layout, Kopfzeile, Live-Status pro Fahrzeug und Legende sind aus dem
+// Original importiert statt nachgebaut, damit beide Ansichten nie wieder auseinanderlaufen.
+import { useState } from "react";
 import { chipStil } from "@/core/rides/transportfarbe";
 import { TRANSPORT_TYPE_LABEL } from "@/core/rides/validation";
 import { ZEITSTRAHL_ENDE_STUNDE, ZEITSTRAHL_START_STUNDE, zeitstrahlBreite, zeitstrahlPosition } from "@/core/shifts/zeitstrahl";
@@ -24,6 +25,7 @@ import {
   type FahrtMini,
   type FahrzeugZeile,
 } from "@/app/dispo/fahrten/Zeitstrahl";
+import { LiveFahrtDetails, type LiveFahrtAnzeige } from "./LiveFahrtDetails";
 
 export type SimulierteZeitstrahlFahrt = {
   id: string;
@@ -34,13 +36,29 @@ export type SimulierteZeitstrahlFahrt = {
   transport: string;
 };
 
+// Spiegelt TripModal.tsx (src/app/dispo/fahrten/TripModal.tsx) - dort nicht exportiert, weil als
+// Seiten-internes Detail gedacht; hier dupliziert statt importiert, damit die Live-Demo nicht von
+// einem Baustein des angemeldeten Bereichs abhängt.
+const STATUS_LABEL: Record<string, string> = {
+  ENTWURF: "Entwurf",
+  ERFASST: "Erfasst",
+  VORGESCHLAGEN: "Vorgeschlagen",
+  DISPONIERT: "Disponiert",
+  UNTERWEGS: "Fährt zum Fahrgast",
+  AN_BORD: "Fahrgast im Auto",
+  ERLEDIGT: "Fahrgast am Ziel",
+  NICHT_ANGETROFFEN: "Nicht angetroffen",
+  STORNIERT: "Storniert",
+  PROBLEM: "Problem",
+};
+
 export function LiveZeitstrahl({
   fahrten,
   fahrzeugZeilen,
   jetztProzent,
   simulierteFahrten,
 }: {
-  fahrten: FahrtMini[];
+  fahrten: (FahrtMini & { fahrerName: string | null })[];
   fahrzeugZeilen: FahrzeugZeile[];
   jetztProzent: number | null;
   /** Rein clientseitig erfundene Beispiel-Fahrten (siehe SimulierterAnruf.tsx) - sammeln sich über
@@ -49,8 +67,36 @@ export function LiveZeitstrahl({
    * Fahrten, damit sie nie mit einer echten verwechselt werden. */
   simulierteFahrten?: SimulierteZeitstrahlFahrt[];
 }) {
+  const [offeneFahrt, setOffeneFahrt] = useState<LiveFahrtAnzeige | null>(null);
   const unterwegsCount = fahrten.filter((f) => f.status === "UNTERWEGS" || f.status === "AN_BORD").length;
   const verspaetetCount = fahrten.filter((f) => !!f.driverDelayMin && f.driverDelayMin > 0).length;
+
+  function echteFahrtOeffnen(fahrt: (typeof fahrten)[number]) {
+    setOffeneFahrt({
+      titel: `${fahrt.passenger.firstName} ${fahrt.passenger.lastName}`,
+      transportArt: fahrt.transportType,
+      transportLabel: TRANSPORT_TYPE_LABEL[fahrt.transportType],
+      statusLabel: STATUS_LABEL[fahrt.status] ?? fahrt.status,
+      zeitraum: `${uhrzeit(fahrt.pickupAt)}–${uhrzeit(fahrt.geplantesEnde)}`,
+      pickupLabel: fahrt.pickupPlace.label,
+      dropoffLabel: fahrt.dropoffPlace.label,
+      vehiclePlate: fahrt.vehicle?.plate ?? null,
+      fahrerName: fahrt.fahrerName,
+      beispiel: false,
+    });
+  }
+
+  function beispielFahrtOeffnen(simulierteFahrt: SimulierteZeitstrahlFahrt, plate: string) {
+    setOffeneFahrt({
+      titel: `Beispiel · ${simulierteFahrt.fahrgast}`,
+      transportLabel: simulierteFahrt.transport,
+      zeitraum: `${uhrzeit(simulierteFahrt.pickupAt)}–${uhrzeit(simulierteFahrt.geplantesEnde)}`,
+      pickupLabel: "—",
+      dropoffLabel: "—",
+      vehiclePlate: plate,
+      beispiel: true,
+    });
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -115,8 +161,10 @@ export function LiveZeitstrahl({
                 {fahrten
                   .filter((f) => f.vehicleId === zeile.id || (!f.vehicleId && f.vorschlagVehicleId === zeile.id))
                   .map((fahrt) => (
-                    <div
+                    <button
                       key={fahrt.id}
+                      type="button"
+                      onClick={() => echteFahrtOeffnen(fahrt)}
                       title={`${uhrzeit(fahrt.pickupAt)}–${uhrzeit(fahrt.geplantesEnde)} ${fahrt.passenger.firstName} ${fahrt.passenger.lastName}`}
                       className={`absolute top-1.5 bottom-1.5 flex flex-col justify-center overflow-hidden rounded-md px-2 text-left text-xs leading-tight ${istAlarmFahrt(fahrt) ? "ring-2 ring-danger-ink" : ""}`}
                       style={{
@@ -130,13 +178,15 @@ export function LiveZeitstrahl({
                         {kurzname(fahrt.passenger.firstName, fahrt.passenger.lastName)}
                       </span>
                       <span className="truncate text-[10px] opacity-80">{TRANSPORT_TYPE_LABEL[fahrt.transportType]}</span>
-                    </div>
+                    </button>
                   ))}
                 {(simulierteFahrten ?? [])
                   .filter((f) => f.vehicleId === zeile.id)
                   .map((simulierteFahrt) => (
-                    <div
+                    <button
                       key={simulierteFahrt.id}
+                      type="button"
+                      onClick={() => beispielFahrtOeffnen(simulierteFahrt, zeile.plate)}
                       title={`Beispiel: ${uhrzeit(simulierteFahrt.pickupAt)}–${uhrzeit(simulierteFahrt.geplantesEnde)} ${simulierteFahrt.fahrgast}`}
                       className="absolute top-1.5 bottom-1.5 flex flex-col justify-center overflow-hidden rounded-md border-2 border-dashed border-line-strong bg-surface/90 px-2 text-left text-xs leading-tight text-ink-soft"
                       style={{
@@ -147,7 +197,7 @@ export function LiveZeitstrahl({
                       <span className="font-mono text-[11px]">{uhrzeit(simulierteFahrt.pickupAt)}</span>
                       <span className="truncate font-semibold">Beispiel · {simulierteFahrt.fahrgast}</span>
                       <span className="truncate text-[10px] opacity-80">{simulierteFahrt.transport}</span>
-                    </div>
+                    </button>
                   ))}
               </div>
             </div>
@@ -156,6 +206,7 @@ export function LiveZeitstrahl({
       </div>
 
       <Legende />
+      {offeneFahrt ? <LiveFahrtDetails fahrt={offeneFahrt} onClose={() => setOffeneFahrt(null)} /> : null}
     </div>
   );
 }
