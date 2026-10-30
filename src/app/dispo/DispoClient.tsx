@@ -22,6 +22,7 @@ import {
 } from "@/core/rides/validation";
 import { WOCHENTAGE, WOCHENTAG_LABEL, type Wochentag } from "@/core/shifts/rrule";
 import { berlinerMitternacht, datumIso, montagVerschieben, tagVerschieben, wochenStart } from "@/core/shifts/week";
+import { useGemesseneHoehe } from "@/hooks/useGemesseneHoehe";
 import { anrufTranskriptLaden } from "./anrufe/actions";
 import { FahrgastAuswahl } from "./fahrten/FahrgastAuswahl";
 import { OrtAuswahl } from "./fahrten/OrtAuswahl";
@@ -88,6 +89,15 @@ function uhrzeit(datum: Date): string {
     timeZone: "Europe/Berlin",
     hour: "2-digit",
     minute: "2-digit",
+  });
+}
+
+function datumText(datum: Date): string {
+  return new Date(datum).toLocaleDateString("de-DE", {
+    timeZone: "Europe/Berlin",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
   });
 }
 
@@ -285,7 +295,9 @@ function AnrufZuweisungsAktion({
           className="absolute inset-y-0 right-0 bg-white/20 transition-[width] duration-[15000ms] ease-linear"
           style={{ width: balkenVoll ? "100%" : "0%" }}
         />
-        <span className="relative">{phase === "zuweisend" ? "…" : `Auto zuweisen · ${beste.plate}`}</span>
+        <span className="relative block truncate whitespace-nowrap">
+          {phase === "zuweisend" ? "…" : `Auto zuweisen · ${beste.plate}`}
+        </span>
       </button>
       <Button type="button" variant="secondary" onClick={() => setPhase("manuell")} disabled={phase === "zuweisend"}>
         Selbst übernehmen
@@ -358,10 +370,12 @@ export function AnrufKarte({
   }, [anruf.id, transkriptLaden]);
 
   return (
-    // Feste Höhe (nicht nur min-h) plus feste Innenaufteilung (Kopf/Transkript/Details je ein
-    // eigener Bereich mit eigener Höhe) - die Karte springt dadurch nie, egal wie lang Transkript
-    // oder Details gerade sind, auch beim Wechsel zwischen mehreren Anrufen (AnrufKarussell).
-    <Card className="flex h-[28rem] flex-col gap-2 border-line-strong">
+    // Volle Höhe des Elternelements (das die Höhe der Zeitstrahl-Karte vorgibt, siehe
+    // useGemesseneHoehe in DispoClient/LiveClient) statt einer festen rem-Höhe - plus feste
+    // Innenaufteilung (Kopf/Transkript/Details je ein eigener Bereich) -, die Karte springt
+    // dadurch nie, egal wie lang Transkript oder Details gerade sind, auch beim Wechsel zwischen
+    // mehreren Anrufen (AnrufKarussell).
+    <Card className="flex h-full flex-col gap-2 border-line-strong">
       <div className="flex items-center gap-2">
         <span className="h-2.5 w-2.5 rounded-full bg-accent" />
         <b className="text-ink">Anruf läuft</b>
@@ -426,7 +440,7 @@ export function AnrufKarte({
         </div>
       </div>
 
-      <div className="min-h-[8.5rem] flex-none border-t border-line pt-2.5">
+      <div className="min-h-[11rem] flex-none border-t border-line pt-2.5">
         {anruf.fahrt ? (
           <div className="flex h-full flex-col gap-2">
             <button
@@ -451,6 +465,14 @@ export function AnrufKarte({
               <div>
                 <p className="text-xs text-muted">Ziel</p>
                 <p className="truncate text-ink">{anruf.fahrt.dropoffPlace.label}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted">Datum</p>
+                <p className="text-ink">{datumText(anruf.fahrt.pickupAt)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted">Zeit</p>
+                <p className="text-ink">{uhrzeit(anruf.fahrt.pickupAt)}</p>
               </div>
             </button>
             {!anruf.fahrt.vehicle && anruf.fahrt.beste ? (
@@ -495,7 +517,7 @@ export function AnrufKarte({
  * Anruf-Feld nie ganz verschwindet, sondern nur seinen Zustand wechselt. */
 export function AnrufWarteKarte({ anrufeHeute }: { anrufeHeute: number }) {
   return (
-    <Card className="flex flex-col gap-2 border-line">
+    <Card className="flex h-full flex-col gap-2 border-line">
       <div className="flex items-center gap-2">
         <span className="h-2.5 w-2.5 rounded-full bg-line-strong" />
         <b className="text-ink">Anrufe</b>
@@ -685,6 +707,9 @@ export function DispoClient({
 
   const offeneFahrt = fahrten.find((f) => f.id === offeneFahrtId) ?? null;
   const offenerGrund = offeneFahrtId ? brauchtSie.find((b) => b.rideId === offeneFahrtId)?.grund : undefined;
+  // Anruf-Karte (rechts) soll immer exakt so hoch sein wie die Zeitstrahl-Karte (links) - deren
+  // Höhe hängt von der Anzahl Fahrzeugzeilen ab und lässt sich daher nicht fest in CSS angeben.
+  const { ref: zeitstrahlKarteRef, hoehe: zeitstrahlKarteHoehe } = useGemesseneHoehe<HTMLDivElement>(448);
 
   return (
     <div className="flex flex-col gap-5">
@@ -791,7 +816,7 @@ export function DispoClient({
             </div>
           </div>
 
-          <div className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4">
+          <div ref={zeitstrahlKarteRef} className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4">
             {fahrten.length === 0 && (ansicht === "tag" ? fahrzeugZeilen.length === 0 : fahrer.length === 0) ? (
               <div>
                 <p className="text-sm text-muted">{ansicht === "woche" ? "Keine Fahrten in dieser Woche." : "Keine Fahrten an diesem Tag."}</p>
@@ -820,7 +845,12 @@ export function DispoClient({
                * per aria-live="polite" ansagen." - meldet einen neu eingehenden oder beendeten
                * Anruf auch Screenreader-Nutzern, ohne bei jedem 5s-Poll-Tick selbst neu zu melden
                * (aria-atomic="false": nur was sich wirklich ändert). */}
-              <div aria-live="polite" aria-atomic="false">
+              <div
+                aria-live="polite"
+                aria-atomic="false"
+                style={{ height: zeitstrahlKarteHoehe }}
+                className="flex-none"
+              >
                 {liveAnrufe.length > 0 ? (
                   <AnrufKarussell liveAnrufe={liveAnrufe} onFahrtKlick={setOffeneFahrtId} />
                 ) : (

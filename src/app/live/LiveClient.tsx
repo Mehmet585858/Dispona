@@ -7,6 +7,7 @@ import { KpiTile } from "@/components/ui/KpiTile";
 import { Logo } from "@/components/ui/Logo";
 import { Bereichsnavigation } from "@/components/ui/Bereichsnavigation";
 import { AnrufKarussell, AnrufWarteKarte } from "@/app/dispo/DispoClient";
+import { useGemesseneHoehe } from "@/hooks/useGemesseneHoehe";
 import { zeitstrahlPosition } from "@/core/shifts/zeitstrahl";
 import { liveDemoLaden, liveTranskriptLaden } from "./actions";
 import { LiveZeitstrahl } from "./LiveZeitstrahl";
@@ -36,6 +37,9 @@ function keinOp() {}
 export function LiveClient({ initialDaten }: { initialDaten: LiveDaten }) {
   const [daten, setDaten] = useState(initialDaten);
   const [jetztProzent, setJetztProzent] = useState<number | null>(null);
+  // Anruf-Karte (rechts) soll immer exakt so hoch sein wie die Zeitstrahl-Karte (links) - siehe
+  // dieselbe Begründung in DispoClient.tsx.
+  const { ref: zeitstrahlKarteRef, hoehe: zeitstrahlKarteHoehe } = useGemesseneHoehe<HTMLDivElement>(448);
 
   useEffect(() => {
     function aktualisieren() {
@@ -150,11 +154,16 @@ export function LiveClient({ initialDaten }: { initialDaten: LiveDaten }) {
                 <KpiTile label="Anrufe heute" wert={daten.kennzahlen.anrufeHeute} />
               </div>
             </div>
-            <div className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4">
+            <div ref={zeitstrahlKarteRef} className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4">
               <LiveZeitstrahl fahrten={daten.fahrten} fahrzeugZeilen={daten.fahrzeugZeilen} jetztProzent={jetztProzent} />
             </div>
           </div>
-          <div aria-live="polite" aria-atomic="false" className="flex w-full flex-none flex-col gap-4 md:w-[380px]">
+          <div
+            aria-live="polite"
+            aria-atomic="false"
+            style={{ height: zeitstrahlKarteHoehe }}
+            className="w-full flex-none md:w-[380px]"
+          >
             {daten.liveAnrufe.length > 0 ? (
               <AnrufKarussell
                 liveAnrufe={daten.liveAnrufe}
