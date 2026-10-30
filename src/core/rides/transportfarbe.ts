@@ -19,25 +19,23 @@ export function farbeFuerArt(art: Transportart, stufe: Stufe): string {
 
 export type Fahrtzustand = "erledigt" | "geplant" | "laeuft" | "verspaetet" | "vorschlag";
 
-/** Hintergrund/Rahmen/Schrift für einen Zeitstrahl-/Kalender-Chip (docs/DESIGN-GUIDE.md 5.4). */
-export function chipStil(art: Transportart, zustand: Fahrtzustand) {
+/**
+ * Hintergrund/Schrift für einen Zeitstrahl-Chip – nur noch 3 flächige Farben für den Zustand der
+ * Fahrt, ohne Rahmen und unabhängig von der Transportart (die früher zusätzlich eingefärbt hat,
+ * jetzt nur noch als Text im Chip steht, siehe Zeitstrahl.tsx/LiveZeitstrahl.tsx): Grün = erledigt,
+ * Blau = gerade im Auto (unterwegs/an Bord – auch verspätet, das zeigt die Kachel stattdessen über
+ * den "+X"-Minuten-Text, nicht über eine eigene Farbe), helles Orange = liegt noch in der Zukunft
+ * (geplant oder nur vorgeschlagen, optisch bewusst nicht mehr unterschieden).
+ */
+export function chipStil(zustand: Fahrtzustand) {
   switch (zustand) {
     case "erledigt":
-      return { background: farbeFuerArt(art, "faint"), border: `1px solid ${farbeFuerArt(art, "tint")}`, color: farbeFuerArt(art, "ink") };
-    case "geplant":
-      return { background: farbeFuerArt(art, "tint"), border: `1.5px solid ${farbeFuerArt(art, "main")}`, color: farbeFuerArt(art, "ink") };
+      return { background: "var(--chip-erledigt)", color: "#ffffff" };
     case "laeuft":
-      return { background: farbeFuerArt(art, "solid"), border: "none", color: "#ffffff" };
     case "verspaetet":
-      return {
-        background: farbeFuerArt(art, "solid"),
-        border: "none",
-        color: "#ffffff",
-        // --color-late (Guide: --late-ring), nicht --color-now: "verspätet" ist ein eigenes
-        // Signal ("braucht Aufmerksamkeit"), keine Variante der Jetzt-Linie im Zeitstrahl.
-        boxShadow: "0 0 0 2px var(--color-late)",
-      };
+      return { background: "var(--chip-laeuft)", color: "#ffffff" };
+    case "geplant":
     case "vorschlag":
-      return { background: "#ffffff", border: `2px dashed ${farbeFuerArt(art, "solid")}`, color: farbeFuerArt(art, "ink") };
+      return { background: "var(--chip-geplant)", color: "var(--chip-geplant-ink)" };
   }
 }

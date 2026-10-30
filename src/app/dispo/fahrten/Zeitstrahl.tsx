@@ -71,7 +71,8 @@ export function istAlarmFahrt(fahrt: { status: string; problems: string[] }): bo
   return fahrt.problems.length > 0 || fahrt.status === "PROBLEM" || fahrt.status === "NICHT_ANGETROFFEN";
 }
 
-/** Farbe = Transportart, Füllung = Zustand (docs/DISPO-SPEZ.md Abschnitt 4.1/4.2). */
+/** Nur noch der Zustand bestimmt die Farbe (docs/DISPO-SPEZ.md Abschnitt 4.1/4.2, chipStil()) -
+ * die Transportart steht als Text im Chip, nicht mehr in der Farbe. */
 export function zustandFuerFahrt(fahrt: { status: string; driverDelayMin: number | null }): Fahrtzustand {
   if (fahrt.status === "UNTERWEGS" || fahrt.status === "AN_BORD") {
     return fahrt.driverDelayMin && fahrt.driverDelayMin > 0 ? "verspaetet" : "laeuft";
@@ -92,7 +93,7 @@ export type FahrtMini = {
   vehicleId: string | null;
   /** Fahrzeug des besten (noch unbestätigten) Vorschlags - nur gesetzt, wenn status VORGESCHLAGEN
    * und noch kein vehicleId vergeben ist. Lässt die Fahrt trotzdem schon auf der richtigen
-   * Fahrzeugzeile erscheinen (gestrichelt, siehe chipStil "vorschlag"), statt bis zur Bestätigung
+   * Fahrzeugzeile erscheinen (Zustand "vorschlag", siehe chipStil), statt bis zur Bestätigung
    * komplett unsichtbar zu bleiben. */
   vorschlagVehicleId: string | null;
   passenger: { firstName: string; lastName: string; phones?: string[]; insurer?: string | null };
@@ -142,7 +143,7 @@ function SpurKompakt({
         />
       ) : null}
       {fahrten.map((fahrt) => {
-        const stil = chipStil(fahrt.transportType, zustandFuerFahrt(fahrt));
+        const stil = chipStil(zustandFuerFahrt(fahrt));
         return (
           <button
             key={fahrt.id}
@@ -158,8 +159,9 @@ function SpurKompakt({
   );
 }
 
-/** Zeile im Tages-Zeitstrahl: Chips sind so breit wie die geschätzte Fahrtdauer, mit Zeit und
- * Kurzname (DISPO-SPEZ.md Abschnitt 3.3) – kein Text zur Transportart, die steckt in der Farbe. */
+/** Zeile im Tages-Zeitstrahl: Chips sind so breit wie die geschätzte Fahrtdauer, mit Zeit,
+ * Kurzname und Transportart als Text (DISPO-SPEZ.md Abschnitt 3.3) – die Farbe zeigt nur noch den
+ * Zustand (chipStil()), nicht mehr die Transportart. */
 /** Eine Fahrt-Kachel: Klick öffnet die Details, Ziehen verschiebt die Fahrt (andere Uhrzeit
  * und/oder – auf eine andere Fahrzeug-Zeile gezogen – ein anderes Fahrzeug). Ein kurzer Klick
  * ohne nennenswerte Bewegung zählt als Klick, nicht als Ziehen. */
@@ -182,7 +184,7 @@ function FahrtChip({
 }) {
   const [verschiebungPx, setVerschiebungPx] = useState<{ dx: number; dy: number } | null>(null);
   const [zielZeit, setZielZeit] = useState<string | null>(null);
-  const stil = chipStil(fahrt.transportType, zustandFuerFahrt(fahrt));
+  const stil = chipStil(zustandFuerFahrt(fahrt));
   const verspaetet = zustandFuerFahrt(fahrt) === "verspaetet";
   const verschiebbar = !NICHT_VERSCHIEBBAR.has(fahrt.status);
   const originalLeft = px(zeitstrahlPosition(fahrt.pickupAt));
@@ -312,6 +314,7 @@ function FahrtChip({
         <span className="truncate font-semibold">
           {fahrt.passenger.firstName} {fahrt.passenger.lastName}
         </span>
+        <span className="truncate text-[10px] opacity-80">{TRANSPORT_TYPE_LABEL[fahrt.transportType]}</span>
       </button>
     </div>
   );
@@ -373,12 +376,13 @@ export function Legende() {
       {TRANSPORT_TYPE_LABEL[art]}
     </span>
   ));
+  // Nur noch 3 Farben (chipStil()) - "geplant" und "Vorschlag, unbestätigt" sehen jetzt bewusst
+  // gleich aus (beides: liegt noch in der Zukunft), "verspätet" bewusst wie "unterwegs" (beides:
+  // gerade im Auto - die Verspätung zeigt stattdessen der "+X"-Minuten-Text auf der Kachel).
   const zustandZeile: { label: string; stil: ReturnType<typeof chipStil> }[] = [
-    { label: "erledigt", stil: chipStil("SITZEND", "erledigt") },
-    { label: "geplant", stil: chipStil("SITZEND", "geplant") },
-    { label: "unterwegs", stil: chipStil("SITZEND", "laeuft") },
-    { label: "verspätet", stil: chipStil("SITZEND", "verspaetet") },
-    { label: "Vorschlag, unbestätigt", stil: chipStil("SITZEND", "vorschlag") },
+    { label: "erledigt", stil: chipStil("erledigt") },
+    { label: "geplant / vorgeschlagen", stil: chipStil("geplant") },
+    { label: "unterwegs (ggf. verspätet, siehe +Min.)", stil: chipStil("laeuft") },
   ];
   return (
     <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-2xl border border-line bg-surface2 px-4 py-3 text-xs text-ink-soft">

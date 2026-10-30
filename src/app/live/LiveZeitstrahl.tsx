@@ -157,7 +157,7 @@ export function LiveZeitstrahl({
                       style={{
                         left: px(zeitstrahlPosition(fahrt.pickupAt)),
                         width: Math.max(px(zeitstrahlBreite(fahrt.pickupAt, fahrt.geplantesEnde)), 92),
-                        ...chipStil(fahrt.transportType, zustandFuerFahrt(fahrt)),
+                        ...chipStil(zustandFuerFahrt(fahrt)),
                       }}
                     >
                       <span className="font-mono text-[11px]">{uhrzeit(fahrt.pickupAt)}</span>

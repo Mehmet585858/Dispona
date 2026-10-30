@@ -88,6 +88,14 @@
   --live-free: #b4bcc6;
   --live-late: #d97706;
   --live-late-text: #9a4a0a;
+
+  /* Zeitstrahl-Chip-Zustand (chipStil() in src/core/rides/transportfarbe.ts) - genau 3 Farben,
+   * unabhängig von der Transportart: Grün = erledigt, Blau = gerade im Auto (unterwegs/an Bord,
+   * auch verspätet), helles Orange = liegt noch in der Zukunft (geplant oder nur vorgeschlagen). */
+  --chip-erledigt: #4e7559;
+  --chip-laeuft: #4a6597;
+  --chip-geplant: #eccb98;
+  --chip-geplant-ink: #8a4b12;
 }
 
 body {
