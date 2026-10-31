@@ -1,6 +1,7 @@
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { emailOTP, magicLink } from "better-auth/plugins";
+import { anmeldeLinkZustellen } from "./anmeldeLink";
 import { emailSenden } from "./email";
 import { prisma } from "./prisma";
 
@@ -47,7 +48,7 @@ export const auth = betterAuth({
         });
       },
     }),
-    // Fahrer: Einmal-Link, später per SMS.
+    // Fahrer: Einmal-Link per SMS (src/lib/anmeldeLink.ts).
     magicLink({
       disableSignUp: true,
       expiresIn: 10 * 60,
@@ -56,7 +57,10 @@ export const auth = betterAuth({
           console.log(`[Entwicklung] Einmal-Link für ${email}: ${url}`);
           return;
         }
-        // TODO Phase 5: echten SMS-Versand über SmsProvider anschließen.
+        // Produktion: per SMS an die Handynummer des Fahrerkontos. Wirft, wenn kein
+        // SMS-Anbieter eingerichtet ist – better-auth gibt den Fehler an die Anmeldeseite
+        // weiter statt "Link gesendet" zu melden (Prüfbericht S1-002).
+        await anmeldeLinkZustellen({ email, url });
       },
     }),
   ],

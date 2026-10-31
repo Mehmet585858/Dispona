@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { smsProvider } from "@/providers/sms";
 import { bestaetigungenPruefen, keinFahrzeugAlarmPruefen } from "@/core/notify/eskalation";
 import { prisma } from "@/lib/prisma";
 
@@ -69,6 +70,23 @@ describe("bestaetigungenPruefen", () => {
 
     const notifications = await prisma.notification.findMany({ where: { rideId, kind: "KEINE_BESTAETIGUNG_FAHRER" } });
     expect(notifications).toHaveLength(1);
+  });
+
+  it("S1-002: scheitert der SMS-Versand, bricht der Lauf nicht ab und der Fehler steht an der Benachrichtigung", async () => {
+    const rideId = await neueUnbestaetigteFahrt(5);
+    const sendenSpy = vi.spyOn(smsProvider, "send").mockRejectedValueOnce(new Error("PRUEF: Anbieter nicht erreichbar"));
+    const fehlerLog = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const ergebnis = await bestaetigungenPruefen(tenantId);
+      expect(ergebnis.fehler).toBeGreaterThanOrEqual(1);
+      const notification = await prisma.notification.findFirst({ where: { rideId, kind: "KEINE_BESTAETIGUNG_FAHRER" } });
+      expect(notification?.error).toContain("PRUEF: Anbieter nicht erreichbar");
+      // S2-009: im Log nur IDs, nie die Rufnummer.
+      for (const aufruf of fehlerLog.mock.calls) expect(String(aufruf[0])).not.toContain("+491701234567");
+    } finally {
+      sendenSpy.mockRestore();
+      fehlerLog.mockRestore();
+    }
   });
 
   it("schickt beim nächsten Lauf keine zweite SMS für dieselbe Fahrt", async () => {

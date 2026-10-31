@@ -33,3 +33,8 @@ export function keineBestaetigungAlarmText(uhrzeit: string): string {
 export function keinFahrzeugAlarmText(uhrzeit: string): string {
   return `Für Fahrt ${uhrzeit} ist noch kein Fahrzeug gefunden. Bitte prüfen.`;
 }
+
+/** Einmal-Link für die Fahrer-App per SMS – nur der Link, keine Namen, keine Fahrtdaten. */
+export function anmeldeLinkText(url: string): string {
+  return `Anmelde-Link für die Fahrer-App (10 Minuten gültig): ${url}`;
+}

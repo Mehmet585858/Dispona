@@ -14,6 +14,36 @@ import { keineBestaetigungAlarmText, keinFahrzeugAlarmText, neueFahrtText } from
 
 const SMS_AN_FAHRER_NACH_MIN = 2;
 
+/**
+ * SMS senden und das Ergebnis als Notification festhalten. Schlägt der Versand fehl (kein
+ * Anbieter eingerichtet, Anbieter nicht erreichbar), bleibt der Fehler an der Benachrichtigung
+ * stehen und der Lauf geht mit der nächsten Fahrt weiter, statt den ganzen Cron abzubrechen
+ * (Prüfbericht S1-002). Im Log nur IDs, nie Rufnummer oder Text.
+ */
+async function smsSendenUndMerken(
+  db: ReturnType<typeof withTenant>,
+  eintrag: { tenantId: string; an: string; text: string; toRef: string; rideId: string; kind: string },
+): Promise<boolean> {
+  let fehler: string | null = null;
+  try {
+    await smsProvider.send(eintrag.an, eintrag.text);
+  } catch (ausnahme) {
+    fehler = ausnahme instanceof Error ? ausnahme.message : "SMS-Versand fehlgeschlagen.";
+    console.error(`SMS-Versand fehlgeschlagen (Fahrt ${eintrag.rideId}, Art ${eintrag.kind}): ${fehler}`);
+  }
+  await db.notification.create({
+    data: {
+      tenantId: eintrag.tenantId,
+      channel: "SMS",
+      toRef: eintrag.toRef,
+      rideId: eintrag.rideId,
+      kind: eintrag.kind,
+      error: fehler,
+    },
+  });
+  return fehler === null;
+}
+
 function uhrzeitBerlin(datum: Date): string {
   return datum.toLocaleTimeString("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", minute: "2-digit" });
 }
@@ -38,6 +68,7 @@ export async function bestaetigungenPruefen(tenantId: string) {
   const jetzt = new Date();
   let smsAnFahrer = 0;
   let smsAnInhaber = 0;
+  let fehler = 0;
 
   for (const fahrt of offeneFahrten) {
     const driverId = fahrt.driverId;
@@ -57,12 +88,17 @@ export async function bestaetigungenPruefen(tenantId: string) {
         });
         if (fahrer?.user.phone) {
           const text = neueFahrtText(uhrzeitBerlin(fahrt.pickupAt), fahrt.pickupPlace.label, fahrt.dropoffPlace.label);
-          await smsProvider.send(fahrer.user.phone, text);
+          const ok = await smsSendenUndMerken(db, {
+            tenantId, an: fahrer.user.phone, text, toRef: driverId, rideId: fahrt.id, kind: "KEINE_BESTAETIGUNG_FAHRER",
+          });
+          if (ok) smsAnFahrer += 1;
+          else fehler += 1;
+        } else {
+          await db.notification.create({
+            data: { tenantId, channel: "SMS", toRef: driverId, rideId: fahrt.id, kind: "KEINE_BESTAETIGUNG_FAHRER", error: "Keine Handynummer hinterlegt." },
+          });
+          fehler += 1;
         }
-        await db.notification.create({
-          data: { tenantId, channel: "SMS", toRef: driverId, rideId: fahrt.id, kind: "KEINE_BESTAETIGUNG_FAHRER" },
-        });
-        smsAnFahrer += 1;
       }
     }
 
@@ -73,16 +109,16 @@ export async function bestaetigungenPruefen(tenantId: string) {
       });
       if (!schonGesendet) {
         const text = keineBestaetigungAlarmText(uhrzeitBerlin(fahrt.pickupAt));
-        await smsProvider.send(settings.alertPhone, text);
-        await db.notification.create({
-          data: { tenantId, channel: "SMS", toRef: "INHABER", rideId: fahrt.id, kind: "KEINE_BESTAETIGUNG_INHABER" },
+        const ok = await smsSendenUndMerken(db, {
+          tenantId, an: settings.alertPhone, text, toRef: "INHABER", rideId: fahrt.id, kind: "KEINE_BESTAETIGUNG_INHABER",
         });
-        smsAnInhaber += 1;
+        if (ok) smsAnInhaber += 1;
+        else fehler += 1;
       }
     }
   }
 
-  return { geprueft: offeneFahrten.length, smsAnFahrer, smsAnInhaber };
+  return { geprueft: offeneFahrten.length, smsAnFahrer, smsAnInhaber, fehler };
 }
 
 /**
@@ -92,7 +128,7 @@ export async function bestaetigungenPruefen(tenantId: string) {
 export async function keinFahrzeugAlarmPruefen(tenantId: string) {
   const db = withTenant(tenantId);
   const settings = await db.tenantSettings.findUnique({ where: { tenantId } });
-  if (!settings?.alertPhone) return { geprueft: 0, smsAnInhaber: 0 };
+  if (!settings?.alertPhone) return { geprueft: 0, smsAnInhaber: 0, fehler: 0 };
 
   const jetzt = new Date();
   const inZweiStunden = new Date(jetzt.getTime() + 2 * 60 * 60_000);
@@ -107,6 +143,7 @@ export async function keinFahrzeugAlarmPruefen(tenantId: string) {
   });
 
   let smsAnInhaber = 0;
+  let fehler = 0;
   for (const fahrt of betroffeneFahrten) {
     const schonGesendet = await db.notification.findFirst({
       where: { rideId: fahrt.id, kind: "KEIN_FAHRZEUG_ALARM" },
@@ -114,12 +151,12 @@ export async function keinFahrzeugAlarmPruefen(tenantId: string) {
     if (schonGesendet) continue;
 
     const text = keinFahrzeugAlarmText(uhrzeitBerlin(fahrt.pickupAt));
-    await smsProvider.send(settings.alertPhone, text);
-    await db.notification.create({
-      data: { tenantId, channel: "SMS", toRef: "INHABER", rideId: fahrt.id, kind: "KEIN_FAHRZEUG_ALARM" },
+    const ok = await smsSendenUndMerken(db, {
+      tenantId, an: settings.alertPhone, text, toRef: "INHABER", rideId: fahrt.id, kind: "KEIN_FAHRZEUG_ALARM",
     });
-    smsAnInhaber += 1;
+    if (ok) smsAnInhaber += 1;
+    else fehler += 1;
   }
 
-  return { geprueft: betroffeneFahrten.length, smsAnInhaber };
+  return { geprueft: betroffeneFahrten.length, smsAnInhaber, fehler };
 }

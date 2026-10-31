@@ -30,6 +30,7 @@ import {
   schichtLöschen,
   schichtMusterAnlegen,
 } from "./actions";
+import { FAHRER_TEXTE } from "./texte";
 
 type Fahrer = { id: string; user: { id: string; name: string; phone: string | null; email: string } };
 type Fahrzeug = {
@@ -109,14 +110,14 @@ export function FahrerClient({
     setEinladeStatus(null);
     try {
       const { email } = await fahrerEinladen(einladeEingabe);
-      await authClient.signIn.magicLink({ email, callbackURL: "/" });
+      const { error } = await authClient.signIn.magicLink({ email, callbackURL: "/" });
       setEinladeStatus(
-        "Fahrer angelegt. Der Anmelde-Link wurde (im Entwicklungsmodus) ins Server-Terminal geschrieben – später kommt er per SMS.",
+        error ? FAHRER_TEXTE.einladungOhneLink(error.message ?? "Unbekannter Fehler.") : FAHRER_TEXTE.einladungGesendet,
       );
       setEinladeEingabe({ name: "", phone: "" });
       await wocheLaden(montag);
     } catch {
-      setEinladeFehler("Konnte nicht angelegt werden. Handynummer schon vergeben?");
+      setEinladeFehler(FAHRER_TEXTE.einladungFehler);
     }
   }
 
