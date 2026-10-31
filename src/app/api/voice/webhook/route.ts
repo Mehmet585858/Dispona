@@ -1,4 +1,4 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { after, NextResponse, type NextRequest } from "next/server";
 import { voiceProvider } from "@/providers/voice";
 import { withTenant } from "@/lib/db";
 import { prisma } from "@/lib/prisma";
@@ -104,8 +104,23 @@ async function toolCallsBehandeln(body: unknown, aufrufe: ReturnType<typeof voic
     toNumber: angerufeneNummer,
   });
 
+  // Maßnahme M-14 Punkt 4: lange Arbeit (Serientermine) erst nach der Antwort – sonst überschreitet
+  // der Webhook das Zeitlimit des Anbieters, der dann wiederholt. Ein Fehler dort wird nur mit IDs
+  // protokolliert; der tägliche Cron serienVerlaengern holt fehlende Termine nach.
+  const hintergrund = (aufgabe: () => Promise<unknown>) =>
+    after(async () => {
+      try {
+        await aufgabe();
+      } catch (fehler) {
+        console.error("Hintergrundaufgabe nach Werkzeugaufruf fehlgeschlagen", {
+          tenantId: mandant.tenantId,
+          callId: anruf.id,
+          fehler: fehler instanceof Error ? fehler.name : "unbekannt",
+        });
+      }
+    });
   const ergebnisse = await Promise.all(
-    aufrufe.map((aufruf) => werkzeugAusfuehren(mandant.tenantId, anruf.id, aufruf)),
+    aufrufe.map((aufruf) => werkzeugAusfuehren(mandant.tenantId, anruf.id, aufruf, { hintergrund })),
   );
 
   return NextResponse.json(voiceProvider.formatToolResult(ergebnisse));

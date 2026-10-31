@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { bearerErlaubt } from "@/lib/geheimnis";
 import { prisma } from "@/lib/prisma";
 import { serienVerlaengern } from "@/core/rides/serie";
 
@@ -9,9 +10,7 @@ import { serienVerlaengern } from "@/core/rides/serie";
  * Mandantenübergreifend wie Job (siehe src/lib/db.ts) – deshalb hier direkt prisma statt withTenant.
  */
 export async function GET(request: NextRequest) {
-  const secret = process.env.CRON_SECRET;
-  const erlaubnis = request.headers.get("authorization");
-  if (!secret || erlaubnis !== `Bearer ${secret}`) {
+  if (!bearerErlaubt(request, process.env.CRON_SECRET)) {
     return NextResponse.json({ error: "Nicht erlaubt." }, { status: 401 });
   }
 

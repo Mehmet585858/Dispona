@@ -19,7 +19,7 @@ import { DOC_STATUS, TRANSPORT_TYPES } from "@/core/rides/validation";
 import { fahrtErfassen } from "@/core/rides/erfassen";
 import { fahrtAendern } from "@/core/rides/aendern";
 import { fahrtStornieren as fahrtStornierenKern } from "@/core/rides/stornieren";
-import { serieAnlegen } from "@/core/rides/serie";
+import { serieAnlegen, serieTermineErzeugen } from "@/core/rides/serie";
 import { parseDeutscheAdresse } from "@/core/places/adresse";
 import { routingProvider, GEOCODE_SICHER_SCHWELLE } from "@/providers/routing";
 import { WOCHENTAGE } from "@/core/shifts/rrule";
@@ -285,7 +285,12 @@ const serieAnlegenSchema = fahrgastFelderSchema.extend({
   approval: z.enum(DOC_STATUS),
 });
 
-async function serieAnlegenWerkzeug(tenantId: string, callId: string, args: unknown): Promise<string> {
+async function serieAnlegenWerkzeug(
+  tenantId: string,
+  callId: string,
+  args: unknown,
+  hintergrund: Hintergrund,
+): Promise<string> {
   const daten = serieAnlegenSchema.parse(args);
   const fahrgast = await passagierSicherstellen(tenantId, callId, daten);
   if ("problem" in fahrgast) return fahrgast.problem;
@@ -308,10 +313,13 @@ async function serieAnlegenWerkzeug(tenantId: string, callId: string, args: unkn
       prescription: daten.prescription,
       approval: daten.approval,
     },
-    { source: "ANRUF" },
+    // Maßnahme M-14 Punkt 4 (V-005, S3-016): nur die Serie anlegen und sofort antworten. Die
+    // Termine samt Vorschlagsrechnung (viele Routing-Aufrufe) entstehen danach im Hintergrund.
+    { source: "ANRUF", termineSofort: false },
   );
+  hintergrund(() => serieTermineErzeugen(tenantId, ergebnis.seriesId, { source: "ANRUF" }));
 
-  const teile = [`Serie angelegt, ${ergebnis.erzeugteFahrten.length} Fahrten bis ${daten.bis} erzeugt.`];
+  const teile = [`Serie angelegt bis ${daten.bis}. Die einzelnen Termine werden jetzt eingetragen.`];
   if (ergebnis.feiertagsHinweise.length > 0) {
     teile.push(`Hinweis: Fällt auf Feiertage (${ergebnis.feiertagsHinweise.map((f) => f.name).join(", ")}).`);
   }
@@ -446,7 +454,23 @@ async function rueckrufAnlegen(tenantId: string, callId: string, args: unknown):
  * (buildAssistantConfig in providers/voice/vapi.ts) und kommt hier gar nicht erst an; der Fall
  * bleibt als Rückfalllösung bestehen, falls Vapi es doch über die Werkzeuge schickt.
  */
-export async function werkzeugAusfuehren(tenantId: string, callId: string, toolCall: ToolCall): Promise<ToolResult> {
+/** Führt eine Aufgabe nach der Antwort an den Telefonanbieter aus (im Webhook: next/server after()). */
+export type Hintergrund = (aufgabe: () => Promise<unknown>) => void;
+
+export type WerkzeugOptionen = {
+  /**
+   * Maßnahme M-14 Punkt 4: Wie lange Arbeit (Serientermine) nach der Antwort laufen soll. Ohne
+   * Angabe (Skripte, Tests) läuft sie sofort mit und wird abgewartet.
+   */
+  hintergrund?: Hintergrund;
+};
+
+export async function werkzeugAusfuehren(
+  tenantId: string,
+  callId: string,
+  toolCall: ToolCall,
+  optionen: WerkzeugOptionen = {},
+): Promise<ToolResult> {
   // Prüfbericht S2-014: Jeder Werkzeugaufruf wirkt genau einmal. Vapi wiederholt Webhooks bei
   // Timeout; ohne Merker legte ein erneut gesendetes fahrt_anlegen/serie_anlegen die Fahrt bzw.
   // die ganze Serie doppelt an. Der Merker (VoiceToolCall, eindeutig je Anruf + toolCallId) wird
@@ -474,7 +498,16 @@ export async function werkzeugAusfuehren(tenantId: string, callId: string, toolC
     return { id: toolCall.id, result: "Diese Anfrage wird gerade schon verarbeitet. Bitte nicht erneut anlegen." };
   }
 
-  const ergebnis = await werkzeugEinmalAusfuehren(tenantId, callId, toolCall);
+  // Ohne Hintergrund-Ausführer: Aufgaben sammeln und vor der Rückgabe abwarten (gleiches Ergebnis
+  // wie vorher, nur nicht vom Webhook-Zeitlimit getrennt).
+  const sofort: (() => Promise<unknown>)[] = [];
+  const hintergrund: Hintergrund = optionen.hintergrund ?? ((aufgabe) => sofort.push(aufgabe));
+  let ergebnis = await werkzeugEinmalAusfuehren(tenantId, callId, toolCall, hintergrund);
+  try {
+    for (const aufgabe of sofort) await aufgabe();
+  } catch (fehler) {
+    ergebnis = { id: toolCall.id, error: fehler instanceof Error ? fehler.message : "Unbekannter Fehler." };
+  }
   await db.voiceToolCall.update({
     where: { id: merker.id },
     data: { result: ergebnis.result ?? null, error: ergebnis.error ?? null, finishedAt: new Date() },
@@ -482,7 +515,12 @@ export async function werkzeugAusfuehren(tenantId: string, callId: string, toolC
   return ergebnis;
 }
 
-async function werkzeugEinmalAusfuehren(tenantId: string, callId: string, toolCall: ToolCall): Promise<ToolResult> {
+async function werkzeugEinmalAusfuehren(
+  tenantId: string,
+  callId: string,
+  toolCall: ToolCall,
+  hintergrund: Hintergrund,
+): Promise<ToolResult> {
   try {
     let result: string;
     switch (toolCall.name) {
@@ -496,7 +534,7 @@ async function werkzeugEinmalAusfuehren(tenantId: string, callId: string, toolCa
         result = await fahrtAnlegenWerkzeug(tenantId, callId, toolCall.arguments);
         break;
       case "serie_anlegen":
-        result = await serieAnlegenWerkzeug(tenantId, callId, toolCall.arguments);
+        result = await serieAnlegenWerkzeug(tenantId, callId, toolCall.arguments, hintergrund);
         break;
       case "fahrt_finden":
         result = await fahrtFinden(tenantId, callId, toolCall.arguments);

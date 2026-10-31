@@ -77,10 +77,18 @@ async function termineErzeugen(
   return neueRideIds;
 }
 
+export type SerieAnlegenOptionen = Omit<FahrtErfassenOptionen, "seriesId"> & {
+  /**
+   * Maßnahme M-14 Punkt 4: false = nur die Serie anlegen, die Termine erzeugt der Aufrufer danach
+   * mit serieTermineErzeugen() (z. B. nach der Antwort an den Telefonanbieter). Standard: sofort.
+   */
+  termineSofort?: boolean;
+};
+
 export async function serieAnlegen(
   tenantId: string,
   eingabe: SerieEingabe,
-  optionen: Omit<FahrtErfassenOptionen, "seriesId">,
+  { termineSofort = true, ...optionen }: SerieAnlegenOptionen,
 ): Promise<{
   seriesId: string;
   erzeugteFahrten: string[];
@@ -121,7 +129,7 @@ export async function serieAnlegen(
   const heute = datumIso(new Date());
   const horizont = tagVerschieben(heute, GENERIERUNGS_HORIZONT_TAGE - 1);
   const bisGenerierung = horizont < daten.bis ? horizont : daten.bis;
-  const erzeugteFahrten = await termineErzeugen(tenantId, serie, heute, bisGenerierung, optionen);
+  const erzeugteFahrten = termineSofort ? await termineErzeugen(tenantId, serie, heute, bisGenerierung, optionen) : [];
 
   const feiertagsHinweise = terminePlanen(rrule, heute, bisGenerierung)
     .map((datum) => ({ datum, name: istFeiertagNrw(datum) }))
@@ -140,6 +148,25 @@ export async function serieAnlegen(
   }
 
   return { seriesId: serie.id, erzeugteFahrten, feiertagsHinweise, genehmigungsWarnung };
+}
+
+/**
+ * Erzeugt die fehlenden Termine EINER Serie bis zum 14-Tage-Horizont (bzw. Serienende). Für die
+ * Hintergrundaufgabe nach serieAnlegen({ termineSofort: false }) – Maßnahme M-14 Punkt 4. Ist wie
+ * serienVerlaengern wiederholbar: vorhandene Termine werden übersprungen; fällt die Aufgabe aus,
+ * holt der tägliche Cron die Termine nach.
+ */
+export async function serieTermineErzeugen(
+  tenantId: string,
+  seriesId: string,
+  optionen: Omit<FahrtErfassenOptionen, "seriesId">,
+): Promise<string[]> {
+  const serie = await withTenant(tenantId).rideSeries.findUnique({ where: { id: seriesId } });
+  if (!serie) return [];
+  const heute = datumIso(new Date());
+  const horizont = tagVerschieben(heute, GENERIERUNGS_HORIZONT_TAGE - 1);
+  const bisIso = datumIso(serie.until);
+  return termineErzeugen(tenantId, serie, heute, horizont < bisIso ? horizont : bisIso, optionen);
 }
 
 /** Für den täglichen Cron: verlängert jede noch laufende Serie auf den 14-Tage-Horizont. */

@@ -5,6 +5,7 @@
 // Feldnamen im Gesprächsbericht sind aus der Doku übernommen, aber noch nicht gegen einen echten
 // Vapi-Anruf getestet (siehe docs/04a-vapi-notizen.md, Punkt 9 und 10/offene Punkte). Vor dem
 // ersten Testanruf mit einem echten Webhook-Payload abgleichen.
+import { geheimnisGleich } from "@/lib/geheimnis";
 import { voiceSystemPrompt } from "@/core/notify/voicePrompt";
 import { DOC_STATUS, TRANSPORT_TYPES } from "@/core/rides/validation";
 import { WOCHENTAGE } from "@/core/shifts/rrule";
@@ -204,11 +205,11 @@ export const vapiProvider: VoiceProvider = {
   name: "vapi",
 
   async verifyWebhook(req) {
-    const secret = process.env.VAPI_WEBHOOK_SECRET;
-    if (!secret) return false;
+    // Maßnahme M-14 Punkt 3 (S4-007): zeitkonstanter Vergleich. Eine HMAC-Signatur mit Zeitstempel
+    // (Schutz gegen Wiederholung) folgt, sobald der Anbieter sie anbietet.
     const header = req.headers.get("authorization") ?? req.headers.get("x-vapi-secret");
     const token = header?.replace(/^Bearer\s+/i, "").trim();
-    return token === secret;
+    return geheimnisGleich(token, process.env.VAPI_WEBHOOK_SECRET);
   },
 
   buildAssistantConfig(settings: TenantVoiceSettings) {
