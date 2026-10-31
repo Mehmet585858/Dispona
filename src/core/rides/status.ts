@@ -82,14 +82,22 @@ export async function fahrtStatusAendern(
     }
   }
 
-  const aktualisiert = await db.ride.update({
-    where: { id: rideId },
+  // Prüfbericht S2-015: Der alte Status ist Bedingung des Updates ("UPDATE … WHERE status = alt").
+  // Zwei gleichzeitige Wechsel (z. B. Offline-Warteschlange sendet "nicht angetroffen" und
+  // "an Bord" nach) lesen beide denselben Ausgangsstatus – nur der erste trifft noch eine Zeile,
+  // der zweite bekommt count 0 und bricht ab, bevor er Ereignis und AuditLog schreibt.
+  const { count } = await db.ride.updateMany({
+    where: { id: rideId, status: fahrt.status },
     data: {
       status: neuerStatus,
       completedAt: neuerStatus === "ERLEDIGT" ? new Date() : undefined,
       distanceKm,
     },
   });
+  if (count !== 1) {
+    throw new Error(`Status der Fahrt hat sich inzwischen geändert (war ${fahrt.status}); Wechsel nach ${neuerStatus} nicht ausgeführt.`);
+  }
+  const aktualisiert = await db.ride.findUniqueOrThrow({ where: { id: rideId } });
 
   await db.rideStatusEvent.create({
     data: {

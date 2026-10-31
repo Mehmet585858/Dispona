@@ -177,3 +177,60 @@ describe("fahrtStatusAendern berechnet gefahrene km bei ERLEDIGT", () => {
     expect(erledigt.distanceKm).toBeGreaterThan(0);
   });
 });
+
+describe("fahrtStatusAendern – gleichzeitige, widersprüchliche Statuswechsel (S2-015)", () => {
+  const kennung = randomUUID().slice(0, 8);
+  let tenantId: string;
+  let ortId: string;
+  let passengerId: string;
+
+  beforeAll(async () => {
+    const tenant = await prisma.tenant.create({ data: { name: `PRUEF_Status-Parallel ${kennung}` } });
+    tenantId = tenant.id;
+    const ort = await prisma.place.create({
+      data: { tenantId, label: "Ort", street: "A 1", zip: "52062", city: "Aachen", lat: 50.77, lng: 6.08, type: "SONSTIGES" },
+    });
+    ortId = ort.id;
+    const passenger = await prisma.passenger.create({ data: { tenantId, firstName: "PRUEF", lastName: "Fahrgast", phones: [] } });
+    passengerId = passenger.id;
+  });
+
+  afterAll(async () => {
+    await prisma.rideStatusEvent.deleteMany({ where: { tenantId } });
+    await prisma.auditLog.deleteMany({ where: { tenantId } });
+    await prisma.ride.deleteMany({ where: { tenantId } });
+    await prisma.place.deleteMany({ where: { tenantId } });
+    await prisma.passenger.deleteMany({ where: { tenantId } });
+    await prisma.tenant.delete({ where: { id: tenantId } });
+  });
+
+  async function fahrtImStatus(status: "UNTERWEGS" | "AN_BORD") {
+    return prisma.ride.create({
+      data: { tenantId, passengerId, pickupPlaceId: ortId, dropoffPlaceId: ortId, pickupAt: new Date(), transportType: "SITZEND", status, source: "MANUELL" },
+    });
+  }
+
+  it("S2-015: UNTERWEGS → parallel AN_BORD und NICHT_ANGETROFFEN: nur einer gewinnt, nur ein Ereignis", async () => {
+    const fahrt = await fahrtImStatus("UNTERWEGS");
+    const ergebnis = await Promise.allSettled([
+      fahrtStatusAendern(tenantId, fahrt.id, "AN_BORD"),
+      fahrtStatusAendern(tenantId, fahrt.id, "NICHT_ANGETROFFEN"),
+    ]);
+    expect(ergebnis.filter((e) => e.status === "fulfilled")).toHaveLength(1);
+    const ereignisse = await prisma.rideStatusEvent.findMany({ where: { rideId: fahrt.id } });
+    expect(ereignisse).toHaveLength(1);
+    const aktuell = await prisma.ride.findUniqueOrThrow({ where: { id: fahrt.id } });
+    expect(ereignisse[0].status).toBe(aktuell.status);
+  });
+
+  it("S2-015: AN_BORD → parallel zweimal ERLEDIGT: genau ein ERLEDIGT-Ereignis und ein AuditLog", async () => {
+    const fahrt = await fahrtImStatus("AN_BORD");
+    const ergebnis = await Promise.allSettled([
+      fahrtStatusAendern(tenantId, fahrt.id, "ERLEDIGT"),
+      fahrtStatusAendern(tenantId, fahrt.id, "ERLEDIGT"),
+    ]);
+    expect(ergebnis.filter((e) => e.status === "fulfilled")).toHaveLength(1);
+    expect(await prisma.rideStatusEvent.count({ where: { rideId: fahrt.id, status: "ERLEDIGT" } })).toBe(1);
+    expect(await prisma.auditLog.count({ where: { tenantId, entityId: fahrt.id, action: "ride.status_change" } })).toBe(1);
+  });
+});
