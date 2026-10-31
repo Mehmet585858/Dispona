@@ -85,7 +85,7 @@ function SerieZeile({ serie, onGeaendert }: { serie: Serie; onGeaendert: () => P
     <div className="rounded-xl border border-line p-4">
       <div className="mb-3 flex flex-wrap items-center gap-2 text-sm text-ink">
         <span className="font-medium">{FAHRGAST_TEXTE.serieZeile(serie.wochentage.join(", "), serie.abholzeit, serie.bis)}</span>
-        {serie.pauseVon && serie.pauseBis ? <Chip ton="warn">{FAHRGAST_TEXTE.pause(serie.pauseVon, serie.pauseBis)}</Chip> : null}
+        {serie.pauseVon && serie.pauseBis ? <Chip ton="info">{FAHRGAST_TEXTE.pause(serie.pauseVon, serie.pauseBis)}</Chip> : null}
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3">
