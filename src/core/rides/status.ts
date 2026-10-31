@@ -1,5 +1,5 @@
 import type { RideStatus } from "@/generated/prisma/enums";
-import { withTenant } from "@/lib/db";
+import { withTenant, type TenantTx } from "@/lib/db";
 import { gefahreneKmBerechnen } from "./distanz";
 
 /**
@@ -44,6 +44,21 @@ export async function minutenSeitDisponiert(tenantId: string, rideId: string): P
   return (Date.now() - zeitpunkt.getTime()) / 60_000;
 }
 
+export type StatusWechselOptionen = {
+  userId?: string;
+  lat?: number;
+  lng?: number;
+  /**
+   * Maßnahme M-04 (R3-2): Schreibt nur, wenn die Fahrt in diesem Moment noch diesem Fahrer gehört
+   * ("UPDATE … WHERE id = ? AND status = ? AND driverId = ?"). Die Fahrer-App prüft die
+   * Eigentümerschaft damit nicht mehr in einem getrennten Lesezugriff – ein nach der Umbesetzung
+   * nachgesendeter Statuswechsel des alten Fahrers trifft keine Zeile mehr.
+   */
+  erwarteterDriverId?: string;
+  /** Läuft der Wechsel innerhalb einer Transaktion (z. B. fahrzeugZuweisen), wird deren Client genutzt. */
+  tx?: TenantTx;
+};
+
 /**
  * Ändert den Status einer Fahrt. Prüft den Übergang, schreibt RideStatusEvent und AuditLog.
  * Einziger erlaubter Weg, Ride.status zu ändern (docs/03-datenmodell.md).
@@ -52,9 +67,9 @@ export async function fahrtStatusAendern(
   tenantId: string,
   rideId: string,
   neuerStatus: RideStatus,
-  optionen?: { userId?: string; lat?: number; lng?: number },
+  optionen?: StatusWechselOptionen,
 ) {
-  const db = withTenant(tenantId);
+  const db = optionen?.tx ?? withTenant(tenantId);
   const fahrt = await db.ride.findUnique({
     where: { id: rideId },
     select: {
@@ -93,7 +108,11 @@ export async function fahrtStatusAendern(
   // "an Bord" nach) lesen beide denselben Ausgangsstatus – nur der erste trifft noch eine Zeile,
   // der zweite bekommt count 0 und bricht ab, bevor er Ereignis und AuditLog schreibt.
   const { count } = await db.ride.updateMany({
-    where: { id: rideId, status: fahrt.status },
+    where: {
+      id: rideId,
+      status: fahrt.status,
+      ...(optionen?.erwarteterDriverId ? { driverId: optionen.erwarteterDriverId } : {}),
+    },
     data: {
       status: neuerStatus,
       completedAt: neuerStatus === "ERLEDIGT" ? new Date() : undefined,
@@ -101,7 +120,11 @@ export async function fahrtStatusAendern(
     },
   });
   if (count !== 1) {
-    throw new Error(`Status der Fahrt hat sich inzwischen geändert (war ${fahrt.status}); Wechsel nach ${neuerStatus} nicht ausgeführt.`);
+    throw new Error(
+      optionen?.erwarteterDriverId
+        ? `Die Fahrt gehört inzwischen nicht mehr zu diesem Fahrer oder ihr Status hat sich geändert (war ${fahrt.status}); Wechsel nach ${neuerStatus} nicht ausgeführt.`
+        : `Status der Fahrt hat sich inzwischen geändert (war ${fahrt.status}); Wechsel nach ${neuerStatus} nicht ausgeführt.`,
+    );
   }
   const aktualisiert = await db.ride.findUniqueOrThrow({ where: { id: rideId } });
 

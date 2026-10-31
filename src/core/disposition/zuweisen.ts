@@ -4,7 +4,7 @@
  * src/core/disposition/automatischDisponieren.ts) laufen beide hierüber.
  */
 import { referenzenPruefen, withTenant } from "@/lib/db";
-import { fahrtStatusAendern } from "@/core/rides/status";
+import { fahrtStatusAendern, istUebergangErlaubt } from "@/core/rides/status";
 import { pushAnFahrer } from "@/core/notify/push";
 import { fahrtEntzogenText, neueFahrtText } from "@/core/notify/texte";
 import { geplantesEnde } from "@/core/shifts/dauer";
@@ -59,8 +59,19 @@ export async function fahrzeugZuweisen(
   // Automodus-Cron und Disponenten-Klick zur selben Sekunde – laufen dadurch nacheinander: die
   // zweite sieht die erste schon im Fahrplan und bekommt den FahrzeugKonfliktError. Ohne Sperre
   // lasen beide "frei" und buchten beide (gegen Postgres reproduziert).
+  // Maßnahme M-04 (R2-2, R1-1): auch der Statuswechsel nach DISPONIERT läuft in DERSELBEN
+  // Transaktion (fahrtStatusAendern mit tx). Vorher wurden Fahrzeug und Fahrer geschrieben und erst
+  // danach der Übergang geprüft – schlug der fehl (z. B. zwei überlappende Automodus-Läufe, die
+  // dieselbe Fahrt auf verschiedene Fahrzeuge legen), zeigte die Fahrt auf ein Fahrzeug und einen
+  // Fahrer, die nie benachrichtigt wurden. Jetzt rollt ein abgelehnter Übergang alles zurück.
   const schicht = await db.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${tenantId}), hashtext(${vehicleId}))`;
+
+    const aktuell = await tx.ride.findUnique({ where: { id: rideId }, select: { status: true } });
+    if (!aktuell) throw new Error("Fahrt nicht gefunden.");
+    if (!istUebergangErlaubt(aktuell.status, "DISPONIERT")) {
+      throw new Error(`Übergang von ${aktuell.status} nach DISPONIERT ist nicht erlaubt.`);
+    }
 
     const andereFahrtenDesFahrzeugs = await tx.ride.findMany({
       where: {
@@ -113,9 +124,9 @@ export async function fahrzeugZuweisen(
         problems: fahrt.problems.filter((p) => p !== "KEIN_FAHRZEUG"),
       },
     });
+    await fahrtStatusAendern(tenantId, rideId, "DISPONIERT", { userId: optionen.userId, tx });
     return schichtInTx;
   });
-  await fahrtStatusAendern(tenantId, rideId, "DISPONIERT", { userId: optionen.userId });
 
   // Nur bei echtem Fahrerwechsel benachrichtigen (nicht bei bloßer Zeitänderung mit gleichem
   // Fahrer, z. B. per Drag im Zeitstrahl – sonst doppelte Push mit fahrtAendern). Der Wechsel kann

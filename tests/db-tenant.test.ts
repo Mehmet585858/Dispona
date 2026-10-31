@@ -184,3 +184,35 @@ describe("withTenant – Mandantentrennung", () => {
     ).rejects.toThrow();
   });
 });
+
+describe("withTenant – innerhalb einer Transaktion (M-04/M-23)", () => {
+  it("M-04: findUnique/update sehen eine in derselben Transaktion angelegte Zeile des eigenen Mandanten", async () => {
+    const tenant = await prisma.tenant.create({ data: { name: `PRUEF_tx ${randomUUID().slice(0, 8)}` } });
+    const fremd = await prisma.tenant.create({ data: { name: `PRUEF_tx-fremd ${randomUUID().slice(0, 8)}` } });
+    const fremderFahrgast = await prisma.passenger.create({
+      data: { tenantId: fremd.id, firstName: "PRUEF", lastName: "Fremd", phones: [] },
+    });
+    const db = withTenant(tenant.id);
+    try {
+      const ergebnis = await db.$transaction(async (tx) => {
+        const neu = await tx.passenger.create({ data: { tenantId: tenant.id, firstName: "PRUEF", lastName: "Tx", phones: [] } });
+        const gelesen = await tx.passenger.findUnique({ where: { id: neu.id } });
+        const aktualisiert = await tx.passenger.update({ where: { id: neu.id }, data: { lastName: "Tx2" } });
+        // Fremde Zeile bleibt auch in der Transaktion unsichtbar bzw. unveränderbar.
+        const fremdGelesen = await tx.passenger.findUnique({ where: { id: fremderFahrgast.id } });
+        await expect(tx.passenger.update({ where: { id: fremderFahrgast.id }, data: { lastName: "X" } })).rejects.toThrow(
+          "Nicht gefunden.",
+        );
+        return { gelesen, aktualisiert, fremdGelesen };
+      });
+      expect(ergebnis.gelesen?.lastName).toBe("Tx");
+      expect(ergebnis.aktualisiert.lastName).toBe("Tx2");
+      expect(ergebnis.fremdGelesen).toBeNull();
+      expect((await prisma.passenger.findUniqueOrThrow({ where: { id: fremderFahrgast.id } })).lastName).toBe("Fremd");
+    } finally {
+      await prisma.passenger.deleteMany({ where: { tenantId: { in: [tenant.id, fremd.id] } } });
+      await prisma.tenant.deleteMany({ where: { id: { in: [tenant.id, fremd.id] } } });
+    }
+  });
+});
+

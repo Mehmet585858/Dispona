@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { withTenant } from "@/lib/db";
+import { withTenant, type TenantDb } from "@/lib/db";
 import { requireFahrerSession } from "@/lib/session";
 import { fahrtStatusAendern } from "@/core/rides/status";
 import { fahrerFaelltAusKern } from "@/core/rides/fahrerAusfall";
@@ -75,18 +75,15 @@ export async function fahrtStatusSetzenFahrer(
   position?: { lat: number; lng: number },
 ) {
   const { tenantId, userId } = await requireFahrerSession();
-  const db = withTenant(tenantId);
   const fahrer = await eigenerFahrer(tenantId, userId);
 
-  const fahrt = await db.ride.findUnique({ where: { id: rideId }, select: { driverId: true } });
-  if (!fahrt || fahrt.driverId !== fahrer.id) {
-    throw new Error("Diese Fahrt gehört nicht zu Ihnen.");
-  }
-
+  // Maßnahme M-04 (R3-2): keine getrennte Eigentumsprüfung mehr – der Statuswechsel schreibt nur,
+  // wenn die Fahrt in diesem Moment noch diesem Fahrer gehört (Bedingung im UPDATE).
   await fahrtStatusAendern(tenantId, rideId, status, {
     userId,
     lat: position?.lat,
     lng: position?.lng,
+    erwarteterDriverId: fahrer.id,
   });
 
   revalidatePath("/fahrer");
@@ -127,24 +124,25 @@ const PROBLEM_HINWEIS: Record<ProblemArt, string> = {
   FAHRZEUG_DEFEKT: "Fahrzeug defekt",
 };
 
+async function problemAnEigenerFahrtVermerken(db: TenantDb, rideId: string, driverId: string, hinweis: string) {
+  const { count } = await db.ride.updateMany({ where: { id: rideId, driverId }, data: { problems: { push: hinweis } } });
+  if (count !== 1) throw new Error("Diese Fahrt gehört nicht zu Ihnen.");
+}
+
 /** Problem bei einer einzelnen Fahrt melden (docs/06-oberflaeche.md: Verspätung, Fahrgast nicht da, Fahrzeug defekt). */
 export async function problemMelden(rideId: string, art: ProblemArt) {
   const { tenantId, userId } = await requireFahrerSession();
   const db = withTenant(tenantId);
   const fahrer = await eigenerFahrer(tenantId, userId);
 
-  const fahrt = await db.ride.findUnique({ where: { id: rideId }, select: { driverId: true } });
-  if (!fahrt || fahrt.driverId !== fahrer.id) {
-    throw new Error("Diese Fahrt gehört nicht zu Ihnen.");
-  }
-
+  // Maßnahme M-04 (R3-2): Eigentümerschaft ist Bedingung jedes Schreibzugriffs (driverId im WHERE).
   if (art === "FAHRGAST_NICHT_DA") {
-    await fahrtStatusAendern(tenantId, rideId, "NICHT_ANGETROFFEN", { userId });
+    await fahrtStatusAendern(tenantId, rideId, "NICHT_ANGETROFFEN", { userId, erwarteterDriverId: fahrer.id });
   } else if (art === "FAHRZEUG_DEFEKT") {
-    await fahrtStatusAendern(tenantId, rideId, "PROBLEM", { userId });
-    await db.ride.update({ where: { id: rideId }, data: { problems: { push: PROBLEM_HINWEIS[art] } } });
+    await fahrtStatusAendern(tenantId, rideId, "PROBLEM", { userId, erwarteterDriverId: fahrer.id });
+    await problemAnEigenerFahrtVermerken(db, rideId, fahrer.id, PROBLEM_HINWEIS[art]);
   } else {
-    await db.ride.update({ where: { id: rideId }, data: { problems: { push: PROBLEM_HINWEIS[art] } } });
+    await problemAnEigenerFahrtVermerken(db, rideId, fahrer.id, PROBLEM_HINWEIS[art]);
   }
 
   revalidatePath("/fahrer");
@@ -176,12 +174,9 @@ export async function gesehenBestaetigen(rideId: string) {
   const db = withTenant(tenantId);
   const fahrer = await eigenerFahrer(tenantId, userId);
 
-  const fahrt = await db.ride.findUnique({ where: { id: rideId }, select: { driverId: true } });
-  if (!fahrt || fahrt.driverId !== fahrer.id) {
-    throw new Error("Diese Fahrt gehört nicht zu Ihnen.");
-  }
-
-  await db.ride.update({ where: { id: rideId }, data: { driverAckAt: new Date() } });
+  // Maßnahme M-04 (R3-2): Eigentümerschaft als Bedingung des Updates, kein getrennter Lesezugriff.
+  const { count } = await db.ride.updateMany({ where: { id: rideId, driverId: fahrer.id }, data: { driverAckAt: new Date() } });
+  if (count !== 1) throw new Error("Diese Fahrt gehört nicht zu Ihnen.");
   revalidatePath("/fahrer");
 }
 

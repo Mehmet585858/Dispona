@@ -97,28 +97,22 @@ export function withTenant(tenantId: string) {
           }
 
           if (READ_UNIQUE_OPS.has(operation) || WRITE_UNIQUE_OPS.has(operation)) {
-            // id identifiziert die Zeile eindeutig; das wird hier unabhängig vom select/include
-            // des Aufrufers geprüft (nie anhand des Ergebnisses selbst – das könnte tenantId
-            // durch ein eigenes select ausblenden).
-            const client = prisma as unknown as Record<
-              string,
-              { findFirst: (a: unknown) => Promise<unknown> }
-            >;
-            const modelKey = model.charAt(0).toLowerCase() + model.slice(1);
-            const owned = await client[modelKey]?.findFirst({
-              where: { ...(typedArgs.where ?? {}), tenantId },
-              select: { id: true },
-            });
-            if (!owned) {
-              if (operation === "findUniqueOrThrow") {
+            // tenantId wird direkt in das where des eindeutigen Zugriffs aufgenommen (Prisma erlaubt
+            // in findUnique/update/delete zusätzliche Nicht-Unique-Felder). Vorher lief hier ein
+            // getrennter findFirst über den globalen Client – der sah innerhalb einer Transaktion
+            // (db.$transaction) eine gerade erst angelegte Zeile nicht und meldete "Nicht gefunden."
+            // (Maßnahme M-04/M-23: Zuweisung und Erfassen laufen jetzt in Transaktionen). Die
+            // Prüfung bleibt unabhängig vom select/include des Aufrufers.
+            typedArgs.where = { ...(typedArgs.where ?? {}), tenantId };
+            try {
+              return await query(typedArgs);
+            } catch (fehler) {
+              // Fremde oder fehlende Zeile: Prisma meldet P2025 – nach außen wie bisher "Nicht gefunden.".
+              if (istNichtGefundenFehler(fehler)) {
                 throw new Error("Nicht gefunden.");
               }
-              if (operation === "findUnique") {
-                return null;
-              }
-              throw new Error("Nicht gefunden.");
+              throw fehler;
             }
-            return query(typedArgs);
           }
 
           return query(typedArgs);
@@ -176,3 +170,13 @@ export async function referenzenPruefen(
 export function istEindeutigkeitsFehler(fehler: unknown): boolean {
   return typeof fehler === "object" && fehler !== null && (fehler as { code?: string }).code === "P2002";
 }
+
+/** Prisma-Fehler P2025: Zeile für update/delete/findUniqueOrThrow nicht gefunden. */
+export function istNichtGefundenFehler(fehler: unknown): boolean {
+  return typeof fehler === "object" && fehler !== null && (fehler as { code?: string }).code === "P2025";
+}
+
+/** Mandantengefilterter Client (Rückgabe von withTenant) und der Client innerhalb von db.$transaction(). */
+export type TenantDb = ReturnType<typeof withTenant>;
+type TransaktionsRueckruf = Parameters<TenantDb["$transaction"]>[0];
+export type TenantTx = TransaktionsRueckruf extends (tx: infer T) => unknown ? T : never;
