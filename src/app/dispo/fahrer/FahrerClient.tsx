@@ -276,6 +276,11 @@ export function FahrerClient({
             type="time"
             value={musterEingabe.end}
             onChange={(event) => setMusterEingabe({ ...musterEingabe, end: event.target.value })}
+            hint={
+              musterEingabe.end && musterEingabe.end < musterEingabe.start
+                ? FAHRER_TEXTE.endeFolgetag(musterEingabe.end)
+                : undefined
+            }
           />
         </div>
         {musterFehler ? <p className="mt-3 text-sm text-danger-ink">{musterFehler}</p> : null}
@@ -389,7 +394,9 @@ export function FahrerClient({
                           title="Zum Entfernen klicken"
                         >
                           <Chip ton="accent">
-                            {uhrzeit(schicht.start)}–{uhrzeit(schicht.end)} · {schicht.vehicle.plate}
+                            {uhrzeit(schicht.start)}–{uhrzeit(schicht.end)}
+                            {datumIso(new Date(schicht.end)) !== datumIso(new Date(schicht.start)) ? ` ${FAHRER_TEXTE.folgetagKurz}` : ""} ·{" "}
+                            {schicht.vehicle.plate}
                           </Chip>
                         </button>
                       ))}

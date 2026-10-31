@@ -34,13 +34,21 @@ export function technischeFahrerEmail(phone: string): string {
   return `fahrer-${ziffern}@fahrer.intern`;
 }
 
-export const schichtMusterSchema = z.object({
-  driverId: z.string().min(1, "Fahrer fehlt"),
-  vehicleId: z.string().min(1, "Fahrzeug fehlt"),
-  wochentage: z.array(z.number().min(0).max(6)).min(1, "Mindestens ein Tag wählen"),
-  start: z.string().min(1, "Startzeit fehlt"),
-  end: z.string().min(1, "Endzeit fehlt"),
-});
+const UHRZEIT = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+/**
+ * Schichtmuster. Endzeit vor Startzeit = Nachtschicht bis zum Folgetag (Maßnahme M-18, siehe
+ * schichtZeitraum in src/core/shifts/dauer.ts); gleiche Zeiten ergäben eine leere Schicht.
+ */
+export const schichtMusterSchema = z
+  .object({
+    driverId: z.string().min(1, "Fahrer fehlt"),
+    vehicleId: z.string().min(1, "Fahrzeug fehlt"),
+    wochentage: z.array(z.number().min(0).max(6)).min(1, "Mindestens ein Tag wählen"),
+    start: z.string().regex(UHRZEIT, "Startzeit fehlt oder ungültig (HH:MM)"),
+    end: z.string().regex(UHRZEIT, "Endzeit fehlt oder ungültig (HH:MM)"),
+  })
+  .refine((muster) => muster.start !== muster.end, { message: "Start- und Endzeit sind gleich", path: ["end"] });
 
 export type SchichtMusterEingabe = z.infer<typeof schichtMusterSchema>;
 

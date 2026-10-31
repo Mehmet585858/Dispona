@@ -8,4 +8,7 @@ export const FAHRER_TEXTE = {
   deaktivierenBestaetigen: "Wirklich deaktivieren? Geräte werden abgemeldet, offene Fahrten neu geplant.",
   deaktiviert: "Deaktiviert",
   deaktivierenFehler: "Konnte nicht deaktiviert werden.",
+  /** Maßnahme M-18: Nachtschicht über Mitternacht. */
+  endeFolgetag: (ende: string) => `Bis ${ende} am Folgetag.`,
+  folgetagKurz: "(Folgetag)",
 };

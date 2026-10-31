@@ -12,7 +12,8 @@ import {
   type FahrerEinladenEingabe,
   type SchichtMusterEingabe,
 } from "@/core/drivers/validation";
-import { berlinerMitternacht, mitUhrzeit, wochenTage } from "@/core/shifts/week";
+import { berlinerMitternacht, wochenTage } from "@/core/shifts/week";
+import { schichtZeitraum } from "@/core/shifts/dauer";
 import { fahrerDeaktivieren as fahrerDeaktivierenKern } from "@/core/drivers/deaktivieren";
 
 export async function fahrerLaden() {
@@ -81,8 +82,8 @@ export async function schichtMusterAnlegen(eingabe: SchichtMusterEingabe, montag
 
   for (const wochentagIndex of daten.wochentage) {
     const tag = tage[wochentagIndex];
-    const start = mitUhrzeit(tag, daten.start);
-    const end = mitUhrzeit(tag, daten.end);
+    // Maßnahme M-18: Endzeit vor Startzeit -> Ende am Folgetag (Nachtschicht).
+    const { start, end } = schichtZeitraum(tag, daten.start, daten.end);
 
     // Keine doppelte Schicht anlegen, wenn für diesen Fahrer an dem Tag schon eine
     // überlappende Schicht existiert (z. B. weil "Für diese Woche anlegen" zweimal
