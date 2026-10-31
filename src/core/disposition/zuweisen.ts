@@ -49,56 +49,68 @@ export async function fahrzeugZuweisen(
   const eigenesEnde = geplantesEnde(fahrt.pickupAt, fahrt.transportType, fahrt.pickupPlace, fahrt.dropoffPlace);
   const fensterVon = new Date(fahrt.pickupAt.getTime() - 24 * 60 * 60_000);
   const fensterBis = new Date(fahrt.pickupAt.getTime() + 24 * 60 * 60_000);
-  const andereFahrtenDesFahrzeugs = await db.ride.findMany({
-    where: {
-      vehicleId,
-      id: { not: rideId },
-      status: { notIn: ["STORNIERT", "ERLEDIGT"] },
-      pickupAt: { gte: fensterVon, lte: fensterBis },
-    },
-    select: {
-      pickupAt: true,
-      transportType: true,
-      pickupPlace: { select: { lat: true, lng: true } },
-      dropoffPlace: { select: { lat: true, lng: true } },
-    },
-  });
-  const konflikt = andereFahrtenDesFahrzeugs.find((andere) => {
-    const andereEnde = geplantesEnde(andere.pickupAt, andere.transportType, andere.pickupPlace, andere.dropoffPlace);
-    return fahrt.pickupAt < andereEnde && andere.pickupAt < eigenesEnde;
-  });
-  if (konflikt) {
-    throw new FahrzeugKonfliktError(
-      `Dieses Fahrzeug ist um ${uhrzeitBerlin(konflikt.pickupAt)} Uhr schon für eine andere Fahrt eingeplant.`,
-    );
-  }
 
-  const schicht = await db.shift.findFirst({
-    where: { vehicleId, start: { lte: fahrt.pickupAt }, end: { gte: fahrt.pickupAt } },
-    select: { driverId: true },
-  });
+  // Prüfbericht S1-004: Prüfen und Schreiben passieren in EINER Transaktion, und davor holt sich
+  // die Transaktion eine Postgres-Sperre je Fahrzeug (pg_advisory_xact_lock, wird am Ende der
+  // Transaktion automatisch freigegeben). Zwei gleichzeitige Zuweisungen desselben Fahrzeugs –
+  // Automodus-Cron und Disponenten-Klick zur selben Sekunde – laufen dadurch nacheinander: die
+  // zweite sieht die erste schon im Fahrplan und bekommt den FahrzeugKonfliktError. Ohne Sperre
+  // lasen beide "frei" und buchten beide (gegen Postgres reproduziert).
+  const schicht = await db.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${tenantId}), hashtext(${vehicleId}))`;
 
-  await db.ride.update({
-    where: { id: rideId },
-    data: {
-      vehicleId,
-      // driverId braucht das explizite "?? null": Prisma lässt ein undefined-Feld unangetastet,
-      // ohne Schicht (kein Fahrer für Fahrzeug+Uhrzeit gefunden) würde sonst der vorherige Fahrer
-      // in der Datenbank stehen bleiben, obwohl niemand mehr zuständig ist.
-      driverId: schicht?.driverId ?? null,
-      dispatchMode: optionen.dispatchMode,
-      driverAckAt: null,
-      // Veralteter Grund eines früheren, gescheiterten Automodus-Versuchs darf nach erfolgreicher
-      // Zuweisung nicht stehen bleiben - sonst zeigt die Fahrt dauerhaft einen längst überholten
-      // Grund an, obwohl sie jetzt erfolgreich disponiert ist.
-      autoSkipReason: null,
-      // "KEIN_FAHRZEUG" widerspricht sich selbst, sobald genau das hier passiert (ein Fahrzeug
-      // wird zugewiesen) - ohne diese Bereinigung blieb die Fahrt für immer in "Braucht Sie"
-      // hängen (alarmFahrten dort prüft NUR problems.length > 0, unabhängig vom Status), auch
-      // wenn sie längst erfolgreich disponiert war. Andere Probleme (z. B. GENEHMIGUNG_FEHLT)
-      // betreffen die Fahrt selbst, nicht die Fahrzeugverfügbarkeit, und bleiben bewusst stehen.
-      problems: fahrt.problems.filter((p) => p !== "KEIN_FAHRZEUG"),
-    },
+    const andereFahrtenDesFahrzeugs = await tx.ride.findMany({
+      where: {
+        vehicleId,
+        id: { not: rideId },
+        status: { notIn: ["STORNIERT", "ERLEDIGT"] },
+        pickupAt: { gte: fensterVon, lte: fensterBis },
+      },
+      select: {
+        pickupAt: true,
+        transportType: true,
+        pickupPlace: { select: { lat: true, lng: true } },
+        dropoffPlace: { select: { lat: true, lng: true } },
+      },
+    });
+    const konflikt = andereFahrtenDesFahrzeugs.find((andere) => {
+      const andereEnde = geplantesEnde(andere.pickupAt, andere.transportType, andere.pickupPlace, andere.dropoffPlace);
+      return fahrt.pickupAt < andereEnde && andere.pickupAt < eigenesEnde;
+    });
+    if (konflikt) {
+      throw new FahrzeugKonfliktError(
+        `Dieses Fahrzeug ist um ${uhrzeitBerlin(konflikt.pickupAt)} Uhr schon für eine andere Fahrt eingeplant.`,
+      );
+    }
+
+    const schichtInTx = await tx.shift.findFirst({
+      where: { vehicleId, start: { lte: fahrt.pickupAt }, end: { gte: fahrt.pickupAt } },
+      select: { driverId: true },
+    });
+
+    await tx.ride.update({
+      where: { id: rideId },
+      data: {
+        vehicleId,
+        // driverId braucht das explizite "?? null": Prisma lässt ein undefined-Feld unangetastet,
+        // ohne Schicht (kein Fahrer für Fahrzeug+Uhrzeit gefunden) würde sonst der vorherige Fahrer
+        // in der Datenbank stehen bleiben, obwohl niemand mehr zuständig ist.
+        driverId: schichtInTx?.driverId ?? null,
+        dispatchMode: optionen.dispatchMode,
+        driverAckAt: null,
+        // Veralteter Grund eines früheren, gescheiterten Automodus-Versuchs darf nach erfolgreicher
+        // Zuweisung nicht stehen bleiben - sonst zeigt die Fahrt dauerhaft einen längst überholten
+        // Grund an, obwohl sie jetzt erfolgreich disponiert ist.
+        autoSkipReason: null,
+        // "KEIN_FAHRZEUG" widerspricht sich selbst, sobald genau das hier passiert (ein Fahrzeug
+        // wird zugewiesen) - ohne diese Bereinigung blieb die Fahrt für immer in "Braucht Sie"
+        // hängen (alarmFahrten dort prüft NUR problems.length > 0, unabhängig vom Status), auch
+        // wenn sie längst erfolgreich disponiert war. Andere Probleme (z. B. GENEHMIGUNG_FEHLT)
+        // betreffen die Fahrt selbst, nicht die Fahrzeugverfügbarkeit, und bleiben bewusst stehen.
+        problems: fahrt.problems.filter((p) => p !== "KEIN_FAHRZEUG"),
+      },
+    });
+    return schichtInTx;
   });
   await fahrtStatusAendern(tenantId, rideId, "DISPONIERT", { userId: optionen.userId });
 
