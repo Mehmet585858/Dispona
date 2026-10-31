@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { bearerErlaubt } from "@/lib/geheimnis";
+import { cronLaufMitSperre, cronUeberwachen, fuerAlleMandanten } from "@/core/betrieb/cronLauf";
 import { prisma } from "@/lib/prisma";
 import { bestaetigungenPruefen, keinFahrzeugAlarmPruefen } from "@/core/notify/eskalation";
 
@@ -12,9 +13,20 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Nicht erlaubt." }, { status: 401 });
   }
 
+  // Maßnahme M-16: je Mandant mit Laufsperre und Laufprotokoll; ein Mandant blockiert die anderen
+  // nicht (vorher Promise.all). Dazu die Überwachung des Automodus-Crons.
   const mandanten = await prisma.tenant.findMany({ select: { id: true } });
-  const bestaetigungen = await Promise.all(mandanten.map((m) => bestaetigungenPruefen(m.id)));
-  const keinFahrzeug = await Promise.all(mandanten.map((m) => keinFahrzeugAlarmPruefen(m.id)));
+  const ergebnisse = await fuerAlleMandanten(
+    mandanten.map((m) => m.id),
+    async (tenantId) => {
+      const lauf = await cronLaufMitSperre(tenantId, "eskalation", async () => ({
+        bestaetigungen: await bestaetigungenPruefen(tenantId),
+        keinFahrzeug: await keinFahrzeugAlarmPruefen(tenantId),
+      }));
+      const ueberwachung = await cronUeberwachen(tenantId);
+      return { lauf, ueberwachung };
+    },
+  );
 
-  return NextResponse.json({ mandanten: mandanten.length, bestaetigungen, keinFahrzeug });
+  return NextResponse.json({ mandanten: mandanten.length, ergebnisse });
 }

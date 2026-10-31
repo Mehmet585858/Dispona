@@ -69,6 +69,7 @@ export async function mandantKomplettLoeschen(tenantId: string): Promise<void> {
   await prisma.user.deleteMany({ where });
   await prisma.phoneNumber.deleteMany({ where });
   await prisma.integration.deleteMany({ where });
+  await prisma.cronLauf.deleteMany({ where });
   await prisma.tenantSettings.deleteMany({ where });
   await prisma.tenant.deleteMany({ where: { id: tenantId } });
 }

@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { bearerErlaubt } from "@/lib/geheimnis";
+import { fuerAlleMandanten } from "@/core/betrieb/cronLauf";
 import { prisma } from "@/lib/prisma";
 import { loeschfristenDurchsetzen } from "@/core/datenschutz/loeschfristen";
 
@@ -15,21 +16,24 @@ export async function GET(request: NextRequest) {
   }
 
   const mandanten = await prisma.tenant.findMany({ select: { id: true } });
-  const ergebnisse = [];
-  for (const mandant of mandanten) {
-    const ergebnis = await loeschfristenDurchsetzen(mandant.id);
-    if (ergebnis.audioGeloescht + ergebnis.fahrtenGeloescht + ergebnis.transkripteGeloescht + ergebnis.gpsGeloescht > 0) {
-      await prisma.auditLog.create({
-        data: {
-          tenantId: mandant.id,
-          action: "datenschutz.loeschfristen_durchgesetzt",
-          entity: "Tenant",
-          entityId: mandant.id,
-        },
-      });
-    }
-    ergebnisse.push({ tenantId: mandant.id, ...ergebnis });
-  }
+  // Maßnahme M-16 Punkt 5: ein Mandant, dessen Löschlauf scheitert, blockiert die anderen nicht.
+  const ergebnisse = await fuerAlleMandanten(
+    mandanten.map((m) => m.id),
+    async (tenantId) => {
+      const ergebnis = await loeschfristenDurchsetzen(tenantId);
+      if (ergebnis.audioGeloescht + ergebnis.fahrtenGeloescht + ergebnis.transkripteGeloescht + ergebnis.gpsGeloescht > 0) {
+        await prisma.auditLog.create({
+          data: {
+            tenantId,
+            action: "datenschutz.loeschfristen_durchgesetzt",
+            entity: "Tenant",
+            entityId: tenantId,
+          },
+        });
+      }
+      return ergebnis;
+    },
+  );
 
   return NextResponse.json({ mandanten: mandanten.length, ergebnisse });
 }

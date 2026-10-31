@@ -38,3 +38,14 @@ export function keinFahrzeugAlarmText(uhrzeit: string): string {
 export function anmeldeLinkText(url: string): string {
   return `Anmelde-Link für die Fahrer-App (10 Minuten gültig): ${url}`;
 }
+
+const CRON_BEZEICHNUNG: Record<string, string> = {
+  automodus: "Die automatische Disposition",
+  eskalation: "Die Bestätigungs-Überwachung",
+};
+
+/** Alarm an den Inhaber (Maßnahme M-16): ein minütlicher Hintergrundlauf ist ausgefallen. Keine Fahrtdaten. */
+export function cronAusfallAlarmText(cron: string, seitUhrzeit: string): string {
+  if (cron === "planFuerMorgen") return `Der Plan für morgen ist um ${seitUhrzeit} fehlgeschlagen. Bitte Dispo prüfen.`;
+  return `${CRON_BEZEICHNUNG[cron] ?? "Ein Hintergrundlauf"} läuft seit ${seitUhrzeit} nicht. Bitte Dispo prüfen.`;
+}

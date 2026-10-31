@@ -518,6 +518,25 @@ model AuditLog {
   @@index([tenantId, at])
 }
 
+// Maßnahme M-16 (Prüfbericht S2-010, S3-011, docs/13 R2-3): Laufprotokoll und Laufsperre je
+// Cron und Mandant. laeuftSeit ist eine Sperre mit Ablauf (10 Minuten) – funktioniert auch hinter
+// einem Transaktions-Pooler, anders als sitzungsgebundene Advisory-Locks. Fehlertexte nur als
+// Fehlerart (keine Personendaten).
+model CronLauf {
+  id              String    @id @default(cuid())
+  tenantId        String
+  cron            String
+  laeuftSeit      DateTime?
+  letzterStart    DateTime?
+  letzterErfolg   DateTime?
+  letzterFehler   String?
+  letzterFehlerAm DateTime?
+  alarmGesendetAm DateTime?
+
+  @@unique([tenantId, cron])
+  @@index([tenantId])
+}
+
 model Job {
   id       String    @id @default(cuid())
   type     String
