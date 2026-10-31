@@ -12,6 +12,9 @@ import {
 } from "@/core/passengers/validation";
 import { fahrgastAnonymisieren, fahrgastExportieren } from "@/core/passengers/loeschung";
 import { telefonNormalisieren } from "@/core/passengers/suche";
+import { serieAendern, serieBeenden, seriePausieren, type SerienAenderung } from "@/core/rides/serie";
+import { wochentageAusRrule } from "@/core/shifts/rrule";
+import { berlinerMitternacht, datumIso } from "@/core/shifts/week";
 
 export async function fahrgaesteLaden(suche?: string) {
   const { tenantId } = await requireBueroSession();
@@ -156,4 +159,43 @@ export async function fahrgastLoeschen(passengerId: string) {
     data: { tenantId, userId, action: "passenger.geloescht", entity: "Passenger", entityId: passengerId },
   });
   revalidatePath("/dispo/fahrgaeste");
+}
+
+/** Maßnahme M-22: laufende Serien eines Fahrgasts für die Anzeige beim Fahrgast. */
+export async function serienLaden(passengerId: string) {
+  const { tenantId } = await requireBueroSession();
+  const heute = berlinerMitternacht(datumIso(new Date()));
+  const serien = await withTenant(tenantId).rideSeries.findMany({
+    where: { passengerId, until: { gte: heute } },
+    orderBy: { until: "asc" },
+  });
+  return serien.map((s) => ({
+    id: s.id,
+    wochentage: wochentageAusRrule(s.rrule),
+    abholzeit: s.pickupTime,
+    bis: datumIso(s.until),
+    pauseVon: s.pausedFrom ? datumIso(s.pausedFrom) : null,
+    pauseBis: s.pausedUntil ? datumIso(s.pausedUntil) : null,
+  }));
+}
+
+export async function serieBeendenAktion(seriesId: string, abIso: string) {
+  const { tenantId, userId } = await requireBueroSession();
+  const ergebnis = await serieBeenden(tenantId, seriesId, abIso, { userId });
+  revalidatePath("/dispo");
+  return ergebnis;
+}
+
+export async function seriePausierenAktion(seriesId: string, vonIso: string, bisIso: string) {
+  const { tenantId, userId } = await requireBueroSession();
+  const ergebnis = await seriePausieren(tenantId, seriesId, vonIso, bisIso, { userId });
+  revalidatePath("/dispo");
+  return ergebnis;
+}
+
+export async function serieAendernAktion(seriesId: string, aenderung: SerienAenderung) {
+  const { tenantId, userId } = await requireBueroSession();
+  const ergebnis = await serieAendern(tenantId, seriesId, aenderung, { userId });
+  revalidatePath("/dispo");
+  return ergebnis;
 }

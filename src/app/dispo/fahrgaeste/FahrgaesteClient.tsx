@@ -18,6 +18,7 @@ import {
   genehmigungLöschen,
   genehmigungSpeichern,
 } from "./actions";
+import { SerienVerwaltung } from "./SerienVerwaltung";
 
 type Genehmigung = {
   id: string;
@@ -299,6 +300,8 @@ export function FahrgaesteClient({ fahrgaeste: anfangsListe }: { fahrgaeste: Fah
               </Button>
             </div>
           ) : null}
+
+          {bearbeiteterFahrgast ? <SerienVerwaltung passengerId={bearbeiteterFahrgast.id} /> : null}
 
           {bearbeiteterFahrgast ? (
             <div className="mt-6 border-t border-line pt-6">

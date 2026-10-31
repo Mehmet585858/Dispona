@@ -178,6 +178,24 @@ const WERKZEUGE = [
   {
     type: "function",
     function: {
+      name: "serie_beenden",
+      description:
+        "Eine regelmäßige Fahrt (Serie, z. B. Dialyse) eines in diesem Gespräch bestätigten Fahrgasts beenden. " +
+        "Alle geplanten Fahrten ab dem Datum werden storniert.",
+      parameters: {
+        type: "object",
+        properties: {
+          passengerId: { type: "string" },
+          seriesId: { type: "string", description: "Nur nötig, wenn mehrere Serien laufen." },
+          ab: { type: "string", description: "JJJJ-MM-TT, erster Tag ohne Fahrt; ohne Angabe ab heute." },
+        },
+        required: ["passengerId"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "abholzeit_auskunft",
       description: "Auskunft zum aktuellen Status/der Abholzeit einer Fahrt geben, z. B. ob der Fahrer schon unterwegs ist.",
       parameters: {

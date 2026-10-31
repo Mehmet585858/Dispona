@@ -19,7 +19,8 @@ import { DOC_STATUS, TRANSPORT_TYPES } from "@/core/rides/validation";
 import { fahrtErfassen } from "@/core/rides/erfassen";
 import { fahrtAendern } from "@/core/rides/aendern";
 import { fahrtStornieren as fahrtStornierenKern } from "@/core/rides/stornieren";
-import { serieAnlegen, serieTermineErzeugen } from "@/core/rides/serie";
+import { serieAnlegen, serieBeenden, serieTermineErzeugen } from "@/core/rides/serie";
+import { wochentageAusRrule } from "@/core/shifts/rrule";
 import { parseDeutscheAdresse } from "@/core/places/adresse";
 import { routingProvider, GEOCODE_SICHER_SCHWELLE } from "@/providers/routing";
 import { WOCHENTAGE } from "@/core/shifts/rrule";
@@ -403,6 +404,38 @@ async function fahrtStornierenWerkzeug(tenantId: string, callId: string, args: u
   return "Fahrt storniert.";
 }
 
+const serieBeendenSchema = z.object({
+  passengerId: z.string(),
+  seriesId: z.string().optional(),
+  ab: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+});
+
+/**
+ * Maßnahme M-22 Punkt 3: Serie am Telefon beenden – nur für den im Anruf bestätigten Fahrgast
+ * (M-13). Hat er mehrere laufende Serien und nennt das Modell keine seriesId, kommt die Liste
+ * zurück (ohne Orte/Namen), damit der Anrufer wählt.
+ */
+async function serieBeendenWerkzeug(tenantId: string, callId: string, args: unknown): Promise<string> {
+  const { passengerId, seriesId, ab } = serieBeendenSchema.parse(args);
+  if (!(await bestaetigteFahrgaeste(tenantId, callId)).has(passengerId)) return NICHT_BESTAETIGT;
+  const heute = datumIso(new Date());
+  const laufend = await withTenant(tenantId).rideSeries.findMany({
+    where: { passengerId, until: { gte: berlinerMitternacht(heute) } },
+    select: { id: true, rrule: true, pickupTime: true, until: true },
+  });
+  const serie = seriesId ? laufend.find((s) => s.id === seriesId) : laufend.length === 1 ? laufend[0] : undefined;
+  if (!serie) {
+    if (laufend.length === 0) return "Für diesen Fahrgast läuft keine Serie.";
+    return (
+      "Mehrere laufende Serien – bitte nachfragen, welche beendet werden soll: " +
+      laufend.map((s) => `${wochentageAusRrule(s.rrule).join(", ")} ${s.pickupTime} Uhr bis ${datumIso(s.until)} (seriesId ${s.id})`).join("; ")
+    );
+  }
+  const abTag = ab && ab > heute ? ab : heute;
+  const { storniert } = await serieBeenden(tenantId, serie.id, abTag);
+  return `Serie beendet ab ${abTag}. ${storniert} geplante Fahrten wurden storniert.`;
+}
+
 const abholzeitAuskunftSchema = z.object({ rideId: z.string() });
 
 async function abholzeitAuskunft(tenantId: string, callId: string, args: unknown): Promise<string> {
@@ -553,6 +586,9 @@ async function werkzeugEinmalAusfuehren(
         break;
       case "fahrt_stornieren":
         result = await fahrtStornierenWerkzeug(tenantId, callId, toolCall.arguments);
+        break;
+      case "serie_beenden":
+        result = await serieBeendenWerkzeug(tenantId, callId, toolCall.arguments);
         break;
       case "abholzeit_auskunft":
         result = await abholzeitAuskunft(tenantId, callId, toolCall.arguments);
