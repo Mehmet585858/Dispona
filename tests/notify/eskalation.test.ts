@@ -281,11 +281,13 @@ describe("Eskalation nur für zeitnahe Fahrten (M-15)", () => {
     const ort = await prisma.place.create({
       data: { tenantId, label: "PRUEF Ort", street: "A 1", zip: "52062", city: "Aachen", lat: 50.77, lng: 6.08, type: "SONSTIGES" },
     });
+    // M-72: DISPONIERT gibt es nur mit Fahrzeug UND Fahrer (die Datenbank lehnt alles andere ab).
+    const vehicle = await prisma.vehicle.create({ data: { tenantId, plate: `PRUEF-${randomUUID().slice(0, 6)}` } });
     const ride = await prisma.ride.create({
       data: {
         tenantId, passengerId: passenger.id, pickupPlaceId: ort.id, dropoffPlaceId: ort.id,
         pickupAt: new Date(Date.now() + abholungInMinuten * 60_000), transportType: "SITZEND", status: "DISPONIERT", source: "MANUELL",
-        driverId: driver.id,
+        vehicleId: vehicle.id, driverId: driver.id,
       },
     });
     await prisma.rideStatusEvent.create({

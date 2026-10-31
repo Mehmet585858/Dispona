@@ -99,7 +99,13 @@ describe("Fahrer-App-Actions (M-05)", () => {
 
   it("M-04 (R3-2): Gesehen-Bestätigung für eine fremde Fahrt trifft keine Zeile", async () => {
     const fahrt = await eigeneFahrt();
-    await prisma.ride.update({ where: { id: fahrt.id }, data: { driverId: null } });
+    // Inzwischen umbesetzt: die Fahrt gehört einem anderen Fahrer (M-72: DISPONIERT ohne Fahrer
+    // gibt es nicht mehr, die Datenbank lehnt driverId null in diesem Status ab).
+    const andererUser = await prisma.user.create({
+      data: { id: randomUUID(), tenantId, email: `${randomUUID()}@pruef.de`, name: "PRUEF Anderer", role: "FAHRER" },
+    });
+    const andererFahrer = await prisma.driver.create({ data: { tenantId, userId: andererUser.id } });
+    await prisma.ride.update({ where: { id: fahrt.id }, data: { driverId: andererFahrer.id } });
     await expect(gesehenBestaetigen(fahrt.id)).rejects.toThrow(/gehört nicht/);
     expect((await prisma.ride.findUniqueOrThrow({ where: { id: fahrt.id } })).driverAckAt).toBeNull();
   });

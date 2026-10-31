@@ -119,6 +119,12 @@ export async function fahrtAendern(
   const neuPlanen = istPlanungsrelevant(aenderung) && NEU_VORSCHLAGEN_AUS.has(fahrt.status);
   const tag = berlinerMitternacht(datumIso(fahrt.pickupAt));
   const neuePickupAt = aenderung.abholzeit ? mitUhrzeit(tag, aenderung.abholzeit) : fahrt.pickupAt;
+  // Maßnahme M-72 (S1-008): erst der Status zurück auf "Erfasst", dann Fahrzeug und Fahrer lösen –
+  // eine DISPONIERT-Zeile ohne Fahrer gibt es nicht mehr, auch nicht für einen Augenblick (die
+  // Datenbank lehnt sie ab). Vorher wurden zuerst die Felder geleert und danach der Status gesetzt.
+  if (neuPlanen && fahrt.status !== "ERFASST") {
+    await fahrtStatusAendern(tenantId, rideId, "ERFASST", { userId: optionen?.userId });
+  }
   await db.ride.update({
     where: { id: rideId },
     data: {
@@ -142,9 +148,6 @@ export async function fahrtAendern(
   if (neuPlanen) {
     // Maßnahme M-20 (R2-6): Probleme neu berechnen statt anhängen.
     await db.ride.update({ where: { id: rideId }, data: { problems: await problemeNeuBerechnen(tenantId, rideId) } });
-    if (fahrt.status !== "ERFASST") {
-      await fahrtStatusAendern(tenantId, rideId, "ERFASST", { userId: optionen?.userId });
-    }
   } else if (aenderung.abholzeit && fahrt.returnTimeOpen) {
     await db.ride.update({
       where: { id: rideId },

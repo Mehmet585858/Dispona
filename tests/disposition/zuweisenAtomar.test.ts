@@ -16,6 +16,7 @@ describe("fahrzeugZuweisen – atomar mit dem Statuswechsel (M-04)", () => {
   let tenantId: string;
   let fahrzeugX: string;
   let fahrzeugY: string;
+  let fahrerX: string;
   let ortA: string;
   let ortB: string;
   let passengerId: string;
@@ -35,6 +36,18 @@ describe("fahrzeugZuweisen – atomar mit dem Statuswechsel (M-04)", () => {
       })
     ).id;
     passengerId = (await prisma.passenger.create({ data: { tenantId, firstName: "PRUEF", lastName: "Fahrgast", phones: [] } })).id;
+    // M-72: eine Zuweisung braucht einen einsatzfähigen Fahrer – je Fahrzeug eine Schicht über
+    // den ganzen Testzeitraum; eine DISPONIERT-Zeile ohne Fahrer lehnt die Datenbank ab.
+    const schichtStart = new Date(Date.now() - 60 * 60_000);
+    const schichtEnde = new Date(Date.now() + 24 * 60 * 60_000);
+    for (const [kuerzel, vehicleId] of [["X", fahrzeugX], ["Y", fahrzeugY]] as const) {
+      const user = await prisma.user.create({
+        data: { id: randomUUID(), tenantId, email: `${randomUUID()}@pruef.de`, name: `PRUEF Fahrer ${kuerzel}`, role: "FAHRER" },
+      });
+      const driverId = (await prisma.driver.create({ data: { tenantId, userId: user.id } })).id;
+      if (kuerzel === "X") fahrerX = driverId;
+      await prisma.shift.create({ data: { tenantId, driverId, vehicleId, start: schichtStart, end: schichtEnde } });
+    }
   });
 
   afterAll(async () => {
@@ -59,7 +72,7 @@ describe("fahrzeugZuweisen – atomar mit dem Statuswechsel (M-04)", () => {
   }
 
   it("M-04 (R2-2): Zuweisung auf eine schon disponierte Fahrt lässt Fahrzeug und Status unverändert", async () => {
-    const r = await fahrt("DISPONIERT", fahrzeugX);
+    const r = await fahrt("DISPONIERT", fahrzeugX, fahrerX);
     await expect(fahrzeugZuweisen(tenantId, r.id, fahrzeugY, { dispatchMode: "AUTO" })).rejects.toThrow(/nicht erlaubt/);
     const danach = await prisma.ride.findUniqueOrThrow({ where: { id: r.id } });
     expect(danach.vehicleId).toBe(fahrzeugX);

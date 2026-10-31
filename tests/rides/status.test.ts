@@ -53,6 +53,13 @@ describe("fahrtStatusAendern", () => {
         type: "SONSTIGES",
       },
     });
+    // M-72: der Weg nach DISPONIERT (unten) setzt Fahrzeug und Fahrer voraus – die Datenbank lehnt
+    // eine DISPONIERT-Zeile ohne beides ab.
+    const vehicle = await prisma.vehicle.create({ data: { tenantId, plate: `TEST-${kennung}` } });
+    const user = await prisma.user.create({
+      data: { id: randomUUID(), tenantId, email: `${randomUUID()}@test.de`, name: "Test Fahrer", role: "FAHRER" },
+    });
+    const driver = await prisma.driver.create({ data: { tenantId, userId: user.id } });
     const ride = await prisma.ride.create({
       data: {
         tenantId,
@@ -63,6 +70,8 @@ describe("fahrtStatusAendern", () => {
         transportType: "SITZEND",
         status: "ENTWURF",
         source: "MANUELL",
+        vehicleId: vehicle.id,
+        driverId: driver.id,
       },
     });
     rideId = ride.id;
@@ -73,6 +82,9 @@ describe("fahrtStatusAendern", () => {
     await prisma.ride.deleteMany({ where: { tenantId } });
     await prisma.place.deleteMany({ where: { tenantId } });
     await prisma.passenger.deleteMany({ where: { tenantId } });
+    await prisma.driver.deleteMany({ where: { tenantId } });
+    await prisma.user.deleteMany({ where: { tenantId } });
+    await prisma.vehicle.deleteMany({ where: { tenantId } });
     await prisma.auditLog.deleteMany({ where: { tenantId } });
     await prisma.tenant.delete({ where: { id: tenantId } });
   });

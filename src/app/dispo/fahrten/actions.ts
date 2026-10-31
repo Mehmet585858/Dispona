@@ -10,7 +10,13 @@ import { fahrtErfassen } from "@/core/rides/erfassen";
 import { serieAnlegen as serieAnlegenKern } from "@/core/rides/serie";
 import { fahrerNachAenderungBenachrichtigen } from "@/core/rides/fahrerBenachrichtigen";
 import { fahrtAbbrechen as fahrtAbbrechenKern, fahrtStornieren as fahrtStornierenKern } from "@/core/rides/stornieren";
-import { fahrzeugZuweisen, fahrzeugZuweisungAufheben, FahrzeugKonfliktError } from "@/core/disposition/zuweisen";
+import {
+  einsatzfaehigenFahrerFinden,
+  fahrzeugZuweisen,
+  fahrzeugZuweisungAufheben,
+  FahrzeugKonfliktError,
+  KeinFahrerError,
+} from "@/core/disposition/zuweisen";
 import { fahrgaesteAehnlicheNamen, NACHNAME_KANDIDATEN_MAX, nachnameKandidatenWhere, telefonNormalisieren } from "@/core/passengers/suche";
 import { einsatzgebietMitteLaden } from "@/core/einrichtung/einsatzgebiet";
 import { routingProvider, GEOCODE_SICHER_SCHWELLE } from "@/providers/routing";
@@ -100,7 +106,8 @@ export async function fahrzeugWaehlen(rideId: string, vehicleId: string): Promis
     await fahrzeugZuweisen(tenantId, rideId, vehicleId, { dispatchMode: "MANUELL", userId });
   } catch (fehler) {
     revalidatePath("/dispo");
-    if (fehler instanceof FahrzeugKonfliktError) return { ok: false, grund: fehler.message };
+    // Maßnahme M-72 (S1-008): auch "kein einsatzfähiger Fahrer" als Meldung, nicht als Absturz.
+    if (fehler instanceof FahrzeugKonfliktError || fehler instanceof KeinFahrerError) return { ok: false, grund: fehler.message };
     throw fehler;
   }
   revalidatePath("/dispo");
@@ -165,16 +172,25 @@ export async function fahrtVerschieben(
     if (eingabe.neueAbholzeit) {
       const ergebnis = await fahrtAendern(tenantId, rideId, { abholzeit: eingabe.neueAbholzeit }, { userId, benachrichtigen: false });
       if (!ergebnis.ok) fehler = "Diese Fahrt kann nicht mehr verschoben werden.";
-    } else if (zeilenwechsel && warDisponiert) {
+    } else if (zeilenwechsel && warDisponiert && zielFahrzeug) {
+      // Maßnahme M-72 (S1-008): bevor die bestehende Zuweisung gelöst wird, muss das Zielfahrzeug
+      // einen einsatzfähigen Fahrer haben – sonst stünde die Fahrt danach auf "Erfasst" mit dem
+      // alten Fahrzeug, statt unverändert disponiert zu bleiben.
+      try {
+        await einsatzfaehigenFahrerFinden(db, zielFahrzeug, fahrt.pickupAt);
+      } catch (ausnahme) {
+        if (!(ausnahme instanceof KeinFahrerError)) throw ausnahme;
+        fehler = ausnahme.message;
+      }
       // Reine Umbesetzung einer disponierten Fahrt: DISPONIERT -> DISPONIERT ist kein erlaubter
       // Übergang, deshalb erst zurück auf "Erfasst".
-      await fahrtStatusAendern(tenantId, rideId, "ERFASST", { userId });
+      if (!fehler) await fahrtStatusAendern(tenantId, rideId, "ERFASST", { userId });
     }
     if (!fehler && zielFahrzeug && (zeilenwechsel || eingabe.neueAbholzeit)) {
       try {
         await fahrzeugZuweisen(tenantId, rideId, zielFahrzeug, { dispatchMode: "MANUELL", userId, benachrichtigen: false });
       } catch (ausnahme) {
-        if (!(ausnahme instanceof FahrzeugKonfliktError)) throw ausnahme;
+        if (!(ausnahme instanceof FahrzeugKonfliktError) && !(ausnahme instanceof KeinFahrerError)) throw ausnahme;
         fehler = ausnahme.message;
       }
     }

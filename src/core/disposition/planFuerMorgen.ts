@@ -9,7 +9,7 @@ import { withTenant } from "@/lib/db";
 import { berlinerMitternacht, datumIso, tagVerschieben } from "@/core/shifts/week";
 import { routingProvider } from "@/providers/routing";
 import { fahrtStatusAendern } from "@/core/rides/status";
-import { fahrzeugZuweisen, FahrzeugKonfliktError } from "./zuweisen";
+import { fahrzeugZuweisen, FahrzeugKonfliktError, KeinFahrerError } from "./zuweisen";
 import { sicherheitsbedingungenPruefen } from "./automodus";
 import { vorschlaegeBerechnen, type GeplanteFahrt } from "./vorschlagen";
 import { fehlerArt, jeEintragIsoliert } from "@/core/betrieb/cronLauf";
@@ -185,7 +185,8 @@ export async function planFuerMorgenBerechnen(tenantId: string) {
           // eine zeitgleich von anderswo (z. B. einem echten Anruf) zugewiesene Fahrt sieht
           // fahrzeugZuweisen trotzdem; dann bleibt die Fahrt als normaler Vorschlag stehen statt
           // den ganzen Lauf abzubrechen.
-          if (!(fehler instanceof FahrzeugKonfliktError)) throw fehler;
+          // Maßnahme M-72: ebenso, wenn der Fahrer seit der Schichtprüfung oben ausgefallen ist.
+          if (!(fehler instanceof FahrzeugKonfliktError) && !(fehler instanceof KeinFahrerError)) throw fehler;
           vorgeschlagen += 1;
         }
       } else {

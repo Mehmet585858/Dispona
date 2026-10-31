@@ -24,7 +24,7 @@ import { withTenant } from "@/lib/db";
 import { encrypt } from "@/lib/crypto";
 import { fahrtErfassen } from "@/core/rides/erfassen";
 import { fahrtStatusAendern } from "@/core/rides/status";
-import { fahrzeugZuweisen, FahrzeugKonfliktError } from "@/core/disposition/zuweisen";
+import { fahrzeugZuweisen, FahrzeugKonfliktError, KeinFahrerError } from "@/core/disposition/zuweisen";
 import { fahrzeugTypLabel, fahrzeugTypTransportType } from "@/core/rides/fahrzeugTyp";
 import { anfahrtMinuten, fahrtDauerMinuten } from "@/core/shifts/dauer";
 import { datumIso, mitUhrzeit } from "@/core/shifts/week";
@@ -482,7 +482,8 @@ async function simulierteFahrtAnlegen(
       await fahrzeugZuweisen(tenantId, rideId, angaben.vehicleId, { dispatchMode: "AUTO" });
       return { rideId, zugewiesen: true };
     } catch (fehler) {
-      if (!(fehler instanceof FahrzeugKonfliktError)) throw fehler;
+      // Maßnahme M-72: ohne einsatzfähigen Fahrer (Demo-Fahrzeug ohne Schicht) ebenfalls hier.
+      if (!(fehler instanceof FahrzeugKonfliktError) && !(fehler instanceof KeinFahrerError)) throw fehler;
       // Trotz eigener Überschneidungsprüfung im Tagesplan doch belegt (z. B. durch einen Anruf,
       // der zeitgleich dasselbe Fahrzeug bekam) - die Fahrt bleibt als ERFASST ohne Fahrzeug
       // stehen. Ohne dieses Flag fällt sie durch BEIDE Netze (haengendeVorschlaegeAufraeumen

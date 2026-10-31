@@ -31,6 +31,14 @@ describe("fahrzeugZuweisen – parallele Zuweisungen (S1-004)", () => {
       data: { tenantId, firstName: "PRUEF", lastName: "Fahrgast", phones: [] },
     });
     passengerId = passenger.id;
+    // M-72: eine Zuweisung braucht einen einsatzfähigen Fahrer – Schicht über den Testzeitraum.
+    const user = await prisma.user.create({
+      data: { id: randomUUID(), tenantId, email: `${randomUUID()}@pruef.de`, name: "PRUEF Fahrer", role: "FAHRER" },
+    });
+    const driver = await prisma.driver.create({ data: { tenantId, userId: user.id } });
+    await prisma.shift.create({
+      data: { tenantId, driverId: driver.id, vehicleId, start: new Date(Date.now() - 60 * 60_000), end: new Date(Date.now() + 24 * 60 * 60_000) },
+    });
   });
 
   afterAll(async () => {
@@ -39,6 +47,9 @@ describe("fahrzeugZuweisen – parallele Zuweisungen (S1-004)", () => {
     await prisma.rideStatusEvent.deleteMany({ where: { tenantId } });
     await prisma.auditLog.deleteMany({ where: { tenantId } });
     await prisma.ride.deleteMany({ where: { tenantId } });
+    await prisma.shift.deleteMany({ where: { tenantId } });
+    await prisma.driver.deleteMany({ where: { tenantId } });
+    await prisma.user.deleteMany({ where: { tenantId } });
     await prisma.vehicle.deleteMany({ where: { tenantId } });
     await prisma.place.deleteMany({ where: { tenantId } });
     await prisma.passenger.deleteMany({ where: { tenantId } });

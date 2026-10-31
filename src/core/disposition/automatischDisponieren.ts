@@ -6,7 +6,7 @@
  */
 import { withTenant } from "@/lib/db";
 import { sicherheitsbedingungenPruefen } from "./automodus";
-import { fahrzeugZuweisen, FahrzeugKonfliktError } from "./zuweisen";
+import { fahrzeugZuweisen, FahrzeugKonfliktError, KeinFahrerError } from "./zuweisen";
 import { fehlerArt, jeEintragIsoliert } from "@/core/betrieb/cronLauf";
 
 /** Vermerk an einer Fahrt, deren Prüfung unerwartet scheiterte (Maßnahme M-16). */
@@ -131,7 +131,9 @@ export async function automatischDisponieren(tenantId: string) {
           erfolgreich = true;
           break;
         } catch (fehler) {
-          if (!(fehler instanceof FahrzeugKonfliktError)) throw fehler;
+          // Maßnahme M-72: die Schichtprüfung oben und die in fahrzeugZuweisen können auseinander-
+          // laufen ("Ich falle aus" dazwischen) – dann nächster Kandidat, kein technischer Fehler.
+          if (!(fehler instanceof FahrzeugKonfliktError) && !(fehler instanceof KeinFahrerError)) throw fehler;
           letzterGrund = fehler.message;
         }
       }

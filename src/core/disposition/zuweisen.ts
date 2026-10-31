@@ -3,17 +3,52 @@
  * den Disponenten (docs/05-disposition.md) und die automatische Disposition (dispatchMode "AUTO",
  * src/core/disposition/automatischDisponieren.ts) laufen beide hierüber.
  */
-import { referenzenPruefen, withTenant } from "@/lib/db";
+import { referenzenPruefen, withTenant, type TenantTx } from "@/lib/db";
 import { fahrtStatusAendern, istUebergangErlaubt } from "@/core/rides/status";
 import { pushAnFahrer } from "@/core/notify/push";
 import { fahrtEntzogenText } from "@/core/notify/texte";
 import { fahrerNachAenderungBenachrichtigen } from "@/core/rides/fahrerBenachrichtigen";
 import { geplantesEnde } from "@/core/shifts/dauer";
+import { pruefeFahrerImDienst } from "./automodus";
 
 /** Wird geworfen, wenn das Zielfahrzeug zur Abholzeit schon anderweitig eingeplant ist - von
  * allen vier Aufrufern von fahrzeugZuweisen separat abgefangen (siehe dort), nie unbehandelt
  * durchgereicht. */
 export class FahrzeugKonfliktError extends Error {}
+
+/**
+ * Maßnahme M-72 (Prüfbericht Durchgang 4, S1-008): Wird geworfen, wenn für das Zielfahrzeug zur
+ * Abholzeit kein einsatzfähiger Fahrer eingeteilt ist. Vorher wurde die Fahrt trotzdem DISPONIERT
+ * – mit driverId null: keine Push, keine Bestätigungs-SMS, kein Alarm, nicht in "Braucht Sie".
+ * Wie FahrzeugKonfliktError von allen Aufrufern abgefangen und dem Disponenten als Meldung gezeigt.
+ */
+export class KeinFahrerError extends Error {}
+
+/**
+ * Bestimmt den Fahrer, der ein Fahrzeug zur Abholzeit tatsächlich fährt: Schicht läuft, Fahrer
+ * nicht ausgefallen ("Ich falle aus"), nicht in Pause, nicht deaktiviert – dieselbe Regel wie
+ * Sicherheitsbedingung 4 des Automodus (pruefeFahrerImDienst). Gibt es mehrere Schichten auf dem
+ * Fahrzeug (z. B. Ersatzfahrer nach einem Ausfall), zählt die erste einsatzfähige. Ohne Treffer
+ * KeinFahrerError mit dem Grund der zuletzt geprüften Schicht.
+ */
+export async function einsatzfaehigenFahrerFinden(
+  db: TenantTx,
+  vehicleId: string,
+  pickupAt: Date,
+): Promise<{ driverId: string }> {
+  const schichten = await db.shift.findMany({
+    where: { vehicleId, start: { lte: pickupAt }, end: { gte: pickupAt } },
+    select: { driverId: true, start: true, end: true, onBreak: true, unavailable: true, driver: { select: { active: true } } },
+    orderBy: { start: "asc" },
+  });
+  let grund = "Fahrer ist zur Abholzeit nicht im Dienst";
+  for (const schicht of schichten) {
+    const ergebnis = schicht.driver.active ? pruefeFahrerImDienst(schicht, pickupAt) : { erlaubt: false, grund: "Fahrer ist deaktiviert" };
+    if (ergebnis.erlaubt) return { driverId: schicht.driverId };
+    grund = ergebnis.grund ?? grund;
+  }
+  throw new KeinFahrerError(`${grund}. Erst eine Schicht für dieses Fahrzeug eintragen oder ein anderes Fahrzeug wählen.`);
+}
 
 function uhrzeitBerlin(datum: Date): string {
   return datum.toLocaleTimeString("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", minute: "2-digit" });
@@ -111,19 +146,18 @@ export async function fahrzeugZuweisen(
       );
     }
 
-    const schichtInTx = await tx.shift.findFirst({
-      where: { vehicleId, start: { lte: fahrt.pickupAt }, end: { gte: fahrt.pickupAt } },
-      select: { driverId: true },
-    });
+    // Maßnahme M-72 (S1-008): ohne einsatzfähigen Fahrer keine Zuweisung – vorher wurde die Fahrt
+    // auch ohne Schicht (oder mit ausgefallenem, pausierendem, deaktiviertem Fahrer) DISPONIERT,
+    // mit driverId null. Der KeinFahrerError rollt die Transaktion zurück; zusätzlich lehnt die
+    // Datenbank selbst jede DISPONIERT-Zeile ohne Fahrzeug und Fahrer ab (Migration
+    // 20261031180000_disponiert_nur_mit_fahrer).
+    const schichtInTx = await einsatzfaehigenFahrerFinden(tx, vehicleId, fahrt.pickupAt);
 
     await tx.ride.update({
       where: { id: rideId },
       data: {
         vehicleId,
-        // driverId braucht das explizite "?? null": Prisma lässt ein undefined-Feld unangetastet,
-        // ohne Schicht (kein Fahrer für Fahrzeug+Uhrzeit gefunden) würde sonst der vorherige Fahrer
-        // in der Datenbank stehen bleiben, obwohl niemand mehr zuständig ist.
-        driverId: schichtInTx?.driverId ?? null,
+        driverId: schichtInTx.driverId,
         dispatchMode: optionen.dispatchMode,
         driverAckAt: null,
         // Veralteter Grund eines früheren, gescheiterten Automodus-Versuchs darf nach erfolgreicher
@@ -152,7 +186,7 @@ export async function fahrzeugZuweisen(
       tenantId,
       rideId,
       { driverId: vorherigerFahrerId, pickupAt: fahrt.pickupAt, status: fahrt.status },
-      { driverId: schicht?.driverId ?? null, pickupAt: fahrt.pickupAt, status: "DISPONIERT" },
+      { driverId: schicht.driverId, pickupAt: fahrt.pickupAt, status: "DISPONIERT" },
       { geaendert: false },
     );
   }

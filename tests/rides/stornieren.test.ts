@@ -18,13 +18,15 @@ describe("Stornieren nur vor der Abholung (M-19)", () => {
   let passengerId: string;
   let ortId: string;
   let driverId: string;
+  let vehicleId: string;
 
   async function fahrt(status: RideStatus) {
     return (
       await prisma.ride.create({
         data: {
           tenantId, passengerId, pickupPlaceId: ortId, dropoffPlaceId: ortId, pickupAt: new Date(Date.now() + 15 * 60_000),
-          transportType: "SITZEND", status, source: "MANUELL", driverId,
+          // M-72: DISPONIERT nur mit Fahrzeug UND Fahrer (die Datenbank lehnt alles andere ab).
+          transportType: "SITZEND", status, source: "MANUELL", driverId, vehicleId,
         },
       })
     ).id;
@@ -42,6 +44,7 @@ describe("Stornieren nur vor der Abholung (M-19)", () => {
       data: { id: randomUUID(), tenantId, email: `pruef-${randomUUID()}@test.invalid`, name: "PRUEF", role: "FAHRER" },
     });
     driverId = (await prisma.driver.create({ data: { tenantId, userId: user.id } })).id;
+    vehicleId = (await prisma.vehicle.create({ data: { tenantId, plate: `PRUEF-${kennung}` } })).id;
   });
 
   afterAll(async () => {
