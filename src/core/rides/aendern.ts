@@ -41,7 +41,7 @@ export async function fahrtAendern(
   const db = withTenant(tenantId);
   const fahrt = await db.ride.findUnique({
     where: { id: rideId },
-    select: { status: true, pickupAt: true, driverId: true },
+    select: { status: true, pickupAt: true, driverId: true, returnTimeOpen: true, problems: true },
   });
   if (!fahrt) return { ok: false, grund: "NICHT_GEFUNDEN" };
   if (NICHT_AENDERBARE_STATUS.has(fahrt.status)) {
@@ -62,6 +62,11 @@ export async function fahrtAendern(
       transportType: aenderung.transportType,
       companion: aenderung.companion,
       assistanceNotes: aenderung.assistanceNotes,
+      // Maßnahme M-07: Sobald das Büro (oder die KI) eine Uhrzeit nennt, ist die Rückfahrt nicht
+      // mehr "Zeit offen".
+      ...(aenderung.abholzeit && fahrt.returnTimeOpen
+        ? { returnTimeOpen: false, problems: fahrt.problems.filter((p) => p !== "RUECKFAHRT_ZEIT_OFFEN") }
+        : {}),
     },
   });
 

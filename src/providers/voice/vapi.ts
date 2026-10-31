@@ -82,7 +82,10 @@ const WERKZEUGE = [
           abholzeit: { type: "string", description: "HH:MM" },
           terminzeit: { type: "string", description: "HH:MM, optional" },
           rueckfahrt: { type: "boolean" },
-          rueckfahrtzeit: { type: "string", description: "HH:MM, falls Rückfahrt" },
+          rueckfahrtzeit: {
+            type: "string",
+            description: "HH:MM, falls Rückfahrt. Weglassen, wenn der Anrufer die Zeit noch nicht weiß – die Rückfahrt wird dann mit offener Zeit vermerkt und das Team stimmt sie ab.",
+          },
           transportType: TRANSPORT_TYPE_FELD,
           companion: { type: "boolean", description: "Begleitperson dabei?" },
           assistanceNotes: { type: "string" },

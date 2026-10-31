@@ -347,6 +347,9 @@ model Ride {
   seriesId        String?
   series          RideSeries?       @relation(fields: [seriesId], references: [id])
   returnOfId      String?
+  // Maßnahme M-07: Rückfahrt bestellt, Uhrzeit noch offen – pickupAt ist dann nur ein Platzhalter,
+  // die Fahrt trägt das Problem RUECKFAHRT_ZEIT_OFFEN und wartet auf das Büro ("Braucht Sie").
+  returnTimeOpen  Boolean           @default(false)
   callId          String?
   call            Call?             @relation(fields: [callId], references: [id])
   problems        String[]

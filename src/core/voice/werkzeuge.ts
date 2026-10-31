@@ -174,7 +174,7 @@ async function fahrtAnlegenWerkzeug(tenantId: string, callId: string, args: unkn
   const fahrgast = await passagierSicherstellen(tenantId, daten);
   if ("problem" in fahrgast) return fahrgast.problem;
 
-  const { rideId, probleme } = await fahrtErfassen(
+  const { rideId, probleme, rueckfahrtZeitOffen } = await fahrtErfassen(
     tenantId,
     {
       passengerId: fahrgast.passengerId,
@@ -194,10 +194,13 @@ async function fahrtAnlegenWerkzeug(tenantId: string, callId: string, args: unkn
     { source: "ANRUF", callId },
   );
 
+  const rueckfahrtHinweis = rueckfahrtZeitOffen
+    ? " Die Rückfahrt ist ohne Uhrzeit vermerkt – das Team stimmt die Abholzeit noch ab."
+    : "";
   if (probleme.length > 0) {
-    return `Fahrt erfasst, aber mit Hinweis: ${probleme.join(", ")}. (rideId ${rideId})`;
+    return `Fahrt erfasst, aber mit Hinweis: ${probleme.join(", ")}.${rueckfahrtHinweis} (rideId ${rideId})`;
   }
-  return `Fahrt erfasst. Die genaue Abholzeit wird noch bestätigt. (rideId ${rideId})`;
+  return `Fahrt erfasst. Die genaue Abholzeit wird noch bestätigt.${rueckfahrtHinweis} (rideId ${rideId})`;
 }
 
 const serieAnlegenSchema = fahrgastFelderSchema.extend({
