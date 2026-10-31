@@ -6,6 +6,7 @@
  */
 import { withTenant } from "@/lib/db";
 import { decrypt } from "@/lib/crypto";
+import { zusammenfassungLesbar } from "@/core/notify/anrufZusammenfassung";
 import { fahrtStornieren } from "@/core/rides/stornieren";
 
 const NICHT_BEGONNENE_STATUS = ["ENTWURF", "ERFASST", "VORGESCHLAGEN", "DISPONIERT"] as const;
@@ -52,7 +53,7 @@ export async function fahrgastExportieren(tenantId: string, passengerId: string)
         ? {
             id: f.call.id,
             datum: f.call.startedAt,
-            zusammenfassung: f.call.summary,
+            zusammenfassung: zusammenfassungLesbar(f.call.summary),
             transkript: f.call.transcript ? decrypt(f.call.transcript) : null,
           }
         : null,

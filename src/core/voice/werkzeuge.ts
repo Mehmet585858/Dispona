@@ -5,6 +5,7 @@
  */
 import { z } from "zod";
 import { istEindeutigkeitsFehler, withTenant } from "@/lib/db";
+import { encrypt } from "@/lib/crypto";
 import {
   fahrgaesteAehnlicheNamen,
   NACHNAME_KANDIDATEN_MAX,
@@ -354,7 +355,8 @@ const rueckrufAnlegenSchema = z.object({ telefon: z.string(), anliegen: z.string
 async function rueckrufAnlegen(tenantId: string, callId: string, args: unknown): Promise<string> {
   const { telefon, anliegen } = rueckrufAnlegenSchema.parse(args);
   const db = withTenant(tenantId);
-  await db.call.update({ where: { id: callId }, data: { summary: `Rückruf erbeten: ${telefon} – ${anliegen}` } });
+  // Maßnahme M-10 (S3-012): Rückrufnummer und Anliegen verschlüsselt speichern.
+  await db.call.update({ where: { id: callId }, data: { summary: encrypt(`Rückruf erbeten: ${telefon} – ${anliegen}`) } });
   return "Rückruf-Wunsch gespeichert, das Team meldet sich.";
 }
 

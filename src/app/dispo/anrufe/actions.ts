@@ -4,6 +4,7 @@ import { withTenant } from "@/lib/db";
 import { requireBueroSession } from "@/lib/session";
 import { decrypt } from "@/lib/crypto";
 import { telefonMaskiert } from "@/core/notify/telefonMaskierung";
+import { zusammenfassungLesbar } from "@/core/notify/anrufZusammenfassung";
 
 export async function anrufeLaden() {
   const { tenantId } = await requireBueroSession();
@@ -21,7 +22,7 @@ export async function anrufeLaden() {
     startedAt: a.startedAt,
     durationSec: a.durationSec,
     fromNumber: a.fromNumber ? telefonMaskiert(a.fromNumber) : null,
-    summary: a.summary,
+    summary: zusammenfassungLesbar(a.summary),
     outcome: a.outcome,
     audioUrl: a.audioUrl,
     hatTranskript: Boolean(a.transcript),

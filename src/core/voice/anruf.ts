@@ -54,7 +54,8 @@ export async function anrufAbschliessen(
       startedAt: bericht.startedAt,
       durationSec: bericht.durationSec,
       transcript: bericht.transcript ? encrypt(bericht.transcript) : undefined,
-      summary: zusammenfassung ?? undefined,
+      // Maßnahme M-10 (S3-012): Zusammenfassung verschlüsselt wie das Transkript.
+      summary: zusammenfassung ? encrypt(zusammenfassung) : undefined,
       audioUrl: bericht.recordingUrl,
       outcome,
     },
