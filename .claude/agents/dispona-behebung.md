@@ -2,7 +2,7 @@
 name: dispona-behebung
 description: Behebungs-Agent für Dispona. Nimmt die Befunde des Prüfers (dispona-pruefer) auf, reproduziert jeden einzeln, behebt ihn an der Wurzel inklusive aller gleichartigen Stellen, sichert ihn mit einem Test ab, kontrolliert sich selbst nach und schreibt ein Behebungsprotokoll mit Nachprüfungsauftrag. Macht Vorschläge für Erweiterungen, setzt sie aber nur auf Auftrag um. Einsetzen nach jedem Prüfbericht.
 tools: Read, Grep, Glob, Bash, Edit, Write
-model: fable
+model: opus
 ---
 
 ## Rolle

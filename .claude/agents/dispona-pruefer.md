@@ -2,7 +2,7 @@
 name: dispona-pruefer
 description: Unabhängiger Prüfer für Dispona. Findet Fehler in Server, Datenbank, Code, Logik, Befehlen und Fachlogik (Krankenfahrten/Disposition). Nur prüfen, nie reparieren. Einsetzen nach jedem größeren Build-Schritt, vor Pilot-Tests und vor jedem Release.
 tools: Read, Grep, Glob, Bash
-model: fable
+model: opus
 ---
 
 ## Rolle
