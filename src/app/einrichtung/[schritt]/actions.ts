@@ -5,13 +5,13 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { istEindeutigkeitsFehler, withTenant } from "@/lib/db";
 import { rufnummerE164 } from "@/core/einrichtung/rufnummer";
-import { requireSession } from "@/lib/session";
+import { requireBueroSession } from "@/lib/session";
 import { LETZTER_SCHRITT } from "@/core/einrichtung/schritte";
 import { routingProvider, GEOCODE_SICHER_SCHWELLE } from "@/providers/routing";
 import { parseDeutscheAdresse } from "@/core/places/adresse";
 
 async function adminSession() {
-  const session = await requireSession();
+  const session = await requireBueroSession();
   if (session.role !== "ADMIN") {
     throw new Error("Nur der Inhaber (Admin) kann die Einrichtung ändern.");
   }
@@ -20,7 +20,7 @@ async function adminSession() {
 
 /** Lädt alles, was die Einrichtungs-Schritte zum Anzeigen brauchen, in einem Rutsch. */
 export async function einrichtungLaden() {
-  const { tenantId } = await requireSession();
+  const { tenantId } = await requireBueroSession();
   const db = withTenant(tenantId);
   const [tenant, settings, telefonnummer] = await Promise.all([
     prisma.tenant.findUniqueOrThrow({ where: { id: tenantId } }),
@@ -117,7 +117,7 @@ export async function kiNummerSpeichern(e164: string) {
 
 /** Prüft, ob seit `seit` ein Anruf bei diesem Mandanten angekommen ist (für den Rufumleitungs-Test). */
 export async function testanrufPruefen(seit: string) {
-  const { tenantId } = await requireSession();
+  const { tenantId } = await requireBueroSession();
   const anruf = await withTenant(tenantId).call.findFirst({
     where: { startedAt: { gte: new Date(seit) } },
     orderBy: { startedAt: "desc" },
@@ -147,7 +147,7 @@ export async function kiEinstellungenSpeichern(eingabe: KiEingabe) {
 // ---- Schritt 7: Testanruf ----
 
 export async function fahrerFuerTestanrufLaden() {
-  const { tenantId } = await requireSession();
+  const { tenantId } = await requireBueroSession();
   return withTenant(tenantId).driver.findMany({
     include: { user: { select: { name: true } }, pushSubscriptions: { select: { id: true } } },
     orderBy: { user: { name: "asc" } },
@@ -155,7 +155,7 @@ export async function fahrerFuerTestanrufLaden() {
 }
 
 export async function letzteFahrtenLaden(seit: string) {
-  const { tenantId } = await requireSession();
+  const { tenantId } = await requireBueroSession();
   return withTenant(tenantId).ride.findMany({
     where: { createdAt: { gte: new Date(seit) } },
     include: { passenger: { select: { firstName: true, lastName: true } } },
