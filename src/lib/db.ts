@@ -170,3 +170,8 @@ export async function referenzenPruefen(
     }
   }
 }
+
+/** Prisma-Fehler P2002: Eindeutigkeitsregel verletzt (z. B. E-Mail oder Rufnummer schon vergeben). */
+export function istEindeutigkeitsFehler(fehler: unknown): boolean {
+  return typeof fehler === "object" && fehler !== null && (fehler as { code?: string }).code === "P2002";
+}
