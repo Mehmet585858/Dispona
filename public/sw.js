@@ -27,11 +27,23 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(alteCachesLoeschen().then(() => self.clients.claim()));
 });
 
+// Was überhaupt zwischengespeichert werden darf (Prüfbericht S2-012). Vorher landete JEDE
+// gleich-origin GET-Antwort im Cache – auch /api/export/abrechnung (alle Fahrgäste) und
+// /dispo-Seiten. Jetzt nur noch: die Fahrer-Startseite als Seitenaufruf (der Tagesplan, bewusst
+// und nur für den Tag, docs/08-datenschutz-sicherheit.md) sowie statische Dateien. Alles andere
+// wird gar nicht erst abgefangen und geht normal ins Netz.
+function darfZwischenspeichern(request, url) {
+  if (url.pathname === "/fahrer") return request.mode === "navigate";
+  if (url.pathname.startsWith("/_next/static/")) return true;
+  return url.pathname === "/manifest.json" || url.pathname === "/icon-192.png" || url.pathname === "/icon-512.png";
+}
+
 // Netzwerk zuerst, bei Funkloch aus dem heutigen Zwischenspeicher (Fahrten des Tages bleiben sichtbar).
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return;
+  if (!darfZwischenspeichern(event.request, url)) return;
 
   event.respondWith(
     (async () => {
@@ -39,7 +51,9 @@ self.addEventListener("fetch", (event) => {
       const cache = await caches.open(heutigerCacheName());
       try {
         const antwort = await fetch(event.request);
-        cache.put(event.request, antwort.clone());
+        // Nur vollständige 200er-Antworten merken – keine Weiterleitungen (z. B. zur Anmeldung)
+        // und keine Fehlerseiten.
+        if (antwort.ok && antwort.type === "basic") cache.put(event.request, antwort.clone());
         return antwort;
       } catch {
         return (await cache.match(event.request)) || (await cache.match("/fahrer"));

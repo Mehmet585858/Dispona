@@ -47,3 +47,13 @@ export function warteschlangeEntfernen(id: string): WarteschlangenEintrag[] {
   warteschlangeSpeichern(eintraege);
   return eintraege;
 }
+
+/** Alles verwerfen – beim Abmelden (src/app/fahrer/geraeteDaten.ts). */
+export function warteschlangeLeeren(): void {
+  try {
+    localStorage.removeItem(SCHLUESSEL);
+  } catch {
+    // localStorage gesperrt – dann war auch nichts gespeichert.
+  }
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(WARTESCHLANGE_EREIGNIS));
+}
