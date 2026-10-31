@@ -11,7 +11,7 @@ import { istFeiertagNrw } from "@/core/shifts/feiertageNrw";
 import { fahrtErfassen, type FahrtErfassenOptionen } from "./erfassen";
 import { fahrtAendern, type FahrtAenderung } from "./aendern";
 import { fahrtStornieren } from "./stornieren";
-import { serieSchema, TRANSPORT_TYPES, UHRZEIT_HHMM, type FahrtEingabe, type SerieEingabe } from "./validation";
+import { datumIsoSchema, serieSchema, TRANSPORT_TYPES, UHRZEIT_HHMM, type FahrtEingabe, type SerieEingabe } from "./validation";
 import { WOCHENTAGE } from "@/core/shifts/rrule";
 import { z } from "zod";
 
@@ -220,7 +220,8 @@ async function serieLaden(tenantId: string, seriesId: string) {
   return serie;
 }
 
-const datumSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Datum ungültig (JJJJ-MM-TT)");
+// Maßnahme M-46 (S2-020): echter Kalendertag, nicht nur die Schreibweise.
+const datumSchema = datumIsoSchema("Datum ungültig (JJJJ-MM-TT)");
 
 /**
  * Serie ab einem Tag beenden (Maßnahme M-22, Prüfbericht S2-005): letzter Serientag wird der Vortag,

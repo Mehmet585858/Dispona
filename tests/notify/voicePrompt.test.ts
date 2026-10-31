@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { voiceSystemPrompt } from "@/core/notify/voicePrompt";
 
+// M-46: Pflichtangabe Anrufzeitpunkt.
+const JETZT = { jetzt: new Date("2026-11-02T09:00:00Z") };
+
 describe("voiceSystemPrompt", () => {
   it("setzt alle Platzhalter eines Mandanten ein", () => {
     const text = voiceSystemPrompt({
@@ -12,7 +15,7 @@ describe("voiceSystemPrompt", () => {
       escalationNumber: "+4924041234",
       anrufernummer: "+491701234567",
       bestaetigungsweg: " per SMS",
-    });
+    }, JETZT);
 
     expect(text).toContain("Muster Krankenfahrten");
     expect(text).toContain("Baesweiler");
@@ -31,7 +34,7 @@ describe("voiceSystemPrompt", () => {
       voiceId: "stimme-1",
       escalationNumber: "+4924041234",
       bestaetigungsweg: " per SMS",
-    });
+    }, JETZT);
 
     expect(text).toContain("unbekannt");
   });
@@ -45,7 +48,7 @@ describe("voiceSystemPrompt", () => {
       voiceId: "stimme-1",
       escalationNumber: "",
       bestaetigungsweg: " per SMS",
-    });
+    }, JETZT);
 
     expect(text).toContain("kein Mensch erreichbar");
     expect(text).not.toContain("an_mensch_weiterleiten.");
@@ -63,7 +66,7 @@ describe("voiceSystemPrompt – Identität (M-13)", () => {
     escalationNumber: "+4924041234",
     anrufernummer: "+491701234567",
     bestaetigungsweg: " per SMS",
-  });
+  }, JETZT);
 
   it("M-13: verlangt eine bestätigte Identität vor Auskunft, Änderung und Storno", () => {
     expect(text).toMatch(/Identität/);

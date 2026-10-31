@@ -85,9 +85,9 @@ const WERKZEUGE = [
           ...FAHRGAST_FELDER,
           pickupPlaceId: { type: "string" },
           dropoffPlaceId: { type: "string" },
-          datum: { type: "string", description: "JJJJ-MM-TT" },
-          abholzeit: { type: "string", description: "HH:MM" },
-          terminzeit: { type: "string", description: "HH:MM, optional" },
+          datum: { type: "string", description: "JJJJ-MM-TT, z. B. 2026-11-03 (aus dem heutigen Datum in den Anweisungen ausrechnen)" },
+          abholzeit: { type: "string", description: "HH:MM im 24-Stunden-Format, z. B. 07:30" },
+          terminzeit: { type: "string", description: "HH:MM im 24-Stunden-Format, optional" },
           rueckfahrt: { type: "boolean" },
           rueckfahrtzeit: {
             type: "string",
@@ -253,7 +253,8 @@ export const vapiProvider: VoiceProvider = {
         model: {
           provider: "openai",
           model: "gpt-4o",
-          messages: [{ role: "system", content: voiceSystemPrompt(settings) }],
+          // Maßnahme M-46 (S1-007): Datum/Uhrzeit des Anrufs – die Konfiguration entsteht je Anruf neu.
+          messages: [{ role: "system", content: voiceSystemPrompt(settings, { jetzt: new Date() }) }],
         },
         // "vapi" (Vapis eigener Sprachanbieter, "Vapi Voices"), nicht "11labs" - wir haben keinen
         // eigenen ElevenLabs-Account/Stimm-IDs, settings.voiceId sind echte Vapi-Stimmnamen (z. B.

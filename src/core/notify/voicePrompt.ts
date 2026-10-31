@@ -1,11 +1,18 @@
 // Baut die Anweisungen an die KI aus der Vorlage in docs/04-voice-agent.md. Reine Textfunktion,
 // unabhängig vom VoiceProvider, damit sie unabhängig vom Anbieter getestet werden kann.
 import type { TenantVoiceSettings } from "@/providers/voice/types";
+import { berlinerMitternacht, datumIso, tagVerschieben, uhrzeitBerlin, WOCHENTAG_LABEL, wochentagBerlin } from "@/core/shifts/week";
 
 const VORLAGE = `Du bist die Telefonassistentin von {{firmenname}}, einem Krankenfahrdienst in {{ort}}.
 Du nimmst Fahrtbestellungen an, änderst oder stornierst Fahrten und gibst Auskunft zu Abholzeiten.
 Du sprichst Deutsch, in der Sie-Form, ruhig, freundlich und in kurzen Sätzen.
 Viele Anrufer sind älter oder krank: Sprich langsam, wiederhole geduldig, frage nach, wenn du unsicher bist.
+
+Zeitbezug: Heute ist {{wochentag}}, der {{datum_de}} ({{datum_iso}}), es ist {{uhrzeit}} Uhr (Zeitzone Europe/Berlin).
+Die nächsten Tage: {{tagesliste}}.
+Rechne "heute", "morgen", "übermorgen" oder "nächsten Montag" immer mit diesen Angaben um, nie aus dem Gedächtnis.
+An die Werkzeuge gibst du ein Datum immer als JJJJ-MM-TT und eine Uhrzeit immer als HH:MM im 24-Stunden-Format weiter ("halb acht" morgens = 07:30).
+Ist unklar, ob morgens oder abends gemeint ist, oder sagt jemand zwischen Mitternacht und 6 Uhr "morgen", frage nach, welcher Tag und welche Uhrzeit gemeint sind.
 
 Zu Beginn sagst du: "{{begruessung}}" Darin steht, dass eine KI spricht und das Gespräch zur Bearbeitung aufgezeichnet wird.
 Wenn der Anrufer lieber mit einem Menschen sprechen möchte: {{mensch_hinweis}}
@@ -27,7 +34,7 @@ Für eine neue Fahrt brauchst du, in dieser Reihenfolge:
 4. Wie? Kann die Person sitzen, bleibt sie im Rollstuhl, braucht sie einen Tragestuhl oder muss sie liegen?
 5. Hat die Person einen Transportschein vom Arzt? Bei Serienfahrten: Liegt eine Genehmigung der Krankenkasse vor? (Ja / Nein / Weiß nicht ist alles in Ordnung.)
 6. Besonderheiten: Begleitperson, Treppen, Hilfe bis in die Wohnung?
-Fasse dann alles in zwei, drei Sätzen zusammen und frage: "Ist das so richtig?" Erst nach einem Ja rufst du fahrt_anlegen bzw. serie_anlegen auf.
+Fasse dann alles in zwei, drei Sätzen zusammen, das Datum immer mit Wochentag (z. B. "Dienstag, 3. November"), und frage: "Ist das so richtig?" Erst nach einem Ja rufst du fahrt_anlegen bzw. serie_anlegen auf.
 
 Identität und Datenschutz:
 - Bevor du zu einer bestehenden Fahrt Auskunft gibst oder sie mit fahrt_aendern, fahrt_stornieren oder serie_beenden änderst, muss die Identität des Fahrgasts bestätigt sein:
@@ -41,8 +48,30 @@ Meldet fahrt_anlegen oder serie_anlegen ein Problem, erkläre es einfach und sag
 Verabschiede dich freundlich mit dem Namen des Fahrdienstes.
 Wenn du nach drei Versuchen etwas nicht verstehst: an_mensch_weiterleiten oder rueckruf_anlegen.`;
 
-/** Füllt die Vorlage aus docs/04-voice-agent.md mit den Angaben eines Mandanten. */
-export function voiceSystemPrompt(settings: TenantVoiceSettings): string {
+export type VoicePromptOptionen = {
+  /**
+   * Maßnahme M-46 (S1-007): Zeitpunkt des Anrufs. Ein Sprachmodell kennt das heutige Datum nicht;
+   * ohne diese Angabe waren "morgen" oder "nächsten Montag" nicht auflösbar.
+   */
+  jetzt: Date;
+};
+
+function datumDeutsch(iso: string): string {
+  const [jahr, monat, tag] = iso.split("-");
+  return `${tag}.${monat}.${jahr}`;
+}
+
+/** "Dienstag 03.11.2026 = 2026-11-03; …" für die sieben Tage nach heute (Berliner Kalender). */
+function tagesliste(heuteIso: string): string {
+  return Array.from({ length: 7 }, (_, i) => {
+    const iso = tagVerschieben(heuteIso, i + 1);
+    return `${WOCHENTAG_LABEL[wochentagBerlin(berlinerMitternacht(iso))]} ${datumDeutsch(iso)} = ${iso}`;
+  }).join("; ");
+}
+
+/** Füllt die Vorlage aus docs/04-voice-agent.md mit den Angaben eines Mandanten und dem Zeitpunkt des Anrufs. */
+export function voiceSystemPrompt(settings: TenantVoiceSettings, optionen: VoicePromptOptionen): string {
+  const heuteIso = datumIso(optionen.jetzt);
   // Leere escalationNumber (z. B. bei der Live-Demo, die an niemanden weiterleiten soll statt an
   // einen Menschen bei Dispona selbst) -> gar nicht erst anbieten, stattdessen freundlich absagen.
   const menschHinweis = settings.escalationNumber
@@ -53,5 +82,10 @@ export function voiceSystemPrompt(settings: TenantVoiceSettings): string {
     .replaceAll("{{begruessung}}", settings.greeting)
     .replaceAll("{{bestaetigungsweg}}", settings.bestaetigungsweg)
     .replaceAll("{{anrufernummer}}", settings.anrufernummer ?? "unbekannt")
-    .replaceAll("{{mensch_hinweis}}", menschHinweis);
+    .replaceAll("{{mensch_hinweis}}", menschHinweis)
+    .replaceAll("{{wochentag}}", WOCHENTAG_LABEL[wochentagBerlin(optionen.jetzt)])
+    .replaceAll("{{datum_de}}", datumDeutsch(heuteIso))
+    .replaceAll("{{datum_iso}}", heuteIso)
+    .replaceAll("{{uhrzeit}}", uhrzeitBerlin(optionen.jetzt))
+    .replaceAll("{{tagesliste}}", tagesliste(heuteIso));
 }

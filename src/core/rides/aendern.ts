@@ -87,6 +87,9 @@ export async function problemeNeuBerechnen(tenantId: string, rideId: string): Pr
     serviceAreaCenter: settings?.serviceAreaCenter ? (settings.serviceAreaCenter as { lat: number; lng: number }) : null,
     serviceAreaKm: settings?.serviceAreaKm ?? 30,
     rueckfahrtZeitOffen: fahrt.returnTimeOpen,
+    // Maßnahme M-46 (S1-007): dieselben Zeitprüfungen wie beim Erfassen.
+    appointmentAt: fahrt.appointmentAt,
+    jetzt: new Date(),
   });
 }
 

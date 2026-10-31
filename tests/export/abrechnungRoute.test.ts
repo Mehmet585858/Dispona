@@ -36,4 +36,10 @@ describe("GET /api/export/abrechnung – Zugriffsschutz", () => {
     const antwort = await GET(anfrage("von=gestern&bis=2026-10-31"));
     expect(antwort.status).toBe(400);
   });
+
+  it("M-46: unmöglicher Kalendertag (30.02.) → 400, nicht still der 2. März und nicht 500", async () => {
+    sitzung.wert = { tenantId: "t1", userId: "u1", role: "ADMIN" };
+    const antwort = await GET(anfrage("von=2026-02-30&bis=2026-10-31"));
+    expect(antwort.status).toBe(400);
+  });
 });

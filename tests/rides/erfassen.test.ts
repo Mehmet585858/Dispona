@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { fahrtErfassen, rueckfahrtAbholzeit, RUECKFAHRT_PLATZHALTER_MINUTEN } from "@/core/rides/erfassen";
 import { fahrtSchema } from "@/core/rides/validation";
-import { berlinerMitternacht, mitUhrzeit } from "@/core/shifts/week";
+import { berlinerMitternacht, datumIso, mitUhrzeit, tagVerschieben } from "@/core/shifts/week";
 import { prisma } from "@/lib/prisma";
 import { mandantKomplettLoeschen } from "@/lib/seedSchutz";
 
@@ -132,10 +132,13 @@ describe("fahrtErfassen – Rückfahrt (M-07)", () => {
     expect(ergebnis.rueckfahrtProbleme).toContain("DOPPELBUCHUNG");
   });
 
+  // M-46: relativ statt fest (vorher "2026-11-25") – eine Fahrt in der Vergangenheit trägt seit M-46
+  // zu Recht ABHOLZEIT_VERGANGEN, die feste Angabe wäre ab dem 25.11.2026 rot geworden.
+  const IN_25_TAGEN = tagVerschieben(datumIso(new Date()), 25);
   it("die eigene Hinfahrt zählt für die Rückfahrt weiterhin nicht als Doppelbuchung", async () => {
     const ergebnis = await fahrtErfassen(
       tenantId,
-      { ...basis, passengerId, pickupPlaceId: ortA, dropoffPlaceId: ortB, datum: "2026-11-25", abholzeit: "10:00", rueckfahrt: true, rueckfahrtzeit: "10:40" },
+      { ...basis, passengerId, pickupPlaceId: ortA, dropoffPlaceId: ortB, datum: IN_25_TAGEN, abholzeit: "10:00", rueckfahrt: true, rueckfahrtzeit: "10:40" },
       { source: "MANUELL" },
     );
     expect(ergebnis.probleme).toEqual([]);

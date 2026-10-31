@@ -4,6 +4,7 @@ import { werkzeugAusfuehren } from "@/core/voice/werkzeuge";
 import { zusammenfassungLesbar } from "@/core/notify/anrufZusammenfassung";
 import { encrypt } from "@/lib/crypto";
 import { prisma } from "@/lib/prisma";
+import { datumIso, tagVerschieben } from "@/core/shifts/week";
 import { mandantKomplettLoeschen } from "@/lib/seedSchutz";
 
 /**
@@ -120,7 +121,8 @@ describe("Identitätsbindung im Voice-Agent (M-13)", () => {
       passengerId: fremderFahrgast,
       pickupPlaceId: ortId,
       dropoffPlaceId: ortId,
-      datum: "2026-11-20",
+      // M-46: relativ statt fest (vorher "2026-11-20") – die KI lehnt Fahrten in der Vergangenheit ab.
+      datum: tagVerschieben(datumIso(new Date()), 20),
       abholzeit: "09:00",
       transportType: "SITZEND",
       prescription: "JA",

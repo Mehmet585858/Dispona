@@ -194,7 +194,7 @@ async function main() {
     escalationNumber: settings.escalationNumber,
     anrufernummer,
     bestaetigungsweg: " in Kürze",
-  });
+  }, { jetzt: new Date() });
 
   const verlauf: Anthropic.MessageParam[] = [];
   const transkriptZeilen: string[] = [`KI: ${settings.greeting}`];

@@ -89,6 +89,9 @@ async function einzelneFahrtAnlegen(
       : null,
     serviceAreaKm: settings?.serviceAreaKm ?? 30,
     rueckfahrtZeitOffen: rueckfahrt?.zeitOffen ?? false,
+    // Maßnahme M-46 (S1-007): Abholung in der Vergangenheit / Termin vor Abholung melden.
+    appointmentAt,
+    jetzt: new Date(),
   });
 
   const entwurf = await db.ride.create({

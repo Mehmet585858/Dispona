@@ -3,7 +3,7 @@ import Papa from "papaparse";
 import ExcelJS from "exceljs";
 import { withTenant } from "@/lib/db";
 import { KeineBerechtigungError, NichtAngemeldetError, requireBueroSession } from "@/lib/session";
-import { berlinerMitternacht } from "@/core/shifts/week";
+import { berlinerMitternacht, istDatumIso } from "@/core/shifts/week";
 import {
   exportZeilenBauen,
   spaltenReihenfolgeBereinigen,
@@ -15,8 +15,6 @@ import {
  * authentifizierter Download (GET statt Server Action, damit der Browser den Dateinamen und
  * die Downloadbox normal anzeigt). Markiert die enthaltenen Fahrten als exportiert.
  */
-const DATUM_ISO = /^\d{4}-\d{2}-\d{2}$/;
-
 export async function GET(request: NextRequest) {
   // Prüfbericht S1-001: nur Büro (ADMIN/DISPONENT); FAHRER → 403, ohne Sitzung → 401 statt 500.
   let tenantId: string;
@@ -41,7 +39,8 @@ export async function GET(request: NextRequest) {
   if (!vonIso || !bisIso) {
     return NextResponse.json({ error: "Zeitraum fehlt (von, bis)." }, { status: 400 });
   }
-  if (!DATUM_ISO.test(vonIso) || !DATUM_ISO.test(bisIso) || Number.isNaN(berlinerMitternacht(vonIso).getTime()) || Number.isNaN(berlinerMitternacht(bisIso).getTime())) {
+  // Maßnahme M-46: echter Kalendertag (berlinerMitternacht wirft seitdem bei ungültigen Daten).
+  if (!istDatumIso(vonIso) || !istDatumIso(bisIso)) {
     return NextResponse.json({ error: "Zeitraum ungültig (Format JJJJ-MM-TT)." }, { status: 400 });
   }
 

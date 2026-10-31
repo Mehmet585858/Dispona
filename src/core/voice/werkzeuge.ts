@@ -14,8 +14,17 @@ import {
   telefonNormalisieren,
 } from "@/core/passengers/suche";
 import { ortAbgleichen, ortKandidatenWhere } from "@/core/places/suche";
-import { berlinerMitternacht, datumIso } from "@/core/shifts/week";
-import { DOC_STATUS, TRANSPORT_TYPES } from "@/core/rides/validation";
+import {
+  berlinerMitternacht,
+  datumIso,
+  mitUhrzeit,
+  UngueltigeZeitangabe,
+  uhrzeitBerlin,
+  WOCHENTAG_LABEL,
+  wochentagBerlin,
+} from "@/core/shifts/week";
+import { datumIsoSchema, DOC_STATUS, TRANSPORT_TYPES, UHRZEIT_HHMM } from "@/core/rides/validation";
+import { zeitProbleme, type Problem } from "@/core/rides/pruefungen";
 import { fahrtErfassen } from "@/core/rides/erfassen";
 import { fahrtAendern } from "@/core/rides/aendern";
 import { fahrtStornieren as fahrtStornierenKern } from "@/core/rides/stornieren";
@@ -26,11 +35,22 @@ import { routingProvider, GEOCODE_SICHER_SCHWELLE } from "@/providers/routing";
 import { WOCHENTAGE } from "@/core/shifts/rrule";
 import type { ToolCall, ToolResult } from "@/providers/voice/types";
 
+/**
+ * Maßnahme M-46 Punkt 3 (Prüfbericht S2-020): Datum und Uhrzeit vom Sprachmodell werden streng
+ * geprüft. Vorher reichte "irgendein Text" – "halb acht" wurde 00:00 Uhr, "0630" ein Termin Wochen
+ * später, "2026-02-30" der 2. März, jeweils mit "Fahrt erfasst.". Die Meldung geht an die KI zurück,
+ * damit sie beim Anrufer nachfragt.
+ */
+const DATUM = datumIsoSchema("Datum als JJJJ-MM-TT angeben, z. B. 2026-11-03");
+const UHRZEIT = z.string().regex(UHRZEIT_HHMM, "Uhrzeit als HH:MM im 24-Stunden-Format angeben, z. B. 07:30");
+/** Optionale Uhrzeit: weglassen oder leer heißt "nicht genannt" (Rückfahrt: Zeit offen, M-07). */
+const UHRZEIT_OPTIONAL = UHRZEIT.or(z.literal("")).optional();
+
 const fahrgastFelderSchema = z.object({
   passengerId: z.string().optional(),
   fahrgastVorname: z.string().optional(),
   fahrgastNachname: z.string().optional(),
-  fahrgastGeburtsdatum: z.string().optional(),
+  fahrgastGeburtsdatum: DATUM.optional(),
   fahrgastTelefon: z.string().optional(),
   fahrgastKrankenkasse: z.string().optional(),
 });
@@ -109,7 +129,7 @@ async function passagierSicherstellen(
 const fahrgastSuchenSchema = z.object({
   telefon: z.string().optional(),
   nachname: z.string().optional(),
-  geburtsdatum: z.string().optional(),
+  geburtsdatum: DATUM.optional(),
 });
 
 async function fahrgastSuchen(tenantId: string, callId: string, args: unknown): Promise<string> {
@@ -224,11 +244,11 @@ async function ortSuchen(tenantId: string, args: unknown): Promise<string> {
 const fahrtAnlegenSchema = fahrgastFelderSchema.extend({
   pickupPlaceId: z.string(),
   dropoffPlaceId: z.string(),
-  datum: z.string(),
-  abholzeit: z.string(),
-  terminzeit: z.string().optional(),
+  datum: DATUM,
+  abholzeit: UHRZEIT,
+  terminzeit: UHRZEIT_OPTIONAL,
   rueckfahrt: z.boolean().optional(),
-  rueckfahrtzeit: z.string().optional(),
+  rueckfahrtzeit: UHRZEIT_OPTIONAL,
   transportType: z.enum(TRANSPORT_TYPES),
   companion: z.boolean().optional(),
   assistanceNotes: z.string().optional(),
@@ -236,8 +256,41 @@ const fahrtAnlegenSchema = fahrgastFelderSchema.extend({
   approval: z.enum(DOC_STATUS),
 });
 
+function datumMitWochentag(datum: Date): string {
+  const [jahr, monat, tag] = datumIso(datum).split("-");
+  return `${WOCHENTAG_LABEL[wochentagBerlin(datum)]}, ${tag}.${monat}.${jahr}`;
+}
+
+/**
+ * Maßnahme M-46 Punkt 2 (S1-007): Am Telefon wird eine Fahrt in der Vergangenheit oder mit Termin
+ * vor der Abholung gar nicht erst angelegt – der Anrufer ist noch am Apparat, das ist die beste
+ * Gelegenheit zur Klärung. (Im Büro wird dieselbe Prüfung nur als Problem vermerkt, pruefungen.ts.)
+ */
+function zeitAbgelehnt(probleme: Problem[], jetzt: Date): string | null {
+  const teile: string[] = [];
+  if (probleme.includes("ABHOLZEIT_VERGANGEN")) {
+    teile.push(`Die Abholzeit liegt in der Vergangenheit (jetzt ist ${datumMitWochentag(jetzt)}, ${datumIso(jetzt)}, ${uhrzeitBerlin(jetzt)} Uhr)`);
+  }
+  if (probleme.includes("TERMIN_VOR_ABHOLUNG")) {
+    teile.push("Der Termin liegt nicht nach der Abholzeit");
+  }
+  if (teile.length === 0) return null;
+  return `Problem: ${teile.join(". ")}. Nichts gespeichert. Bitte Datum und Uhrzeit mit dem Anrufer klären und dann erneut aufrufen.`;
+}
+
 async function fahrtAnlegenWerkzeug(tenantId: string, callId: string, args: unknown): Promise<string> {
   const daten = fahrtAnlegenSchema.parse(args);
+  const tag = berlinerMitternacht(daten.datum);
+  const jetzt = new Date();
+  const abgelehnt = zeitAbgelehnt(
+    zeitProbleme({
+      pickupAt: mitUhrzeit(tag, daten.abholzeit),
+      appointmentAt: daten.terminzeit ? mitUhrzeit(tag, daten.terminzeit) : undefined,
+      jetzt,
+    }),
+    jetzt,
+  );
+  if (abgelehnt) return abgelehnt;
   const fahrgast = await passagierSicherstellen(tenantId, callId, daten);
   if ("problem" in fahrgast) return fahrgast.problem;
 
@@ -264,21 +317,24 @@ async function fahrtAnlegenWerkzeug(tenantId: string, callId: string, args: unkn
   const rueckfahrtHinweis = rueckfahrtZeitOffen
     ? " Die Rückfahrt ist ohne Uhrzeit vermerkt – das Team stimmt die Abholzeit noch ab."
     : "";
+  // Maßnahme M-46: Wochentag und Datum in der Antwort, damit die KI sie dem Anrufer zum Gegenlesen
+  // nennen kann (bewusst keine Uhrzeit – die ist bis zur Disposition nicht verbindlich).
+  const fuer = `Fahrt erfasst für ${datumMitWochentag(tag)}`;
   if (probleme.length > 0) {
-    return `Fahrt erfasst, aber mit Hinweis: ${probleme.join(", ")}.${rueckfahrtHinweis} (rideId ${rideId})`;
+    return `${fuer}, aber mit Hinweis: ${probleme.join(", ")}.${rueckfahrtHinweis} (rideId ${rideId})`;
   }
-  return `Fahrt erfasst. Die genaue Abholzeit wird noch bestätigt.${rueckfahrtHinweis} (rideId ${rideId})`;
+  return `${fuer}. Die genaue Abholzeit wird noch bestätigt.${rueckfahrtHinweis} (rideId ${rideId})`;
 }
 
 const serieAnlegenSchema = fahrgastFelderSchema.extend({
   pickupPlaceId: z.string(),
   dropoffPlaceId: z.string(),
   wochentage: z.array(z.enum(WOCHENTAGE)).min(1),
-  abholzeit: z.string(),
-  terminzeit: z.string().optional(),
+  abholzeit: UHRZEIT,
+  terminzeit: UHRZEIT_OPTIONAL,
   rueckfahrt: z.boolean().optional(),
-  rueckfahrtzeit: z.string().optional(),
-  bis: z.string(),
+  rueckfahrtzeit: UHRZEIT_OPTIONAL,
+  bis: DATUM,
   transportType: z.enum(TRANSPORT_TYPES),
   companion: z.boolean().optional(),
   assistanceNotes: z.string().optional(),
@@ -330,7 +386,7 @@ async function serieAnlegenWerkzeug(
   return teile.join(" ");
 }
 
-const fahrtFindenSchema = z.object({ passengerId: z.string(), datum: z.string().optional() });
+const fahrtFindenSchema = z.object({ passengerId: z.string(), datum: DATUM.optional() });
 
 async function fahrtFinden(tenantId: string, callId: string, args: unknown): Promise<string> {
   const { passengerId, datum } = fahrtFindenSchema.parse(args);
@@ -363,8 +419,8 @@ async function fahrtFinden(tenantId: string, callId: string, args: unknown): Pro
 
 const fahrtAendernSchema = z.object({
   rideId: z.string(),
-  abholzeit: z.string().optional(),
-  terminzeit: z.string().optional(),
+  abholzeit: UHRZEIT.optional(),
+  terminzeit: UHRZEIT.optional(),
   pickupPlaceId: z.string().optional(),
   dropoffPlaceId: z.string().optional(),
   transportType: z.enum(TRANSPORT_TYPES).optional(),
@@ -376,6 +432,25 @@ async function fahrtAendernWerkzeug(tenantId: string, callId: string, args: unkn
   const { rideId, ...aenderung } = fahrtAendernSchema.parse(args);
   const abgelehnt = await fahrtDesAnrufersPruefen(tenantId, callId, rideId);
   if (abgelehnt) return abgelehnt;
+  // Maßnahme M-46 (S1-007): eine neue Uhrzeit darf nicht in der Vergangenheit liegen und den Termin
+  // nicht überholen – sonst nachfragen statt ändern. Nur bei Zeitänderungen: eine verspätete Fahrt
+  // darf weiterhin z. B. "Begleitperson dabei" bekommen.
+  if (aenderung.abholzeit || aenderung.terminzeit) {
+    const fahrt = await withTenant(tenantId).ride.findUnique({ where: { id: rideId }, select: { pickupAt: true, appointmentAt: true } });
+    if (fahrt) {
+      const tag = berlinerMitternacht(datumIso(fahrt.pickupAt));
+      const jetzt = new Date();
+      const zeitFehler = zeitAbgelehnt(
+        zeitProbleme({
+          pickupAt: aenderung.abholzeit ? mitUhrzeit(tag, aenderung.abholzeit) : fahrt.pickupAt,
+          appointmentAt: aenderung.terminzeit ? mitUhrzeit(tag, aenderung.terminzeit) : fahrt.appointmentAt,
+          jetzt,
+        }),
+        jetzt,
+      );
+      if (zeitFehler) return zeitFehler;
+    }
+  }
   const ergebnis = await fahrtAendern(tenantId, rideId, aenderung);
   if (!ergebnis.ok) {
     return ergebnis.grund === "NICHT_GEFUNDEN"
@@ -407,7 +482,7 @@ async function fahrtStornierenWerkzeug(tenantId: string, callId: string, args: u
 const serieBeendenSchema = z.object({
   passengerId: z.string(),
   seriesId: z.string().optional(),
-  ab: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  ab: DATUM.optional(),
 });
 
 /**
@@ -605,6 +680,20 @@ async function werkzeugEinmalAusfuehren(
     }
     return { id: toolCall.id, result };
   } catch (fehler) {
-    return { id: toolCall.id, error: fehler instanceof Error ? fehler.message : "Unbekannter Fehler." };
+    return { id: toolCall.id, error: fehlerFuerKi(fehler) };
   }
+}
+
+/**
+ * Maßnahme M-46 (S1-007, S2-020): Prüffehler als verständlicher Satz statt rohem Zod-JSON oder
+ * "Invalid time value" – die KI soll erkennen, welche Angabe sie beim Anrufer nachfragen muss.
+ * Die Meldungen enthalten nur Feldnamen und Formatvorgaben, keine Eingabewerte.
+ */
+function fehlerFuerKi(fehler: unknown): string {
+  if (fehler instanceof z.ZodError) {
+    const felder = fehler.issues.map((i) => `${i.path.join(".") || "Eingabe"}: ${i.message}`).join("; ");
+    return `Ungültige Angaben – ${felder}. Bitte beim Anrufer nachfragen und erneut aufrufen.`;
+  }
+  if (fehler instanceof UngueltigeZeitangabe) return `${fehler.message} Bitte beim Anrufer nachfragen und erneut aufrufen.`;
+  return fehler instanceof Error ? fehler.message : "Unbekannter Fehler.";
 }

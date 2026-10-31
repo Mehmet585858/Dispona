@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { werkzeugAusfuehren } from "@/core/voice/werkzeuge";
 import { anrufSicherstellen } from "@/core/voice/anruf";
 import { prisma } from "@/lib/prisma";
+import { datumIso, tagVerschieben } from "@/core/shifts/week";
 import { mandantKomplettLoeschen } from "@/lib/seedSchutz";
 
 /**
@@ -57,7 +58,8 @@ describe("werkzeugAusfuehren – Idempotenz je toolCallId (S2-014)", () => {
         passengerId,
         pickupPlaceId: ortId,
         dropoffPlaceId: ortId,
-        datum: "2026-11-03",
+        // M-46: relativ statt fest (vorher "2026-11-03") – die KI lehnt Fahrten in der Vergangenheit ab.
+        datum: tagVerschieben(datumIso(new Date()), 3),
         abholzeit: "09:00",
         transportType: "SITZEND",
         prescription: "JA",
