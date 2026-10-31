@@ -43,7 +43,8 @@ describe("bestaetigungenPruefen", () => {
         passengerId: passenger.id,
         pickupPlaceId: ort.id,
         dropoffPlaceId: ort.id,
-        pickupAt: new Date(Date.now() + 3 * 60 * 60_000),
+        // M-15: Eskalation nur für Fahrten in < 60 Minuten.
+        pickupAt: new Date(Date.now() + 30 * 60_000),
         transportType: "SITZEND",
         status: "DISPONIERT",
         source: "MANUELL",
@@ -63,7 +64,7 @@ describe("bestaetigungenPruefen", () => {
     expect(ergebnis.smsAnFahrer).toBe(0);
   });
 
-  it("schickt eine SMS an den Fahrer, wenn seit 2 Minuten keine Bestätigung da ist", async () => {
+  it("schickt eine SMS an den Fahrer, wenn seit 5 Minuten keine Bestätigung da ist (M-15)", async () => {
     const rideId = await neueUnbestaetigteFahrt(5);
     const ergebnis = await bestaetigungenPruefen(tenantId);
     expect(ergebnis.smsAnFahrer).toBeGreaterThanOrEqual(1);
@@ -137,7 +138,7 @@ describe("bestaetigungenPruefen – Eskalation je Zuweisung (S2-017)", () => {
     const ride = await prisma.ride.create({
       data: {
         tenantId, passengerId: passenger.id, pickupPlaceId: ort.id, dropoffPlaceId: ort.id,
-        pickupAt: new Date(Date.now() + 3 * 60 * 60_000), transportType: "SITZEND", status: "DISPONIERT", source: "MANUELL",
+        pickupAt: new Date(Date.now() + 30 * 60_000), transportType: "SITZEND", status: "DISPONIERT", source: "MANUELL",
         vehicleId: vehicle.id, driverId: fahrer1.id,
       },
     });
@@ -148,7 +149,8 @@ describe("bestaetigungenPruefen – Eskalation je Zuweisung (S2-017)", () => {
 
     // Fahrer 1 fällt aus, Fahrt wird neu disponiert: neuer Fahrer, neues DISPONIERT-Ereignis, keine Bestätigung.
     await prisma.ride.update({ where: { id: ride.id }, data: { driverId: fahrer2.id, driverAckAt: null } });
-    await prisma.rideStatusEvent.create({ data: { tenantId, rideId: ride.id, status: "DISPONIERT", at: new Date(Date.now() - 4 * 60_000) } });
+    // M-15: Frist 5 Minuten (vorher 2) – die neue Zuweisung liegt 6 Minuten zurück.
+    await prisma.rideStatusEvent.create({ data: { tenantId, rideId: ride.id, status: "DISPONIERT", at: new Date(Date.now() - 6 * 60_000) } });
 
     const lauf2 = await bestaetigungenPruefen(tenantId);
     expect(lauf2.smsAnFahrer).toBe(1);
@@ -240,5 +242,101 @@ describe("keinFahrzeugAlarmPruefen", () => {
 
     const notifications = await prisma.notification.findMany({ where: { rideId, kind: "KEIN_FAHRZEUG_ALARM" } });
     expect(notifications).toHaveLength(1);
+  });
+});
+
+/**
+ * Maßnahme M-15 Punkt 2/3 (Prüfbericht S3-006, docs/05-disposition.md "Automodus"): Eskalation nur
+ * für Fahrten, die in weniger als 60 Minuten beginnen, mit 5 Minuten Frist. Vorher ging die SMS
+ * zwei Minuten nach JEDER Zuweisung raus – beim Plan für morgen 90 SMS auf einmal.
+ */
+describe("Eskalation nur für zeitnahe Fahrten (M-15)", () => {
+  const kennung = randomUUID().slice(0, 8);
+  let tenantId: string;
+
+  beforeAll(async () => {
+    tenantId = (
+      await prisma.tenant.create({
+        data: {
+          name: `PRUEF_Eskalation-Fenster ${kennung}`,
+          settings: {
+            create: { greeting: "x", voiceId: "x", escalationNumber: "+4900", openingHours: {}, serviceAreaCenter: { lat: 50.77, lng: 6.08 }, alertPhone: "+491701119999", driverAckMinutes: 5 },
+          },
+        },
+      })
+    ).id;
+  });
+
+  afterAll(async () => {
+    const { mandantKomplettLoeschen } = await import("@/lib/seedSchutz");
+    await mandantKomplettLoeschen(tenantId);
+  });
+
+  async function zuweisung(abholungInMinuten: number, disponiertVorMinuten: number) {
+    const user = await prisma.user.create({
+      data: { id: randomUUID(), tenantId, email: `pruef-${randomUUID()}@test.invalid`, name: "PRUEF Fahrer", role: "FAHRER", phone: "+491700000099" },
+    });
+    const driver = await prisma.driver.create({ data: { tenantId, userId: user.id } });
+    const passenger = await prisma.passenger.create({ data: { tenantId, firstName: "PRUEF", lastName: "Fahrgast", phones: [] } });
+    const ort = await prisma.place.create({
+      data: { tenantId, label: "PRUEF Ort", street: "A 1", zip: "52062", city: "Aachen", lat: 50.77, lng: 6.08, type: "SONSTIGES" },
+    });
+    const ride = await prisma.ride.create({
+      data: {
+        tenantId, passengerId: passenger.id, pickupPlaceId: ort.id, dropoffPlaceId: ort.id,
+        pickupAt: new Date(Date.now() + abholungInMinuten * 60_000), transportType: "SITZEND", status: "DISPONIERT", source: "MANUELL",
+        driverId: driver.id,
+      },
+    });
+    await prisma.rideStatusEvent.create({
+      data: { tenantId, rideId: ride.id, status: "DISPONIERT", at: new Date(Date.now() - disponiertVorMinuten * 60_000) },
+    });
+    return ride.id;
+  }
+
+  async function smsAnFahrer(rideId: string) {
+    return prisma.notification.count({ where: { rideId, kind: "KEINE_BESTAETIGUNG_FAHRER" } });
+  }
+
+  it("M-15 (S3-006): Zuweisung für morgen → keine SMS, auch 30 Minuten nach der Zuweisung", async () => {
+    const rideId = await zuweisung(24 * 60, 30);
+    await bestaetigungenPruefen(tenantId);
+    expect(await smsAnFahrer(rideId)).toBe(0);
+  });
+
+  it("M-15: Fahrt in 30 Minuten, seit 3 Minuten disponiert → noch keine SMS (5-Minuten-Frist)", async () => {
+    const rideId = await zuweisung(30, 3);
+    await bestaetigungenPruefen(tenantId);
+    expect(await smsAnFahrer(rideId)).toBe(0);
+  });
+
+  it("M-15: früh zugewiesene Fahrt – die Frist beginnt erst, wenn sie ins 60-Minuten-Fenster rückt", async () => {
+    const geradeImFenster = await zuweisung(58, 2 * 24 * 60);
+    const seitSechsMinutenImFenster = await zuweisung(54, 2 * 24 * 60);
+    await bestaetigungenPruefen(tenantId);
+    expect(await smsAnFahrer(geradeImFenster)).toBe(0);
+    expect(await smsAnFahrer(seitSechsMinutenImFenster)).toBe(1);
+  });
+
+  it("M-15 Punkt 3: Kein-Fahrzeug-Alarm kommt erneut, wenn die Fahrt zwischendurch disponiert war", async () => {
+    const passenger = await prisma.passenger.create({ data: { tenantId, firstName: "PRUEF", lastName: "KF", phones: [] } });
+    const ort = await prisma.place.create({
+      data: { tenantId, label: "PRUEF Ort", street: "A 1", zip: "52062", city: "Aachen", lat: 50.77, lng: 6.08, type: "SONSTIGES" },
+    });
+    const ride = await prisma.ride.create({
+      data: {
+        tenantId, passengerId: passenger.id, pickupPlaceId: ort.id, dropoffPlaceId: ort.id,
+        pickupAt: new Date(Date.now() + 90 * 60_000), transportType: "SITZEND", status: "ERFASST", source: "MANUELL",
+        problems: ["KEIN_FAHRZEUG"],
+      },
+    });
+    // Erster Alarm vor 30 Minuten, danach disponiert (Fahrer gefunden), dann fiel der Fahrer aus.
+    await prisma.notification.create({
+      data: { tenantId, channel: "SMS", toRef: "INHABER", rideId: ride.id, kind: "KEIN_FAHRZEUG_ALARM", sentAt: new Date(Date.now() - 30 * 60_000) },
+    });
+    await prisma.rideStatusEvent.create({ data: { tenantId, rideId: ride.id, status: "DISPONIERT", at: new Date(Date.now() - 20 * 60_000) } });
+
+    await keinFahrzeugAlarmPruefen(tenantId);
+    expect(await prisma.notification.count({ where: { rideId: ride.id, kind: "KEIN_FAHRZEUG_ALARM" } })).toBe(2);
   });
 });
