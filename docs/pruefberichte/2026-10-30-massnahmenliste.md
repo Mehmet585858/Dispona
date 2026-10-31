@@ -1,6 +1,6 @@
-# Maßnahmenliste Dispona – Stand 30.10.2026 (zuletzt aktualisiert 31.10.2026 durch M. Reiter, Projektleitung)
+# Maßnahmenliste Dispona – Stand 30.10.2026 (zuletzt aktualisiert 31.10.2026, zweite Aktualisierung, durch M. Reiter, Projektleitung)
 
-Diese Liste führt vier Prüfberichte zu einer einzigen Reparaturliste ohne Dubletten zusammen.
+Diese Liste führt vier Prüfberichte und die Beobachtungen am Rande aus dem Behebungsprotokoll Durchgang 3 zu einer einzigen Reparaturliste ohne Dubletten zusammen.
 
 **Quellen**
 
@@ -10,14 +10,16 @@ Diese Liste führt vier Prüfberichte zu einer einzigen Reparaturliste ohne Dubl
 | `docs/pruefberichte/2026-10-30-berger-durchgang-1.md` | Externer Prüfbericht K. Berger, Durchgang 1 (Code-Prüfung ohne Datenbank). | 40 (S1-001 bis S4-010) | 9 (V-001 bis V-009) |
 | `docs/pruefberichte/2026-10-30-berger-durchgang-2.md` | Externer Prüfbericht K. Berger, Durchgang 2 (gegen echte Datenbank und laufenden Server). Enthält zusätzlich eine Nachprüfung von 12 Befunden aus Durchgang 1. | 22 (S1-006, S2-012 bis S2-017, S3-015 bis S3-025, S4-011 bis S4-014) | 4 (V-010 bis V-013) |
 | `docs/pruefberichte/2026-10-31-berger-durchgang-3.md` | Externer Prüfbericht K. Berger, Durchgang 3 (Schwerpunkt: KI am Telefon, Serien, Import, Oberfläche). | 21 (S1-007, S2-018 bis S2-024, S3-026 bis S3-033, S4-015 bis S4-019) | 3 (V-014 bis V-016) |
-| **Summe** | | **112 Befunde** | **16 Verdachte** |
+| `docs/pruefberichte/2026-10-31-behebung-3-massnahmen.md` (nur auf Branch `claude/behebung-durchgang-2`) | Behebungsprotokoll L. Hartmann, Durchgang 3, Abschnitt „Auf dem Weg aufgefallen“. Keine Prüfbefunde, sondern Beobachtungen am Rande; hier B3-A1 bis B3-A7 genannt. Aufnahme freigegeben vom Auftraggeber am 31.10.2026 (Entscheidung D1). | 7 Beobachtungen (B3-A1 bis B3-A7) | – |
+| **Summe** | | **112 Befunde + 7 Beobachtungen** | **16 Verdachte** |
 
 **So wurde gezählt**
 
 - Jeder der 112 Befunde ist genau einer Maßnahme zugeordnet (Anhang). Befunde mit derselben Ursache bilden zusammen eine Maßnahme. Wo ein Befund zu zwei Maßnahmen passt, steht er bei der Maßnahme, die die Ursache behebt; die zweite ist als „siehe auch“ vermerkt.
-- Nach der Zusammenführung bleiben **65 Maßnahmen**: 9 × P1, 21 × P2, 24 × P3, 11 × P4 (davon 20 neu aus Durchgang 3: M-46 bis M-65).
+- Nach der Zusammenführung bleiben **71 Maßnahmen**: 9 × P1, 23 × P2, 26 × P3, 13 × P4 (davon 20 neu aus Durchgang 3: M-46 bis M-65; 6 neu aus den Beobachtungen des Behebungsprotokolls: M-66 bis M-71).
+- Die 7 Beobachtungen B3-A1 bis B3-A7 sind ebenfalls genau einer Maßnahme zugeordnet (Anhang). B3-A4 (Zeitrechnung mit Server-Zeitzone) deckt sich mit der bestehenden Maßnahme M-26 und ist dort als Ergänzung eingetragen statt als Dublette; deshalb 7 Beobachtungen, aber 6 neue Maßnahmen.
 - Zwei Verdachte wurden in Durchgang 2 bestätigt (V-005, V-006) und zählen deshalb als Befund in einer Maßnahme. Die übrigen 14 Verdachte (V-001 bis V-004, V-007 bis V-016) stehen im Abschnitt „Vor dem Pilot extern klären“.
-- M-01 bis M-23 (alle ursprünglichen P1/P2) sind seit dem Behebungsdurchgang 3 bearbeitet (Branch `claude/behebung-durchgang-2`, gepusht, **noch nicht nach `master` gemergt**); Status je Maßnahme steht jetzt direkt bei der Maßnahme. M-24 bis M-65 sind noch nicht bearbeitet (OFFEN).
+- M-01 bis M-23 (alle ursprünglichen P1/P2) sind seit dem Behebungsdurchgang 3 bearbeitet (Branch `claude/behebung-durchgang-2`, gepusht, **noch nicht nach `master` gemergt**); Status je Maßnahme steht jetzt direkt bei der Maßnahme. M-24 bis M-71 sind noch nicht bearbeitet (OFFEN); M-46 und M-47 sind seit 31.10.2026 in Behebung beauftragt (siehe „Auftragsstand“).
 - „live bestätigt“ heißt: Durchgang 2 hat den Fehler gegen eine echte Datenbank oder einen laufenden Server nachgestellt, nicht nur im Code gelesen.
 
 **So sind die Prioritäten zu lesen**
@@ -31,14 +33,34 @@ Diese Liste führt vier Prüfberichte zu einer einzigen Reparaturliste ohne Dubl
 
 Innerhalb einer Priorität stehen zuerst Maßnahmen, die Datenverlust oder einen Datenschutzverstoß verhindern, dann Maßnahmen gegen Betriebsgefahr für Fahrten (Fahrt fällt aus, falsche Adresse, Doppelbuchung), dann der Rest.
 
+## Auftragsstand und Entscheidungen des Auftraggebers
+
+**Entscheidungen vom 31.10.2026** (Antwort des Auftraggebers auf das Entscheidungsbündel der Projektleitung):
+
+| Punkt | Entscheidung |
+|---|---|
+| A1 – Zusammenführen von `claude/behebung-durchgang-2` nach `master` | Option (b): **erst** Prüfung durch K. Berger, **dann** zusammenführen. Jetzt **kein** Merge nach `master`. |
+| Schritt 1 – Prüfdurchgang 4 | **Freigegeben.** K. Berger prüft gegen `claude/behebung-durchgang-2`. |
+| Schritt 2 – Behebung der neuen P1-Maßnahmen | **Freigegeben, nur M-46 und M-47.** M-48 bis M-51 sind ausdrücklich **nicht** beauftragt. L. Hartmann behebt parallel auf einem neuen Branch. |
+| D1 – Beobachtungen am Rande aus dem Behebungsprotokoll | **Freigegeben.** Die 7 Beobachtungen werden als Maßnahmen aufgenommen (jetzt M-66 bis M-71, B3-A4 als Ergänzung zu M-26). |
+
+**Laufende Aufträge (beauftragt am 31.10.2026, jeweils in eigener Sitzung):**
+
+| Auftrag | Wer | Gegen / auf | Stand laut Repository bei Eintrag |
+|---|---|---|---|
+| Prüfdurchgang 4 (Nachprüfung M-01 bis M-23 laut Nachprüfungsauftrag im Behebungsprotokoll Durchgang 3) | K. Berger (`dispona-pruefer`) | `claude/behebung-durchgang-2`, Stand `aa4e6e7` | Läuft. Noch kein Prüfbericht Durchgang 4 im Repository. |
+| Behebung M-46 und M-47 | L. Hartmann (`dispona-behebung`) | neuer Branch, abgezweigt von `claude/behebung-durchgang-2` (lokal beobachtet als `claude/behebung-pilot-blocker`, noch nicht gepusht) | Läuft. Noch keine eigenen Commits auf dem neuen Branch. |
+
+Hinweis: Prüfdurchgang 4 prüft den Stand `aa4e6e7`. Die Reparaturen an M-46/M-47 auf dem neuen Branch sind darin **nicht** enthalten und brauchen nach Abschluss eine eigene Nachprüfung, bevor sie zusammengeführt werden.
+
 ## Auf einen Blick
 
 | Priorität | Anzahl Maßnahmen | Was dahinter steckt |
 |---|---|---|
 | P1 – Pilot-Blocker | 9 (7 behoben/teilweise + 2 neu) | Ein Entwickler-Befehl löscht alle Kundendaten, jeder Fahrer kann alle Fahrgastdaten herunterladen, Alarm-SMS und Fahrer-Login existieren nicht, Fahrzeuge werden doppelt vergeben, Fahrer können am Büro vorbei stornieren, die KI schickt Fahrer zur falschen Adresse und verliert Rückfahrten. **Neu (Durchgang 3, hochgestuft):** Die KI kennt kein aktuelles Datum/Uhrzeit und nimmt Fahrten mit falscher Zeit ohne Hinweis an (M-46); die Weiterleitung an einen Menschen im Notfall ist technisch nicht angebunden (M-47). |
-| P2 – vor dem Pilot | 21 (16 behoben/teilweise + 5 neu) | Fahrgastdaten im Handy-Cache und im Server-Protokoll, unvollständige Löschung, Mandantengrenze bei Fremdschlüsseln, kein Fahrer-Offboarding, Identität am Telefon nicht geprüft, doppelte Fahrten durch Webhook-Wiederholung, stummer Alarmweg, Nachtautomatik ohne Fehlererkennung und ohne erfüllbare Bedingungen, Nachtschichten, Umplanen, Stammkundenerkennung, Serien, Registrierung. **Neu (Durchgang 3):** Serien ohne Startdatum, stornierte Fahrten bleiben im Zeitstrahl wie geplant, Geburtsdatum beim Import vertauscht, Fahrer-App ohne Datum je Fahrt, Serverregion nicht auf EU festgelegt. |
-| P3 – erste Pilotwochen | 24 (16 behoben/offen + 8 neu) | Öffentliche Demo-Seite mit Transkripten, Exportlücken, Zeitzonenfehler, doppelte Schreibzugriffe bei Verbindungsabbruch, unvollständige Endprüfung der Zuweisung, Hin-/Rückfahrt-Kopplung, Vorschlagsqualität, Fahrer-App-Robustheit, Tests und Datenbankschema. **Neu (Durchgang 3):** Hydrationsfehler durch fehlende Zeitzone, verschluckte Fehler in 20 Oberflächen-Komponenten, Einrichtungsassistent ohne fachliche Prüfung, falsche Vorschlagsrechnung bei Terminfahrten, Routing ohne Zeitlimit, Push-Fehler werden verworfen, „Ich falle aus“ ohne Rückfrage, verzerrte Pilot-Kennzahlen. |
-| P4 – später | 11 (6 behoben/offen + 5 neu) | Einmal-Codes im Klartext, fehlende Sicherheits-Header, Platzhalter-Adressen, technische Codes in KI-Antworten, Feiertage/Kleinigkeiten, veralteter Sicherheitsbericht. **Neu (Durchgang 3):** Gesprächsbericht-Reihenfolge, offene Design-/Projektregeln, Benutzer-Enumeration bei der Anmeldung, unvollständige Vapi-Konfiguration, fehlerhafte neue Adressen. |
+| P2 – vor dem Pilot | 23 (16 behoben/teilweise + 5 neu + 2 aus Beobachtungen) | Fahrgastdaten im Handy-Cache und im Server-Protokoll, unvollständige Löschung, Mandantengrenze bei Fremdschlüsseln, kein Fahrer-Offboarding, Identität am Telefon nicht geprüft, doppelte Fahrten durch Webhook-Wiederholung, stummer Alarmweg, Nachtautomatik ohne Fehlererkennung und ohne erfüllbare Bedingungen, Nachtschichten, Umplanen, Stammkundenerkennung, Serien, Registrierung. **Neu (Durchgang 3):** Serien ohne Startdatum, stornierte Fahrten bleiben im Zeitstrahl wie geplant, Geburtsdatum beim Import vertauscht, Fahrer-App ohne Datum je Fahrt, Serverregion nicht auf EU festgelegt. **Neu (Beobachtungen Behebung 3):** Fahrgastname kann über den Ortsnamen in SMS/Push an Fahrer gelangen (M-66); eine Büro-Funktion kann Status ohne die Umplan-Regeln setzen (M-67). |
+| P3 – erste Pilotwochen | 26 (16 behoben/offen + 8 neu + 2 aus Beobachtungen) | Öffentliche Demo-Seite mit Transkripten, Exportlücken, Zeitzonenfehler, doppelte Schreibzugriffe bei Verbindungsabbruch, unvollständige Endprüfung der Zuweisung, Hin-/Rückfahrt-Kopplung, Vorschlagsqualität, Fahrer-App-Robustheit, Tests und Datenbankschema. **Neu (Durchgang 3):** Hydrationsfehler durch fehlende Zeitzone, verschluckte Fehler in 20 Oberflächen-Komponenten, Einrichtungsassistent ohne fachliche Prüfung, falsche Vorschlagsrechnung bei Terminfahrten, Routing ohne Zeitlimit, Push-Fehler werden verworfen, „Ich falle aus“ ohne Rückfrage, verzerrte Pilot-Kennzahlen. **Neu (Beobachtungen Behebung 3):** technische Problemcodes in „Braucht Sie“ (M-68); ungeprüfter Verdacht doppelter/fehlender Fahrer-Meldung bei „Fahrzeug ändern“ (M-69). |
+| P4 – später | 13 (6 behoben/offen + 5 neu + 2 aus Beobachtungen) | Einmal-Codes im Klartext, fehlende Sicherheits-Header, Platzhalter-Adressen, technische Codes in KI-Antworten, Feiertage/Kleinigkeiten, veralteter Sicherheitsbericht. **Neu (Durchgang 3):** Gesprächsbericht-Reihenfolge, offene Design-/Projektregeln, Benutzer-Enumeration bei der Anmeldung, unvollständige Vapi-Konfiguration, fehlerhafte neue Adressen. **Neu (Beobachtungen Behebung 3):** Testpflege – liegengebliebene Testdaten (M-70, M-71). |
 
 ## Empfohlene Reihenfolge
 
@@ -155,6 +177,7 @@ Danach folgen die übrigen P1-/P2-Maßnahmen in der Reihenfolge der Abschnitte u
 - **Erledigt damit:** S1-007, S2-020.
 - **Nachweis:** Test, der den ausgelieferten Prompt auf „heute ist“ + Datum prüft; Tests für „halb acht“, „0630“, „25:00“, „2026-02-30“ → Fehler statt stille Umdeutung; Test „Abholzeit gestern“ wird abgelehnt.
 - **Status:** OFFEN. **Einschätzung Projektleitung:** als P1 eingestuft (ursprünglich S1/S2 bei Berger), weil das zentrale Verkaufsversprechen „die KI nimmt die Fahrt richtig auf“ sonst nicht zutrifft – siehe Entscheidungsbündel.
+- **Auftrag:** Behebung am 31.10.2026 freigegeben und an L. Hartmann beauftragt (neuer Branch, abgezweigt von `claude/behebung-durchgang-2`). Noch kein Behebungsprotokoll.
 
 #### M-47 Weiterleitung an einen Menschen real anbinden: Werkzeugname mit Vapi abgleichen, Rückfall als Fehler, Nummer validiert
 - **Problem:** Der Prompt befiehlt das Werkzeug `an_mensch_weiterleiten`; dieses existiert in der an Vapi gesendeten Konfiguration nicht (dort `transferCall`). Kommt der Aufruf trotzdem an, antwortet das System „Wird weitergeleitet.“, ohne etwas zu tun. Eine leere oder national formatierte `escalationNumber` wird ungeprüft an Vapi durchgereicht (S2-019).
@@ -167,6 +190,7 @@ Danach folgen die übrigen P1-/P2-Maßnahmen in der Reihenfolge der Abschnitte u
 - **Erledigt damit:** S2-019 (berührt auch V-015).
 - **Nachweis:** Live-Testanruf „ich will einen Menschen“ und der Notfall-Satz lösen einen tatsächlichen Transfer-Versuch bei Vapi aus (nicht nur eine „ok“-Antwort); Test, der eine leere/nationale `escalationNumber` beim Speichern abweist.
 - **Status:** OFFEN. **Einschätzung Projektleitung:** als P1 eingestuft (Berger: S2), weil CLAUDE.md für Notfälle zwingend die sofortige Weiterleitung an einen Menschen verlangt – diese Pflicht ist technisch derzeit nicht erfüllt, unabhängig vom Schweregrad-Schema. Siehe Entscheidungsbündel.
+- **Auftrag:** Behebung am 31.10.2026 freigegeben und an L. Hartmann beauftragt (zusammen mit M-46, derselbe neue Branch). Noch kein Behebungsprotokoll.
 
 ### P2 – vor dem Pilot
 
@@ -318,7 +342,7 @@ Danach folgen die übrigen P1-/P2-Maßnahmen in der Reihenfolge der Abschnitte u
   4. Eine Änderung = eine Push: `fahrtAendern` und `fahrzeugZuweisen` sammeln Benachrichtigungen und schicken pro Fahrer genau eine passende Meldung („entzogen“ schlägt „geändert“).
   5. Push-Text bei Entzug korrekt („Fahrt 09:30 wurde dir entzogen“), nicht „geändert, App öffnen“.
 - **Betroffene Dateien:** `src/app/dispo/fahrten/actions.ts` (`fahrtVerschieben`), `src/app/dispo/fahrten/Zeitstrahl.tsx`, `src/core/rides/fahrerAusfall.ts`, `src/core/rides/aendern.ts`, `src/core/disposition/zuweisen.ts`, `src/core/disposition/vorschlagSpeichern.ts`, `src/core/rides/erfassen.ts`.
-- **Erledigt damit:** R2-4 „Reine Zeit-Verschiebung eines unbestätigten Vorschlags macht ihn ungefragt zur echten Zuweisung“, R2-5 „fahrerFaelltAusKern räumt vehicleId/driverId nie ab“, R2-6 „problems[] ist (fast) nur additiv“, R2-9 „Widersprüchliche Doppel-Push bei kombinierter Zeit+Fahrzeug-Verschiebung“, S3-004. Siehe auch M-34 (Bearbeiten in der Oberfläche).
+- **Erledigt damit:** R2-4 „Reine Zeit-Verschiebung eines unbestätigten Vorschlags macht ihn ungefragt zur echten Zuweisung“, R2-5 „fahrerFaelltAusKern räumt vehicleId/driverId nie ab“, R2-6 „problems[] ist (fast) nur additiv“, R2-9 „Widersprüchliche Doppel-Push bei kombinierter Zeit+Fahrzeug-Verschiebung“, S3-004. Siehe auch M-34 (Bearbeiten in der Oberfläche), M-67 (`fahrtStatusSetzen` umgeht diese Regeln) und M-69 (Verdacht: „Fahrzeug ändern“ im Fahrt-Fenster).
 - **Nachweis:** Tests: Zeitverschiebung eines Vorschlags → Status bleibt `VORGESCHLAGEN`, keine Push; Fahrerausfall → `vehicleId === null`; Fahrt mit altem „Fahrer fällt aus“-Problem nach Neubesetzung → `problems` leer; kombinierte Änderung → genau eine Push je Fahrer.
 - **Status:** BEHOBEN (Behebung Durchgang 3), unter den Annahmen 9d – noch nicht vom Auftraggeber bestätigt.
 
@@ -361,7 +385,7 @@ Danach folgen die übrigen P1-/P2-Maßnahmen in der Reihenfolge der Abschnitte u
 - **Betroffene Dateien:** `src/core/rides/validation.ts`, `src/core/rides/serie.ts`, `src/providers/voice/vapi.ts`, `src/app/dispo/DispoClient.tsx`, `src/core/voice/werkzeuge.ts`.
 - **Erledigt damit:** S2-018.
 - **Nachweis:** Test „Serie ab +14 Tage, Mo/Mi/Fr“ → erste Fahrt am Startdatum, keine davor; Test „bis in der Vergangenheit“ → abgelehnt statt „0 Fahrten erzeugt“.
-- **Status:** OFFEN.
+- **Status:** OFFEN. Am 31.10.2026 ausdrücklich **nicht** zur Behebung beauftragt (Entscheidung Auftraggeber: nur M-46/M-47).
 
 #### M-49 Stornierte Fahrten im Zeitstrahl und in den Kennzahlen als storniert erkennbar machen
 - **Problem:** Storno ändert nur den Status; Fahrzeug/Fahrer bleiben zugeordnet, der Zeitstrahl kennt keinen eigenen Darstellungszustand für Endzustände und zeigt stornierte Fahrten wie geplante; „Fahrten heute“ zählt sie mit (S2-023).
@@ -369,7 +393,7 @@ Danach folgen die übrigen P1-/P2-Maßnahmen in der Reihenfolge der Abschnitte u
 - **Betroffene Dateien:** `src/core/rides/stornieren.ts`, `src/core/rides/status.ts`, `src/app/dispo/fahrten/actions.ts`, `src/app/dispo/fahrten/Zeitstrahl.tsx`, `src/core/rides/transportfarbe.ts`.
 - **Erledigt damit:** S2-023.
 - **Nachweis:** Test, dass eine stornierte Fahrt danach kein Fahrzeug mehr zugeordnet hat und im Zeitstrahl als „storniert“ statt „geplant“ erscheint.
-- **Status:** OFFEN.
+- **Status:** OFFEN. Am 31.10.2026 ausdrücklich **nicht** zur Behebung beauftragt (Entscheidung Auftraggeber: nur M-46/M-47).
 
 #### M-50 Fahrgast-Import robust: deutsche Datumsformate, Zeichensatz-Wahl, Dubletten, Transaktion je Zeile
 - **Problem:** `new Date("03.05.1941")` vertauscht Tag und Monat; `new Date("25.12.1950")` bricht den Import mitten in der Datei ab; Excel-„CSV“ in Windows-1252 zerstört Umlaute; keine Dublettenprüfung, kein Rückgängig (S2-021).
@@ -377,7 +401,7 @@ Danach folgen die übrigen P1-/P2-Maßnahmen in der Reihenfolge der Abschnitte u
 - **Betroffene Dateien:** `src/app/dispo/fahrgaeste/actions.ts`, `src/core/passengers/validation.ts`, `src/components/CsvImport.tsx`.
 - **Erledigt damit:** S2-021.
 - **Nachweis:** Test mit „03.05.1941“/„25.12.1950“ in einer Datei → beide korrekt gespeichert, kein Abbruch; Test mit Windows-1252-Bytes → Umlaute korrekt; zweiter Import derselben Datei → keine neuen Dubletten.
-- **Status:** OFFEN.
+- **Status:** OFFEN. Am 31.10.2026 ausdrücklich **nicht** zur Behebung beauftragt (Entscheidung Auftraggeber: nur M-46/M-47).
 
 #### M-51 Fahrer-App zeigt das Datum je Fahrt, unterscheidet heute und morgen eindeutig
 - **Problem:** Liste und Push zeigen nur Uhrzeiten; eine Fahrt von morgen erscheint als „nächste Fahrt“ mit „Zum Fahrgast fahren“, „Heute N Fahrten“ zählt auch morgige, `laufendeSchicht` fällt auf die Schicht von morgen zurück (S2-022).
@@ -385,7 +409,7 @@ Danach folgen die übrigen P1-/P2-Maßnahmen in der Reihenfolge der Abschnitte u
 - **Betroffene Dateien:** `src/app/fahrer/FahrerClient.tsx`, `src/app/fahrer/GesehenUeberlagerung.tsx`, `src/app/fahrer/actions.ts`.
 - **Erledigt damit:** S2-022.
 - **Nachweis:** Rendering-Probe mit einer Fahrt heute und einer morgen → beide mit unterscheidbarem Datum; „Schicht starten“ nicht für die Schicht von morgen möglich.
-- **Status:** OFFEN.
+- **Status:** OFFEN. Am 31.10.2026 ausdrücklich **nicht** zur Behebung beauftragt (Entscheidung Auftraggeber: nur M-46/M-47).
 
 #### M-52 Serverregion EU/Frankfurt festschreiben
 - **Problem:** `vercel.json` und `next.config.ts` legen keine Function-Region fest; Vercel-Standard ist USA; widerspricht CLAUDE.md und `docs/08` („nur Server in der EU“) (S2-024).
@@ -394,6 +418,30 @@ Danach folgen die übrigen P1-/P2-Maßnahmen in der Reihenfolge der Abschnitte u
 - **Erledigt damit:** S2-024.
 - **Nachweis:** Eintrag der Region in der Konfiguration bzw. im Vercel-Dashboard; Eintrag in `docs/12`.
 - **Status:** OFFEN. Entscheidung beim Auftraggeber: Vercel-Projekteinstellung auf EU/Frankfurt setzen – siehe Entscheidungsbündel.
+
+#### M-66 Fahrer-SMS und -Push ohne frei vergebene Ortsnamen (kein Fahrgastname über das Wohnort-Label)
+- **Problem:** Die Texte „Neue Fahrt …“ an Fahrer (SMS und Push) enthalten den gespeicherten Namen des Abhol- und Zielorts (der Teil vor dem ersten Komma). Dieser Name ist freier Text; Wohnorte heißen in Bestandsdaten teils „Wohnung <Nachname>“. Damit kann der Fahrgastname auf dem Sperrbildschirm des Fahrerhandys und beim SMS-Anbieter landen – entgegen der Projektregel „Push/SMS an Fahrer nur Uhrzeit und Ort, kein Name“. Anonymisiert wird das Label bisher erst bei einer Fahrgast-Löschung (M-10).
+- **Zu tun:**
+  1. Fahrer-Texte nicht mehr aus dem frei vergebenen Ortsnamen bilden; bei Wohnorten (Typ `WOHNUNG`) höchstens Ortstyp oder Straße/Ort aus den strukturierten Feldern verwenden (Vorschlag Behebung: Ortstyp statt Label). Welche Angabe der Fahrer sieht, ist sichtbares Produktverhalten – Variante beim Beauftragen mit dem Auftraggeber festlegen.
+  2. Test, dass ein Ort „Wohnung <Name>“ in keinem Fahrer-Text erscheint, für alle Aufrufstellen von `neueFahrtText`.
+- **Betroffene Dateien:** `src/core/notify/texte.ts` (`neueFahrtText`, `kurzOrt`), `src/core/notify/eskalation.ts`, `src/core/rides/fahrerBenachrichtigen.ts`.
+- **Erledigt damit:** B3-A2 (Behebungsprotokoll Durchgang 3, „Auf dem Weg aufgefallen“ Nr. 2; dort Vorschlag 8). Siehe auch M-10 (Löschung), M-09 (Logs).
+- **Gegengelesen (Projektleitung, 31.10.2026, Stand `aa4e6e7`):** `neueFahrtText` setzt `kurzOrt(label)` ein; Aufrufe in `eskalation.ts` und `fahrerBenachrichtigen.ts` übergeben `pickupPlace.label`/`dropoffPlace.label`. Die Löschfunktion vermerkt selbst, dass Wohnort-Namen den Fahrgastnamen tragen können. Beobachtung bestätigt.
+- **Priorität:** P2 – vor dem Pilot (Datenschutz, Verstoß gegen eine feste Projektregel). Vom Auftraggeber so vorgeschlagen und akzeptiert; Einstufung nach Gegenlesen beibehalten.
+- **Nachweis:** Test mit Wohnort-Label „Wohnung Testname“ → Text an den Fahrer enthält „Testname“ nicht.
+- **Status:** OFFEN.
+
+#### M-67 Büro-Funktion `fahrtStatusSetzen` entfernen oder auf die Fachfunktionen umleiten (keine Hintertür um Umplan- und Sicherheitsregeln)
+- **Problem:** Die Server Action `fahrtStatusSetzen` setzt jeden laut Übergangstabelle erlaubten Status direkt, ohne Fahrzeug/Fahrer zu lösen, ohne Neuprüfung und ohne die Fahrer-Meldungen aus M-20 – z. B. DISPONIERT → ERFASST mit stehen gebliebener Zuweisung, oder ERFASST → DISPONIERT ohne Fahrzeug. Die Oberfläche ruft sie nicht auf; erreichbar ist sie trotzdem für jede angemeldete Büro-Sitzung (Server Actions sind von außen aufrufbar). Die Rollenprüfung ist vorhanden.
+- **Zu tun:**
+  1. Funktion entfernen, wenn sie nirgends gebraucht wird; sonst auf `fahrtAendern`/`fahrzeugZuweisungAufheben`/`fahrzeugZuweisen` umleiten, so dass dieselben Regeln gelten wie im normalen Ablauf.
+  2. Test bzw. Quelltext-Prüfung, dass keine Büro-Action Status ohne diese Fachfunktionen setzt.
+- **Betroffene Dateien:** `src/app/dispo/fahrten/actions.ts` (`fahrtStatusSetzen`), ggf. `src/core/rides/status.ts`.
+- **Erledigt damit:** B3-A1 (Behebungsprotokoll Durchgang 3, „Auf dem Weg aufgefallen“ Nr. 1; dort Vorschlag 6, Empfehlung „jetzt“, Aufwand ca. 1 Stunde). Siehe auch M-20.
+- **Gegengelesen (Projektleitung, 31.10.2026, Stand `aa4e6e7`):** `fahrtStatusSetzen` ruft nach `requireBueroSession()` direkt `fahrtStatusAendern` auf; im Quelltext unter `src/` und `tests/` gibt es außer der Definition keinen Aufruf. Beobachtung bestätigt.
+- **Priorität:** P2 – vor dem Pilot (umgeht reparierte Regeln aus M-20; Folge wären Fahrten, die am falschen Wagen kleben oder ohne Fahrzeug als disponiert gelten). Vom Auftraggeber so vorgeschlagen und akzeptiert; Einstufung nach Gegenlesen beibehalten.
+- **Nachweis:** Funktion existiert nicht mehr bzw. Test: Aufruf mit DISPONIERT → ERFASST löst Fahrzeug und Fahrer und benachrichtigt den Fahrer genau einmal.
+- **Status:** OFFEN.
 
 ### P3 – in den ersten Pilotwochen
 
@@ -427,6 +475,7 @@ Danach folgen die übrigen P1-/P2-Maßnahmen in der Reihenfolge der Abschnitte u
 - **Erledigt damit:** S3-001.
 - **Nachweis:** Tests mit `TZ=UTC` für 25.10.2026 und 28.03.2027: Tagesfenster exakt 25 bzw. 23 Stunden, Fahrt um 00:30 Berlin zählt zum richtigen Tag.
 - **Status:** OFFEN. In Behebung Durchgang 3 nicht beauftragt (nur P1/P2); noch kein Behebungsversuch.
+- **Ergänzung aus Behebungsprotokoll Durchgang 3 (B3-A4, aufgenommen 31.10.2026):** Die Behebung bestätigt, dass die Stellen nach ihrem Lauf weiterhin bestehen, u. a. `automatischDisponieren.ts` (`getFullYear()` für „frühere Fahrt heute“), `planFuerMorgen.ts` und `vorschlagSpeichern.ts` (`setDate(+1)`), `src/app/dispo/fahrer/actions.ts` (`schichtenFuerWoche`, `setDate(+7)`); gegengelesen am Stand `aa4e6e7`. Neue Funktionen aus Behebung 3 rechnen über `week.ts`. Keine eigene Maßnahme, weil inhaltlich identisch mit M-26.
 
 #### M-27 Prisma-Wiederholung nur für Lesezugriffe
 - **Problem:** Bei Verbindungsabbruch wiederholt die Datenbankschicht automatisch jeden Befehl, auch Schreibbefehle. Hat die Datenbank den ersten Befehl schon ausgeführt, entsteht eine zweite Fahrt oder ein zweites Ereignis.
@@ -628,6 +677,30 @@ Danach folgen die übrigen P1-/P2-Maßnahmen in der Reihenfolge der Abschnitte u
 - **Nachweis:** Vitest-Rechenbeispiel aus dem Prüfbericht (4 Anrufe → korrekt 75 % statt 25 %).
 - **Status:** OFFEN.
 
+#### M-68 Problemcodes in „Braucht Sie“ als verständlicher Text statt technischer Codes
+- **Problem:** In der Liste „Braucht Sie“ der Disposition stehen die Gründe einer Fahrt als technische Codes, z. B. `KEIN_FAHRZEUG`, `GENEHMIGUNG_FEHLT` und neu `FAHRT_ABGEBROCHEN`. Der Disponent muss raten, was zu tun ist.
+- **Zu tun:**
+  1. Klartext je Problemcode in einer `texte.ts` sammeln (Begriffe aus `docs/DESIGN-GUIDE.md` Abschnitt 8, du-los und sachlich); unbekannte Codes mit neutralem Ersatztext.
+  2. Anzeige in `fahrplan.ts` auf diese Texte umstellen; dabei die übrigen Stellen der Büro-Oberfläche aus der Ergänzung zu M-43 (`DispoClient.tsx`, `fahrten/actions.ts`, `TripModal`) mit erledigen.
+- **Betroffene Dateien:** `src/app/dispo/fahrten/fahrplan.ts` (Zeile mit `problems.join(", ")`), neue bzw. vorhandene `src/app/dispo/fahrten/texte.ts`.
+- **Erledigt damit:** B3-A3 (Behebungsprotokoll Durchgang 3, „Auf dem Weg aufgefallen“ Nr. 3; dort Vorschlag 7). Überschneidet sich mit der Ergänzung zu M-43 (Büro-Oberfläche); M-43 bleibt für die KI-Antworten zuständig, M-68 für die Oberfläche.
+- **Gegengelesen (Projektleitung, 31.10.2026, Stand `aa4e6e7`):** `fahrplan.ts` bildet den Grund mit `f.problems.join(", ")`. Beobachtung bestätigt.
+- **Priorität:** P3 – erste Pilotwochen (Bedienbarkeit, kein Daten- oder Fahrtrisiko). Vom Auftraggeber so vorgeschlagen und akzeptiert; Einstufung nach Gegenlesen beibehalten.
+- **Nachweis:** Test bzw. Probe: Fahrt mit `KEIN_FAHRZEUG` zeigt in „Braucht Sie“ einen deutschen Satz, keinen Großbuchstaben-Code.
+- **Status:** OFFEN.
+
+#### M-69 „Fahrzeug ändern“ im Fahrt-Fenster: genau eine passende Meldung je Fahrer prüfen (Verdacht)
+- **Problem (unbestätigter Verdacht):** „Fahrzeug ändern“ im Fahrt-Fenster läuft über eine eigene Action, nicht über das in M-20 reparierte Verschieben im Zeitstrahl. Ob bei einem Fahrerwechsel auf diesem Weg ebenfalls genau eine passende Meldung je Fahrer entsteht (alter Fahrer „entzogen“, neuer Fahrer „neu“), hat die Behebung ausdrücklich nicht geprüft.
+- **Zu tun:**
+  1. Im Prüfdurchgang klären: Fahrt mit Fahrer A über „Fahrzeug ändern“ auf Fahrzeug von Fahrer B → A bekommt genau „entzogen“, B genau „neu“, keine Doppelmeldung.
+  2. Nur bei Bestätigung: Weg auf dieselbe Benachrichtigungslogik wie M-20 bringen.
+- **Betroffene Dateien:** `src/components/VorschlagAktion.tsx`, `src/app/dispo/fahrten/actions.ts` (`fahrzeugWaehlen`), `src/core/disposition/zuweisen.ts`, `src/core/rides/fahrerBenachrichtigen.ts`.
+- **Erledigt damit:** B3-A5 (Behebungsprotokoll Durchgang 3, „Auf dem Weg aufgefallen“ Nr. 5). Siehe auch M-20.
+- **Gegengelesen (Projektleitung, 31.10.2026, Stand `aa4e6e7`, nur Stichprobe):** `VorschlagAktion.tsx` ruft `fahrzeugWaehlen` auf, das `fahrzeugZuweisen` aufruft; laut Behebungsprotokoll meldet `fahrzeugZuweisen` inzwischen über `fahrerBenachrichtigen.ts`. Das spricht eher gegen den Verdacht, ist aber nicht geprüft. Das Behebungsprotokoll nennt diesen Punkt im Nachprüfungsauftrag als „Nebenwirkung“ zu M-20 – er ist damit voraussichtlich Teil von Prüfdurchgang 4.
+- **Priorität:** P3 – erste Pilotwochen (vorläufig; Doppel- oder Fehlmeldung an Fahrer ist ärgerlich, aber kein Datenschutzproblem). Vom Auftraggeber nicht eigens eingestuft; nach Ergebnis von Prüfdurchgang 4 neu bewerten oder schließen.
+- **Nachweis:** Ergebnis des Prüfdurchgangs; bei Bestätigung Test wie in Zu tun 1.
+- **Status:** OFFEN (Verdacht, unbestätigt).
+
 ### P4 – später
 
 #### M-40 Einmal-Codes und Magic-Link-Token gehasht speichern
@@ -661,7 +734,7 @@ Danach folgen die übrigen P1-/P2-Maßnahmen in der Reihenfolge der Abschnitte u
 - **Erledigt damit:** S4-008.
 - **Nachweis:** Test: kein Werkzeug-Ergebnis enthält `_FEHLT`, `429` oder eine cuid im Feld `gesprochen`.
 - **Status:** OFFEN. In Behebung Durchgang 3 nicht beauftragt (nur P1/P2); noch kein Behebungsversuch.
-- **Ergänzung aus Prüfbericht Durchgang 3 (S4-008):** Dieselben rohen Codes stehen auch in der Oberfläche für den Disponenten (`DispoClient.tsx`, `fahrten/actions.ts`, `TripModal`) – beim Umsetzen auch die Büro-Oberfläche berücksichtigen, nicht nur die KI-Antworten.
+- **Ergänzung aus Prüfbericht Durchgang 3 (S4-008):** Dieselben rohen Codes stehen auch in der Oberfläche für den Disponenten (`DispoClient.tsx`, `fahrten/actions.ts`, `TripModal`) – beim Umsetzen auch die Büro-Oberfläche berücksichtigen, nicht nur die KI-Antworten. **Seit 31.10.2026:** Die Büro-Oberfläche ist als eigene Maßnahme M-68 (P3) geführt; M-43 bleibt für die KI-Antworten.
 
 #### M-44 Kleinigkeiten in Stammdaten: Feiertage je Bundesland, Fahrzeug-Deaktivierung, `Approval.maxRides`
 - **Problem:** Feiertage sind fest auf NRW gesetzt; Fahrzeuge werden deaktiviert, ohne laufende Schichten zu prüfen; die maximale Fahrtenzahl einer Genehmigung wird nie ausgewertet.
@@ -718,6 +791,26 @@ Danach folgen die übrigen P1-/P2-Maßnahmen in der Reihenfolge der Abschnitte u
 - **Erledigt damit:** S4-019.
 - **Nachweis:** Test „Hauptstraße 12, 52499 Baesweiler, Deutschland“ → korrekt zerlegt (Straße/PLZ/Ort getrennt).
 - **Status:** OFFEN.
+
+#### M-70 Datenbank-Tests räumen auch bei Fehlschlag auf (Testreste „ohne Betriebshof“)
+- **Problem:** Der Test „tut nichts, solange kein Betriebshof hinterlegt ist“ in `tests/disposition/planFuerMorgen.test.ts` löscht seinen Test-Mandanten erst nach der Erwartung. Schlägt die Erwartung fehl, bleibt der Mandant in der Testdatenbank liegen (laut Behebung zweimal passiert). Kein Produktionsthema, aber die Testdatenbank wird unzuverlässig.
+- **Zu tun:** Aufräumen in `try/finally` bzw. `afterEach`; vorgeschlagen ist eine gemeinsame Test-Hilfe `mitTestMandant()` für alle Datenbank-Tests.
+- **Betroffene Dateien:** `tests/disposition/planFuerMorgen.test.ts`, ggf. neue Test-Hilfe unter `tests/`.
+- **Erledigt damit:** B3-A6 (Behebungsprotokoll Durchgang 3, „Auf dem Weg aufgefallen“ Nr. 6; dort Vorschlag 9). Siehe auch M-38.
+- **Gegengelesen (Projektleitung, 31.10.2026, Stand `aa4e6e7`):** Der Fall legt den Mandanten an und löscht ihn erst nach `expect(...)`, ohne `finally`. Beobachtung bestätigt.
+- **Priorität:** P4 – später (Testpflege). Vom Auftraggeber so vorgeschlagen und akzeptiert; Einstufung nach Gegenlesen beibehalten.
+- **Nachweis:** Absichtlich rot gemachter Testfall hinterlässt keinen Mandanten „Test-PlanMorgen-OhneDepot …“.
+- **Status:** OFFEN.
+
+#### M-71 Seed-Schutz-Test darf den Beispiel-Mandanten der Testdatenbank nicht entfernen
+- **Problem:** Laut Behebung entfernt `tests/seed/seedSchutz.test.ts` den Beispiel-Mandanten „Muster Krankenfahrten“ aus der Testdatenbank; wer danach im Browser prüfen will, muss `npm run seed` erneut ausführen. Kein Produktionsthema.
+- **Zu tun:** Klären, ob und auf welchem Weg der Beispiel-Mandant beim Testlauf verschwindet; falls ja, Test nur mit eigenen Test-Mandanten arbeiten lassen, sonst Hinweis in der Testanleitung.
+- **Betroffene Dateien:** `tests/seed/seedSchutz.test.ts`, `src/lib/seedSchutz.ts`.
+- **Erledigt damit:** B3-A7 (Behebungsprotokoll Durchgang 3, „Auf dem Weg aufgefallen“ Nr. 7). Siehe auch M-70, M-38.
+- **Gegengelesen (Projektleitung, 31.10.2026, Stand `aa4e6e7`):** Im Stand `aa4e6e7` legt der Test nur eigene Mandanten „PRUEF_fremd …“/„PRUEF_demo …“ an und löscht nur diese; einen Zugriff auf „Muster Krankenfahrten“ habe ich im Testcode nicht gefunden. **Nicht bestätigt** – möglicherweise Wirkung eines früheren Zwischenstands oder über einen anderen Weg. Beim nächsten Testlauf beobachten.
+- **Priorität:** P4 – später (Testpflege). Vom Auftraggeber so vorgeschlagen und akzeptiert; beibehalten.
+- **Nachweis:** Nach `npm test` ist der Beispiel-Mandant in der Testdatenbank unverändert vorhanden.
+- **Status:** OFFEN (nicht bestätigt).
 
 ## Vor dem Pilot extern klären
 
@@ -869,5 +962,12 @@ Diese Verdachte sind nicht bestätigt und lassen sich nur mit Zugang zu externen
 | S4-017 | Berger 3 | Anmeldeseite: Benutzer-Enumeration ohne Ratenbegrenzung | M-63 |
 | S4-018 | Berger 3 | Vapi-Assistent ohne geforderte Einstellungen, Feiertagshinweis unvollständig | M-64 |
 | S4-019 | Berger 3 | „Neue Adresse eingeben“ ohne PLZ/Validierung | M-65 |
+| B3-A1 | Behebung 3, Aufgefallen Nr. 1 | `fahrtStatusSetzen` offene Büro-Action ohne Oberfläche, umgeht M-20 | M-67 |
+| B3-A2 | Behebung 3, Aufgefallen Nr. 2 | Ortsnamen („Wohnung <Name>“) in Fahrer-SMS/-Push | M-66 |
+| B3-A3 | Behebung 3, Aufgefallen Nr. 3 | Problemcodes als Rohtext in „Braucht Sie“ | M-68 (siehe auch M-43) |
+| B3-A4 | Behebung 3, Aufgefallen Nr. 4 | Zeitrechnung mit Server-Zeitzone an bekannten Stellen | M-26 (Ergänzung, keine neue Maßnahme) |
+| B3-A5 | Behebung 3, Aufgefallen Nr. 5 | „Fahrzeug ändern“ im Fahrt-Fenster: Meldung je Fahrer ungeprüft | M-69 |
+| B3-A6 | Behebung 3, Aufgefallen Nr. 6 | Testreste „ohne Betriebshof“ bei rotem Lauf | M-70 |
+| B3-A7 | Behebung 3, Aufgefallen Nr. 7 | Seed-Schutz-Test entfernt Beispiel-Mandanten der Test-DB | M-71 |
 
-**Zählung:** docs/13: 29 Kennungen (R1-1…R1-7, R2-1…R2-11, R3-1…R3-11) → 29 zugeordnet. Berger 1: 40 Kennungen (S1-001…S1-005, S2-001…S2-011, S3-001…S3-014, S4-001…S4-010) → 40 zugeordnet. Berger 2: 22 Kennungen (S1-006, S2-012…S2-017, S3-015…S3-025, S4-011…S4-014) → 22 zugeordnet. Berger 3: 21 Kennungen (S1-007, S2-018…S2-024, S3-026…S3-033, S4-015…S4-019) → 21 zugeordnet. Dazu 2 bestätigte Verdachte (V-005, V-006) in Maßnahmen, 14 offene Verdachte (V-001…V-004, V-007…V-016) im Abschnitt „Vor dem Pilot extern klären“. **Alle 112 Befunde und 16 Verdachte sind genau einmal zugeordnet.**
+**Zählung:** docs/13: 29 Kennungen (R1-1…R1-7, R2-1…R2-11, R3-1…R3-11) → 29 zugeordnet. Berger 1: 40 Kennungen (S1-001…S1-005, S2-001…S2-011, S3-001…S3-014, S4-001…S4-010) → 40 zugeordnet. Berger 2: 22 Kennungen (S1-006, S2-012…S2-017, S3-015…S3-025, S4-011…S4-014) → 22 zugeordnet. Berger 3: 21 Kennungen (S1-007, S2-018…S2-024, S3-026…S3-033, S4-015…S4-019) → 21 zugeordnet. Dazu 2 bestätigte Verdachte (V-005, V-006) in Maßnahmen, 14 offene Verdachte (V-001…V-004, V-007…V-016) im Abschnitt „Vor dem Pilot extern klären“. **Alle 112 Befunde und 16 Verdachte sind genau einmal zugeordnet.** Zusätzlich Behebungsprotokoll Durchgang 3: 7 Beobachtungen (B3-A1…B3-A7) → 7 zugeordnet (6 neue Maßnahmen M-66…M-71, B3-A4 als Ergänzung zu M-26).
