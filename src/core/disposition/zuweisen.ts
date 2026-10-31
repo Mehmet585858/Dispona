@@ -3,7 +3,7 @@
  * den Disponenten (docs/05-disposition.md) und die automatische Disposition (dispatchMode "AUTO",
  * src/core/disposition/automatischDisponieren.ts) laufen beide hierüber.
  */
-import { withTenant } from "@/lib/db";
+import { referenzenPruefen, withTenant } from "@/lib/db";
 import { fahrtStatusAendern } from "@/core/rides/status";
 import { pushAnFahrer } from "@/core/notify/push";
 import { fahrtEntzogenText, neueFahrtText } from "@/core/notify/texte";
@@ -38,6 +38,9 @@ export async function fahrzeugZuweisen(
   });
   if (!fahrt) throw new Error("Fahrt nicht gefunden.");
   const vorherigerFahrerId = fahrt.driverId;
+  // Prüfbericht S2-008: das Fahrzeug muss diesem Mandanten gehören (die Schichtsuche unten ist
+  // zwar mandantengefiltert, der Fremdschlüssel vehicleId wäre es ohne diese Prüfung nicht).
+  await referenzenPruefen(tenantId, { vehicle: [vehicleId] });
 
   // Einziger Ort, der eine Doppelbuchung des Fahrzeugs zuverlässig abfängt: automatische
   // Disposition, "Plan für morgen", das manuelle Bestätigen/Umbesetzen und das Ziehen im

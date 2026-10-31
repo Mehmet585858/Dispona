@@ -5,7 +5,7 @@
  * (src/app/api/voice/tools/fahrt_anlegen.ts). Framework-unabhängig (docs/09-bauplan.md Phase 6).
  */
 import type { RideSource } from "@/generated/prisma/enums";
-import { withTenant } from "@/lib/db";
+import { FremdeReferenzError, withTenant } from "@/lib/db";
 import { berlinerMitternacht, mitUhrzeit } from "@/core/shifts/week";
 import { vorschlagBerechnenUndSpeichern } from "@/core/disposition/vorschlagSpeichern";
 import { fahrtPruefen, type Problem } from "./pruefungen";
@@ -40,8 +40,9 @@ async function einzelneFahrtAnlegen(
   const appointmentAt =
     !vertauschePickupDropoff && daten.terminzeit ? mitUhrzeit(tag, daten.terminzeit) : undefined;
 
-  const [pickupOrt, settings, fahrgast, bestehendeFahrten] = await Promise.all([
+  const [pickupOrt, dropoffOrt, settings, fahrgast, bestehendeFahrten] = await Promise.all([
     db.place.findUnique({ where: { id: pickupPlaceId } }),
+    db.place.findUnique({ where: { id: dropoffPlaceId }, select: { id: true } }),
     db.tenantSettings.findUnique({ where: { tenantId } }),
     db.passenger.findUnique({ where: { id: daten.passengerId }, include: { approvals: true } }),
     db.ride.findMany({
@@ -49,15 +50,20 @@ async function einzelneFahrtAnlegen(
       select: { pickupAt: true },
     }),
   ]);
+  // Prüfbericht S2-008: "nicht gefunden" heißt fremder Mandant oder gelöscht – nie "keine
+  // Zusatzdaten". Ohne diesen Abbruch entstand eine Fahrt mit fremdem Fahrgast/Ort, und die
+  // Einsatzgebiets- und Genehmigungsprüfung lief stillschweigend ins Leere.
+  if (!fahrgast) throw new FremdeReferenzError("Fahrgast nicht gefunden.");
+  if (!pickupOrt || !dropoffOrt) throw new FremdeReferenzError("Ort nicht gefunden.");
 
   const probleme = fahrtPruefen({
-    pickupOrt: pickupOrt ? { lat: pickupOrt.lat, lng: pickupOrt.lng } : null,
+    pickupOrt: { lat: pickupOrt.lat, lng: pickupOrt.lng },
     pickupAt,
     bestehendeAbholzeitenDesFahrgasts: bestehendeFahrten
       .map((f) => f.pickupAt)
       .filter((zeit) => !ignoriereAbholzeit || zeit.getTime() !== ignoriereAbholzeit.getTime()),
     approval: daten.approval,
-    genehmigungen: fahrgast?.approvals ?? [],
+    genehmigungen: fahrgast.approvals,
     serviceAreaCenter: settings?.serviceAreaCenter
       ? (settings.serviceAreaCenter as { lat: number; lng: number })
       : null,

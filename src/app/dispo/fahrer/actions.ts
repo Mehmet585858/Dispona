@@ -2,7 +2,7 @@
 
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
-import { withTenant } from "@/lib/db";
+import { referenzenPruefen, withTenant } from "@/lib/db";
 import { requireBueroSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import {
@@ -72,6 +72,8 @@ export async function schichtMusterAnlegen(eingabe: SchichtMusterEingabe, montag
   const daten = schichtMusterSchema.parse(eingabe);
   const tage = wochenTage(berlinerMitternacht(montagIso));
   const db = withTenant(tenantId);
+  // Prüfbericht S2-008: Fahrer und Fahrzeug müssen zu diesem Mandanten gehören.
+  await referenzenPruefen(tenantId, { driver: [daten.driverId], vehicle: [daten.vehicleId] });
 
   for (const wochentagIndex of daten.wochentage) {
     const tag = tage[wochentagIndex];

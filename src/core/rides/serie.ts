@@ -4,7 +4,7 @@
  * immer 14 Tage im Voraus (GENERIERUNGS_HORIZONT_TAGE), begrenzt durch `until`. Erzeugung läuft
  * über fahrtErfassen (gleiche Prüfungen, gleicher Vorschlag wie bei jeder anderen Fahrt).
  */
-import { withTenant } from "@/lib/db";
+import { referenzenPruefen, withTenant } from "@/lib/db";
 import { berlinerMitternacht, datumIso, tagVerschieben } from "@/core/shifts/week";
 import { rruleAusWochentagen, terminePlanen } from "@/core/shifts/rrule";
 import { istFeiertagNrw } from "@/core/shifts/feiertageNrw";
@@ -92,6 +92,9 @@ export async function serieAnlegen(
 
   const rrule = rruleAusWochentagen(daten.wochentage);
   const bis = berlinerMitternacht(daten.bis);
+
+  // Prüfbericht S2-008: Fahrgast und Orte müssen diesem Mandanten gehören, bevor die Serie entsteht.
+  await referenzenPruefen(tenantId, { passenger: [daten.passengerId], place: [daten.pickupPlaceId, daten.dropoffPlaceId] });
 
   const serie = await db.rideSeries.create({
     data: {

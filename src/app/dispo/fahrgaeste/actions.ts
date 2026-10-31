@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { withTenant } from "@/lib/db";
+import { referenzenPruefen, withTenant } from "@/lib/db";
 import { requireBueroSession } from "@/lib/session";
 import {
   fahrgastSchema,
@@ -74,6 +74,8 @@ export async function fahrgastAngesehen(passengerId: string) {
 export async function genehmigungSpeichern(passengerId: string, eingabe: GenehmigungEingabe) {
   const { tenantId } = await requireBueroSession();
   const geprüft = genehmigungSchema.parse(eingabe);
+  // Prüfbericht S2-008: der Fahrgast muss zu diesem Mandanten gehören.
+  await referenzenPruefen(tenantId, { passenger: [passengerId] });
   await withTenant(tenantId).approval.create({
     data: {
       tenantId,

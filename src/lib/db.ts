@@ -126,3 +126,47 @@ export function withTenant(tenantId: string) {
     },
   });
 }
+
+/** Wird geworfen, wenn eine referenzierte Zeile (Fahrgast, Ort, Fahrzeug, …) nicht zu diesem Mandanten gehört. */
+export class FremdeReferenzError extends Error {}
+
+const REFERENZ_LABEL = {
+  passenger: "Fahrgast",
+  place: "Ort",
+  vehicle: "Fahrzeug",
+  driver: "Fahrer",
+  ride: "Fahrt",
+  shift: "Schicht",
+} as const;
+export type ReferenzModell = keyof typeof REFERENZ_LABEL;
+
+/**
+ * Prüft vor dem Schreiben, dass alle übergebenen IDs zu diesem Mandanten gehören (Prüfbericht
+ * S2-008): withTenant() filtert nur die Zieltabelle, nicht die Fremdschlüssel in `data`. Eine
+ * Fahrt für Mandant A konnte so auf Fahrgast und Ort von Mandant B zeigen – und A sah über
+ * include anschließend dessen Namen. Unbekannte oder fremde IDs werfen FremdeReferenzError.
+ */
+export async function referenzenPruefen(
+  tenantId: string,
+  referenzen: Partial<Record<ReferenzModell, (string | null | undefined)[]>>,
+): Promise<void> {
+  const db = withTenant(tenantId);
+  // Je Modell eine eigene, typisierte count-Funktion (Prisma-Signaturen lassen sich nicht als
+  // Union aufrufen). withTenant() ergänzt tenantId im where.
+  const zaehlen: Record<ReferenzModell, (ids: string[]) => Promise<number>> = {
+    passenger: (ids) => db.passenger.count({ where: { id: { in: ids } } }),
+    place: (ids) => db.place.count({ where: { id: { in: ids } } }),
+    vehicle: (ids) => db.vehicle.count({ where: { id: { in: ids } } }),
+    driver: (ids) => db.driver.count({ where: { id: { in: ids } } }),
+    ride: (ids) => db.ride.count({ where: { id: { in: ids } } }),
+    shift: (ids) => db.shift.count({ where: { id: { in: ids } } }),
+  };
+  for (const [modell, roh] of Object.entries(referenzen) as [ReferenzModell, (string | null | undefined)[]][]) {
+    const ids = [...new Set((roh ?? []).filter((id): id is string => typeof id === "string" && id.length > 0))];
+    if (ids.length === 0) continue;
+    const anzahl = await zaehlen[modell](ids);
+    if (anzahl !== ids.length) {
+      throw new FremdeReferenzError(`${REFERENZ_LABEL[modell]} nicht gefunden.`);
+    }
+  }
+}

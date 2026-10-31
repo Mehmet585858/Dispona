@@ -35,11 +35,17 @@ async function passagierSicherstellen(
   tenantId: string,
   daten: z.infer<typeof fahrgastFelderSchema>,
 ): Promise<{ passengerId: string } | { problem: string }> {
-  if (daten.passengerId) return { passengerId: daten.passengerId };
+  const db = withTenant(tenantId);
+  if (daten.passengerId) {
+    // Prüfbericht S2-008: eine vom Sprachmodell genannte passengerId (halluziniert oder aus einem
+    // früheren Gespräch) muss zu diesem Mandanten gehören – sonst neu suchen lassen.
+    const bekannt = await db.passenger.findUnique({ where: { id: daten.passengerId }, select: { id: true } });
+    if (!bekannt) return { problem: "Problem: Diese passengerId ist unbekannt. Bitte fahrgast_suchen erneut aufrufen." };
+    return { passengerId: bekannt.id };
+  }
   if (!daten.fahrgastVorname || !daten.fahrgastNachname) {
     return { problem: "Problem: Fahrgast fehlt. Vorher fahrgast_suchen aufrufen oder Vor- und Nachnamen angeben." };
   }
-  const db = withTenant(tenantId);
   const neu = await db.passenger.create({
     data: {
       tenantId,

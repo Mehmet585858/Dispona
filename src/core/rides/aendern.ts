@@ -3,7 +3,7 @@
  * War die Fahrt schon disponiert, wird sie neu vorgeschlagen und der bisherige Fahrer
  * per Push informiert (docs/04-voice-agent.md, Werkzeug fahrt_aendern).
  */
-import { withTenant } from "@/lib/db";
+import { referenzenPruefen, withTenant } from "@/lib/db";
 import { berlinerMitternacht, datumIso, mitUhrzeit } from "@/core/shifts/week";
 import { pushAnFahrer } from "@/core/notify/push";
 import { geaenderteFahrtText } from "@/core/notify/texte";
@@ -47,6 +47,9 @@ export async function fahrtAendern(
   if (NICHT_AENDERBARE_STATUS.has(fahrt.status)) {
     return { ok: false, grund: "NICHT_MEHR_AENDERBAR" };
   }
+
+  // Prüfbericht S2-008: neue Orte müssen diesem Mandanten gehören.
+  await referenzenPruefen(tenantId, { place: [aenderung.pickupPlaceId, aenderung.dropoffPlaceId] });
 
   const tag = berlinerMitternacht(datumIso(fahrt.pickupAt));
   await db.ride.update({
