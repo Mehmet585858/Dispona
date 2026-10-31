@@ -11,18 +11,22 @@ import {
   type GenehmigungEingabe,
 } from "@/core/passengers/validation";
 import { fahrgastAnonymisieren, fahrgastExportieren } from "@/core/passengers/loeschung";
+import { telefonNormalisieren } from "@/core/passengers/suche";
 
 export async function fahrgaesteLaden(suche?: string) {
   const { tenantId } = await requireBueroSession();
   const db = withTenant(tenantId);
   const text = suche?.trim();
+  // Prüfbericht S2-013: Nummern liegen normalisiert vor – die Eingabe "0171 …" muss den
+  // Schlüssel "+49171…" treffen (und umgekehrt KI-Fahrgäste finden).
+  const telefonSchluessel = text ? telefonNormalisieren(text) : "";
   return db.passenger.findMany({
     where: text
       ? {
           OR: [
             { firstName: { contains: text, mode: "insensitive" } },
             { lastName: { contains: text, mode: "insensitive" } },
-            { phones: { has: text } },
+            { phones: { hasSome: [text, ...(telefonSchluessel ? [telefonSchluessel] : [])] } },
           ],
         }
       : undefined,

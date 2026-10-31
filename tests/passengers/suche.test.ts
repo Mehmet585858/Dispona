@@ -44,3 +44,17 @@ describe("telefonNormalisieren", () => {
     expect(telefonNormalisieren("+49 170 1234567")).toBe("+491701234567");
   });
 });
+
+describe("telefonNormalisieren – Sonderformen (S2-013, V-006)", () => {
+  it("behandelt 0049, +49 (0) und ausländische 00-Vorwahlen richtig", () => {
+    expect(telefonNormalisieren("0049 171 2345678")).toBe("+491712345678");
+    expect(telefonNormalisieren("00491712345678")).toBe("+491712345678");
+    expect(telefonNormalisieren("+49 (0) 171 2345678")).toBe("+491712345678");
+    expect(telefonNormalisieren("0031612345678")).toBe("+31612345678");
+    expect(telefonNormalisieren("02401/12345")).toBe("+49240112345");
+  });
+
+  it("liefert für Text ohne Ziffern einen leeren Schlüssel", () => {
+    expect(telefonNormalisieren("Müller")).toBe("");
+  });
+});

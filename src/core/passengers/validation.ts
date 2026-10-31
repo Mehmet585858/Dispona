@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { telefonNormalisieren } from "./suche";
 
 export const fahrgastSchema = z.object({
   firstName: z.string().trim().min(1, "Vorname fehlt"),
@@ -28,9 +29,12 @@ export const genehmigungSchema = z.object({
 
 export type GenehmigungEingabe = z.infer<typeof genehmigungSchema>;
 
+/** Kommagetrennte Eingabe → normalisierte, eindeutige Nummern (Prüfbericht S2-013: derselbe
+ * Schlüssel wie die KI-Suche, sonst findet die KI keinen im Büro angelegten Stammkunden). */
 export function telefonListeAusText(text: string | undefined): string[] {
-  return (text ?? "")
+  const normalisiert = (text ?? "")
     .split(",")
-    .map((eintrag) => eintrag.trim())
+    .map((eintrag) => telefonNormalisieren(eintrag))
     .filter(Boolean);
+  return [...new Set(normalisiert)];
 }
