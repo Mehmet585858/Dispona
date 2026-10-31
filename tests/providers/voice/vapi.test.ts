@@ -27,12 +27,14 @@ describe("vapiProvider.buildAssistantConfig", () => {
         "fahrt_finden",
         "fahrt_aendern",
         "fahrt_stornieren",
+        "serie_beenden",
         "abholzeit_auskunft",
         "rueckruf_anlegen",
         "transferCall",
       ]),
     );
-    expect(config.assistant.tools).toHaveLength(10);
+    // M-22: serie_beenden ist hinzugekommen.
+    expect(config.assistant.tools).toHaveLength(11);
   });
 
   it("bietet kein Weiterleiten-Werkzeug ohne escalationNumber an (z. B. Live-Demo), die übrigen Werkzeuge bleiben", () => {
@@ -40,7 +42,7 @@ describe("vapiProvider.buildAssistantConfig", () => {
       ...GRUND_EINSTELLUNGEN,
       escalationNumber: "",
     }) as { assistant: { tools: { type: string }[] } };
-    expect(config.assistant.tools).toHaveLength(9);
+    expect(config.assistant.tools).toHaveLength(10);
     expect(config.assistant.tools.some((t) => t.type === "transferCall")).toBe(false);
   });
 });

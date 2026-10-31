@@ -40,3 +40,15 @@ export function decrypt(payload: string): string {
   ]);
   return plain.toString("utf8");
 }
+
+const VERSCHLUESSELT_MUSTER = /^[A-Za-z0-9+/]{16}:[A-Za-z0-9+/]{22}==:[A-Za-z0-9+/=]*$/;
+
+/**
+ * Erkennt das Format von encrypt() ("iv:authTag:ciphertext", 12-Byte-IV, 16-Byte-Tag). Nötig
+ * für Felder, die vor ihrer Verschlüsselung schon im Klartext gespeichert wurden (Maßnahme M-10:
+ * Call.summary) – Bestandszeilen werden beim Lesen weiterhin verstanden, neue Zeilen sind
+ * verschlüsselt. Kein Fachtext erfüllt dieses Muster zufällig (Doppelpunkte, Base64-Längen).
+ */
+export function istVerschluesselt(wert: string): boolean {
+  return VERSCHLUESSELT_MUSTER.test(wert);
+}

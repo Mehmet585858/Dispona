@@ -24,7 +24,7 @@ import { withTenant } from "@/lib/db";
 import { encrypt } from "@/lib/crypto";
 import { fahrtErfassen } from "@/core/rides/erfassen";
 import { fahrtStatusAendern } from "@/core/rides/status";
-import { fahrzeugZuweisen, FahrzeugKonfliktError } from "@/core/disposition/zuweisen";
+import { fahrzeugZuweisen, FahrzeugKonfliktError, KeinFahrerError } from "@/core/disposition/zuweisen";
 import { fahrzeugTypLabel, fahrzeugTypTransportType } from "@/core/rides/fahrzeugTyp";
 import { anfahrtMinuten, fahrtDauerMinuten } from "@/core/shifts/dauer";
 import { datumIso, mitUhrzeit } from "@/core/shifts/week";
@@ -123,6 +123,7 @@ function zufallsElement<T>(liste: T[]): T {
 }
 
 type PassagierTagesInfo = {
+  rideId: string;
   pickupPlace: Ort;
   dropoffPlace: Ort;
   transportType: TransportTyp;
@@ -150,6 +151,7 @@ async function passagierTagesInfoLaden(
     const dauerMinuten = fahrtDauerMinuten(fahrt.transportType, fahrt.pickupPlace, fahrt.dropoffPlace);
     const bestehend = info.get(fahrt.passengerId);
     info.set(fahrt.passengerId, {
+      rideId: fahrt.id,
       pickupPlace: fahrt.pickupPlace,
       dropoffPlace: fahrt.dropoffPlace,
       transportType: fahrt.transportType,
@@ -166,6 +168,7 @@ async function passagierTagesInfoLaden(
 function tagesInfoAktualisieren(
   tagesInfo: Map<string, PassagierTagesInfo>,
   passagierId: string,
+  rideId: string,
   route: { pickupPlace: Ort; dropoffPlace: Ort },
   transportType: TransportTyp,
   pickupAt: Date,
@@ -173,6 +176,7 @@ function tagesInfoAktualisieren(
 ) {
   const bestehend = tagesInfo.get(passagierId);
   tagesInfo.set(passagierId, {
+    rideId,
     pickupPlace: route.pickupPlace,
     dropoffPlace: route.dropoffPlace,
     transportType,
@@ -199,10 +203,10 @@ function passagierWaehlen(
   istRueckfahrt: boolean;
   route?: { pickupPlace: Ort; dropoffPlace: Ort };
   fruehestens?: Date;
-  /** Abholzeit der Hinfahrt, nur gesetzt wenn istRueckfahrt - reicht bis zu fahrtErfassen() durch,
-   * damit istDoppelbuchung() diese bewusste Rückfahrt nicht fälschlich blockiert (siehe
-   * simulierteFahrtAnlegen() und die Begründung in src/core/rides/erfassen.ts). */
-  vorherigeAbholzeit?: Date;
+  /** ID der Hinfahrt, nur gesetzt wenn istRueckfahrt - reicht bis zu fahrtErfassen() durch, damit
+   * istDoppelbuchung() genau diese Hinfahrt ausnimmt (Maßnahme M-07, R1-2) statt alle Fahrten mit
+   * derselben Abholzeit. */
+  vorherigeRideId?: string;
 } {
   const rueckfahrtKandidaten = passagiere.filter((p) => {
     const info = tagesInfo.get(p.id);
@@ -218,7 +222,7 @@ function passagierWaehlen(
       istRueckfahrt: true,
       route: { pickupPlace: info.dropoffPlace, dropoffPlace: info.pickupPlace },
       fruehestens: new Date(info.ende.getTime() + wartenMinuten * 60_000),
-      vorherigeAbholzeit: info.pickupAt,
+      vorherigeRideId: info.rideId,
     };
   }
   // Heute noch unbenutzte Namen bevorzugen; ist das Roster für heute komplett verplant, lieber
@@ -420,13 +424,13 @@ async function simulierteFahrtAnlegen(
     transportType: TransportTyp;
     pickupAt: Date;
     vehicleId?: string;
-    /** Abholzeit der zusammengehörigen Hinfahrt, wenn dies eine simulierte Rückfahrt ist - siehe
+    /** ID der zusammengehörigen Hinfahrt, wenn dies eine simulierte Rückfahrt ist - siehe
      * passagierWaehlen() und die Begründung in src/core/rides/erfassen.ts. Ohne das würde
      * istDoppelbuchung() diese gewollte Rückfahrt fälschlich als Problem "DOPPELBUCHUNG" flaggen,
      * sobald sie innerhalb von 60 Minuten nach der Hinfahrt liegt. */
-    ignoriereDoppelbuchungAbholzeit?: Date;
+    ignoriereDoppelbuchungRideId?: string;
   },
-): Promise<boolean> {
+): Promise<{ rideId: string; zugewiesen: boolean }> {
   const db = withTenant(tenantId);
   const telefon = await db.phoneNumber.findFirst();
   const zeit = uhrzeitHHMM(angaben.pickupAt);
@@ -470,26 +474,31 @@ async function simulierteFahrtAnlegen(
       approval: "NICHT_NOETIG",
     },
     { source: "ANRUF", callId: call.id },
-    angaben.ignoriereDoppelbuchungAbholzeit,
+    angaben.ignoriereDoppelbuchungRideId,
   );
 
   if (angaben.vehicleId) {
     try {
       await fahrzeugZuweisen(tenantId, rideId, angaben.vehicleId, { dispatchMode: "AUTO" });
-      return true;
+      return { rideId, zugewiesen: true };
     } catch (fehler) {
-      if (!(fehler instanceof FahrzeugKonfliktError)) throw fehler;
+      // Maßnahme M-72: ohne einsatzfähigen Fahrer (Demo-Fahrzeug ohne Schicht) ebenfalls hier.
+      if (!(fehler instanceof FahrzeugKonfliktError) && !(fehler instanceof KeinFahrerError)) throw fehler;
       // Trotz eigener Überschneidungsprüfung im Tagesplan doch belegt (z. B. durch einen Anruf,
       // der zeitgleich dasselbe Fahrzeug bekam) - die Fahrt bleibt als ERFASST ohne Fahrzeug
       // stehen. Ohne dieses Flag fällt sie durch BEIDE Netze (haengendeVorschlaegeAufraeumen
       // sucht gezielt ERFASST+KEIN_FAHRZEUG, "Braucht Sie" zählt dasselbe) und bliebe für immer
       // unsichtbar liegen, weil fahrtErfassen() zum Erfassungszeitpunkt ja noch ein Fahrzeug
       // kannte und das Flag deshalb von sich aus nicht gesetzt hat.
-      await db.ride.update({ where: { id: rideId }, data: { problems: { push: "KEIN_FAHRZEUG" } } });
-      return false;
+      // Maßnahme M-20 (R2-6): nur einmal eintragen (fahrtErfassen kann es schon gesetzt haben).
+      const aktuell = await db.ride.findUnique({ where: { id: rideId }, select: { problems: true } });
+      if (!aktuell?.problems.includes("KEIN_FAHRZEUG")) {
+        await db.ride.update({ where: { id: rideId }, data: { problems: { push: "KEIN_FAHRZEUG" } } });
+      }
+      return { rideId, zugewiesen: false };
     }
   }
-  return false; // kein vehicleId (spontaner Anruf) - der separate Automodus-Cron entscheidet später
+  return { rideId, zugewiesen: false }; // kein vehicleId (spontaner Anruf) - der separate Automodus-Cron entscheidet später
 }
 
 async function alteAnrufeAbschliessen(tenantId: string, jetzt: Date) {
@@ -545,7 +554,7 @@ async function neuenAnrufBeiBedarf(tenantId: string, jetzt: Date) {
     dropoffPlace,
     transportType: auswahl.transportType,
     pickupAt,
-    ignoriereDoppelbuchungAbholzeit: auswahl.istRueckfahrt ? auswahl.vorherigeAbholzeit : undefined,
+    ignoriereDoppelbuchungRideId: auswahl.istRueckfahrt ? auswahl.vorherigeRideId : undefined,
   });
 }
 
@@ -688,6 +697,7 @@ async function tagesplanSicherstellen(tenantId: string, jetzt: Date, depot: LatL
         tagesInfoAktualisieren(
           tagesInfo,
           passagier.id,
+          neueFahrt.id,
           { pickupPlace: slot.pickupPlace, dropoffPlace: slot.dropoffPlace },
           transportType,
           slot.pickupAt,
@@ -711,20 +721,21 @@ async function tagesplanSicherstellen(tenantId: string, jetzt: Date, depot: LatL
         ) {
           continue;
         }
-        await simulierteFahrtAnlegen(tenantId, jetzt, {
+        const angelegt = await simulierteFahrtAnlegen(tenantId, jetzt, {
           passagier,
           pickupPlace: slot.pickupPlace,
           dropoffPlace: slot.dropoffPlace,
           transportType,
           pickupAt: slot.pickupAt,
           vehicleId: fahrzeug.id,
-          ignoriereDoppelbuchungAbholzeit: auswahl.istRueckfahrt ? auswahl.vorherigeAbholzeit : undefined,
+          ignoriereDoppelbuchungRideId: auswahl.istRueckfahrt ? auswahl.vorherigeRideId : undefined,
         });
         // Die Fahrt existiert ab hier so oder so (ERFASST, ggf. ohne Fahrzeug bei einem seltenen
         // Konflikt) - der Name gilt damit als "heute verplant", unabhängig vom Zuweisungserfolg.
         tagesInfoAktualisieren(
           tagesInfo,
           passagier.id,
+          angelegt.rideId,
           { pickupPlace: slot.pickupPlace, dropoffPlace: slot.dropoffPlace },
           transportType,
           slot.pickupAt,

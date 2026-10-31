@@ -46,6 +46,8 @@ describe("fahrtPruefen", () => {
     const probleme = fahrtPruefen({
       pickupOrt: AACHEN,
       pickupAt: new Date("2026-10-26T09:00:00Z"),
+      // M-46: Pflichtangabe; Bezugszeitpunkt vor der Abholung, damit die Fahrt nicht "vergangen" ist.
+      jetzt: new Date("2026-10-25T09:00:00Z"),
       bestehendeAbholzeitenDesFahrgasts: [],
       approval: "NICHT_NOETIG",
       genehmigungen: [],
@@ -59,6 +61,8 @@ describe("fahrtPruefen", () => {
     const probleme = fahrtPruefen({
       pickupOrt: KOELN,
       pickupAt: new Date("2026-10-26T09:00:00Z"),
+      // M-46: Pflichtangabe; Bezugszeitpunkt vor der Abholung, damit die Fahrt nicht "vergangen" ist.
+      jetzt: new Date("2026-10-25T09:00:00Z"),
       bestehendeAbholzeitenDesFahrgasts: [new Date("2026-10-26T09:30:00Z")],
       approval: "JA",
       genehmigungen: [],

@@ -33,8 +33,25 @@ export function pruefeBesterVorschlag(
   return ok;
 }
 
-/** Bedingung 3: GPS des Fahrzeugs ist aktuell (≤10 Min), oder es startet ohne vorherige Fahrt heute vom Betriebshof. */
-export function pruefeGpsOderBetriebshof(gpsAlterMinuten: number | null, startetVomBetriebshof: boolean): Sicherheitscheck {
+/** Ab dieser Vorlaufzeit gilt eine Fahrt als Vorausplanung statt Sofort-Disposition (Maßnahme M-17). */
+export const SOFORT_DISPOSITION_MIN = 60;
+
+/**
+ * Bedingung 3: GPS des Fahrzeugs ist aktuell (≤10 Min), oder es startet ohne vorherige Fahrt heute
+ * vom Betriebshof.
+ *
+ * Maßnahme M-17 (Prüfbericht S2-003): Das gilt nur für Sofort-Disposition (Abholung in weniger als
+ * SOFORT_DISPOSITION_MIN Minuten). Bei Vorausplanung ist der Startort der Betriebshof bzw. das Ziel
+ * der vorherigen geplanten Fahrt – so rechnet die Vorschlagsberechnung ohnehin (vorschlagen.ts). Ein
+ * GPS von "jetzt" sagt über die Lage um 8 Uhr morgens nichts aus; die Bedingung war nachts nie
+ * erfüllbar. Ohne Angabe der Vorlaufzeit gilt die strenge Sofort-Regel.
+ */
+export function pruefeGpsOderBetriebshof(
+  gpsAlterMinuten: number | null,
+  startetVomBetriebshof: boolean,
+  minutenBisAbholung?: number,
+): Sicherheitscheck {
+  if (minutenBisAbholung !== undefined && minutenBisAbholung >= SOFORT_DISPOSITION_MIN) return ok;
   if (startetVomBetriebshof) return ok;
   if (gpsAlterMinuten !== null && gpsAlterMinuten <= 10) return ok;
   return { erlaubt: false, grund: "Kein aktueller Standort des Fahrzeugs" };
@@ -100,7 +117,12 @@ export function sicherheitsbedingungenPruefen(eingabe: SicherheitsbedingungenEin
   const pruefungen = [
     () => pruefeKeineProbleme(eingabe.problems),
     () => pruefeBesterVorschlag(eingabe.bester, eingabe.zweitbesterScore, eingabe.minMarge),
-    () => pruefeGpsOderBetriebshof(eingabe.gpsAlterMinuten, eingabe.startetVomBetriebshof),
+    () =>
+      pruefeGpsOderBetriebshof(
+        eingabe.gpsAlterMinuten,
+        eingabe.startetVomBetriebshof,
+        (eingabe.pickupAt.getTime() - eingabe.jetzt.getTime()) / 60_000,
+      ),
     () => pruefeFahrerImDienst(eingabe.schicht, eingabe.pickupAt),
     () => pruefeZeitfenster(eingabe.autoMode, eingabe.jetzt, eingabe.pickupAt, eingabe.maxTageVoraus),
   ];

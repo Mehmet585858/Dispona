@@ -55,8 +55,12 @@ Begründung als Text, z. B. „Anfahrt 9 Min · pünktlich am Ziel“, „als Sa
 ## Bestätigen durch den Disponenten
 
 - „Bestätigen“ → Fahrt `DISPONIERT`, Fahrzeug und Fahrer aus der Schicht gesetzt, Push an den Fahrer, 10 Sekunden „Rückgängig“.
-- „Anderes Fahrzeug“ → die anderen Vorschläge oder jedes Fahrzeug (mit Warnung, wenn harte Regeln verletzt sind).
+- „Anderes Fahrzeug“ → die anderen Vorschläge oder jedes Fahrzeug des Fahrdienstes – aber nur, wenn das Fahrzeug zur Abholzeit einen **einsatzfähigen Fahrer** hat (siehe unten). Fehlt er, wird die Zuweisung abgelehnt, die Fahrt bleibt unverändert, und der Disponent sieht den Grund als Meldung (z. B. „Fahrer ist zur Abholzeit nicht im Dienst. Erst eine Schicht für dieses Fahrzeug eintragen oder ein anderes Fahrzeug wählen.“). Es gibt keine Zuweisung „mit Warnung“.
 - Entscheidung in `Suggestion` speichern (Kennzahl „unverändert übernommen“).
+
+**Einsatzfähiger Fahrer (gilt für jede Zuweisung – Bestätigen, Umbesetzen, Ziehen im Zeitstrahl, Automodus, „Plan für morgen“):** Für das Fahrzeug läuft zur Abholzeit eine `Shift`, deren Fahrer nicht ausgefallen ist (nicht `unavailable`, „Ich falle aus“), keine Pause hat (nicht `onBreak`) und aktiv ist (`Driver.active`). Das ist dieselbe Regel wie Sicherheitsbedingung 4 des Automodus. Laufen mehrere Schichten auf dem Fahrzeug (z. B. Ersatzfahrer nach einem Ausfall), zählt die erste einsatzfähige. Code: `einsatzfaehigenFahrerFinden()` in `src/core/disposition/zuweisen.ts`, Fehler `KeinFahrerError`.
+
+Zusätzlich sichert die Datenbank das Ergebnis selbst ab: Eine Fahrt im Status `DISPONIERT` hat immer `vehicleId` **und** `driverId`. Der Trigger `Ride_disponiert_mit_fahrer` (Migration `20261031180000_disponiert_nur_mit_fahrer`) lehnt jedes Anlegen oder Ändern ab, das diese Regel verletzt – auch aus Skripten oder künftigen Codepfaden. Verliert eine Fahrt ihren Fahrer (Ausfall, Umplanung), verlässt sie zuerst `DISPONIERT` (zurück auf `ERFASST`), dann werden Fahrzeug und Fahrer gelöst.
 
 ## Automodus (automatisch disponieren)
 

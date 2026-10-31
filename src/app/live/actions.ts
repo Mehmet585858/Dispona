@@ -4,7 +4,7 @@
 // ist ohne Login erreichbar. Lädt NUR den fest verdrahteten Demo-Mandanten (DEMO_TENANT_ID), nie
 // eine von außen übergebene tenantId - das ist die einzige Absicherung gegen Mandanten-übergreifende
 // Zugriffe hier, siehe src/core/demo/const.ts.
-import { fahrplanFuerMandantLaden } from "@/app/dispo/fahrten/actions";
+import { fahrplanFuerMandantLaden } from "@/app/dispo/fahrten/fahrplan";
 import { withTenant } from "@/lib/db";
 import { decrypt } from "@/lib/crypto";
 import { DEMO_TENANT_ID } from "@/core/demo/const";

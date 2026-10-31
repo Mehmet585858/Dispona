@@ -49,6 +49,12 @@ export function schleifenWarnungText(): string {
   return "Achtung: Die Weiterleitungsnummer (Schritt 6) ist dieselbe wie Ihre KI-Nummer. Das kann eine Dauerschleife verursachen – bitte eine andere Nummer eintragen.";
 }
 
+/** Maßnahme M-47 (S2-019): Weiterleitungsnummer lässt sich nicht als Rufnummer lesen. */
+export const WEITERLEITUNGSNUMMER_UNGUELTIG = "Weiterleitungsnummer ungültig. Beispiel: 0171 2345678 oder +49 171 2345678.";
+
+/** Maßnahme M-47 (S2-019): Handynummer bei der Registrierung – wird die erste Weiterleitungsnummer. */
+export const HANDYNUMMER_UNGUELTIG = "Handynummer ungültig. Beispiel: 0171 2345678.";
+
 export function willkommenGruss(firmenname: string): string {
   return `Herzlich willkommen bei ${firmenname}. Dieses Gespräch wird von einer KI geführt und zur Qualitätssicherung aufgezeichnet.`;
 }

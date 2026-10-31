@@ -1,6 +1,6 @@
 /**
- * Löschfristen (docs/08-datenschutz-sicherheit.md): Audio nach `audioRetentionDays`, Fahrten und
- * Transkripte nach `dataRetentionDays`, GPS-Punkte nach einem festen Standard von 90 Tagen (die
+ * Löschfristen (docs/08-datenschutz-sicherheit.md): Audio nach `audioRetentionDays`, Fahrten,
+ * Transkripte, Zusammenfassungen und Anrufernummern nach `dataRetentionDays`, GPS-Punkte nach einem festen Standard von 90 Tagen (die
  * schon berechnete `Ride.distanceKm` bleibt dabei erhalten – "dann nur noch km je Fahrt"). Läuft
  * nachts über src/app/api/cron/loeschfristen/route.ts, ein Mandant nach dem anderen.
  */
@@ -27,9 +27,14 @@ export async function loeschfristenDurchsetzen(tenantId: string) {
     data: { audioUrl: null },
   });
 
+  // Prüfbericht S2-016: Nicht nur das Transkript – auch Zusammenfassung (enthält Namen und
+  // Rückrufnummern im Klartext) und Anrufernummer fallen unter dieselbe Frist.
   const transkripteGeloescht = await db.call.updateMany({
-    where: { startedAt: { lt: vorTagen(settings.dataRetentionDays) }, transcript: { not: null } },
-    data: { transcript: null },
+    where: {
+      startedAt: { lt: vorTagen(settings.dataRetentionDays) },
+      OR: [{ transcript: { not: null } }, { summary: { not: null } }, { fromNumber: { not: null } }],
+    },
+    data: { transcript: null, summary: null, fromNumber: null },
   });
 
   const alteFahrten = await db.ride.findMany({

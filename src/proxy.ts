@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isRole, startSeiteFuer } from "@/lib/roles";
+import { istBueroSitzungAbgelaufen } from "@/lib/session";
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -18,14 +19,10 @@ export async function proxy(request: NextRequest) {
   const role = isRole(session.user.role) ? session.user.role : "DISPONENT";
 
   // Büro-Sitzungen gelten nur 12 Stunden (docs/08-datenschutz-sicherheit.md), Fahrer bleiben die
-  // vollen 30 Tage angemeldet (src/lib/auth.ts) – better-auth kennt keine rollenabhängige
-  // Sitzungsdauer, deshalb hier zusätzlich durchgesetzt statt die Sitzung selbst zu verkürzen.
-  const BUERO_SITZUNG_MAX_MS = 12 * 60 * 60 * 1000;
-  if (role !== "FAHRER") {
-    const alterMs = Date.now() - new Date(session.session.createdAt).getTime();
-    if (alterMs > BUERO_SITZUNG_MAX_MS && pathname !== "/anmeldung") {
-      return NextResponse.redirect(new URL("/anmeldung", request.url));
-    }
+  // vollen 30 Tage angemeldet (src/lib/auth.ts). Dieselbe Grenze gilt in src/lib/session.ts für
+  // Server Actions und API-Routen (Maßnahme M-02).
+  if (istBueroSitzungAbgelaufen(role, new Date(session.session.createdAt)) && pathname !== "/anmeldung") {
+    return NextResponse.redirect(new URL("/anmeldung", request.url));
   }
 
   const tenant = await prisma.tenant.findUnique({

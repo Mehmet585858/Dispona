@@ -3,12 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { withTenant } from "@/lib/db";
-import { requireSession } from "@/lib/session";
+import { requireBueroSession } from "@/lib/session";
 import type { AutoMode } from "@/generated/prisma/enums";
 import { spaltenReihenfolgeBereinigen, type ExportSpalte } from "@/core/export/abrechnung";
 
 export async function einstellungenLaden() {
-  const { tenantId } = await requireSession();
+  const { tenantId } = await requireBueroSession();
   const settings = await withTenant(tenantId).tenantSettings.findUnique({ where: { tenantId } });
   if (!settings) throw new Error("Einstellungen nicht gefunden.");
   return {
@@ -23,7 +23,7 @@ export async function einstellungenLaden() {
 }
 
 export async function exportVorlageLaden(): Promise<ExportSpalte[]> {
-  const { tenantId } = await requireSession();
+  const { tenantId } = await requireBueroSession();
   const settings = await withTenant(tenantId).tenantSettings.findUnique({
     where: { tenantId },
     select: { exportTemplate: true },
@@ -32,7 +32,7 @@ export async function exportVorlageLaden(): Promise<ExportSpalte[]> {
 }
 
 export async function exportVorlageSpeichern(spalten: ExportSpalte[]) {
-  const { tenantId, userId } = await requireSession();
+  const { tenantId, userId } = await requireBueroSession();
   const bereinigt = spaltenReihenfolgeBereinigen(spalten);
   const db = withTenant(tenantId);
   await db.tenantSettings.update({ where: { tenantId }, data: { exportTemplate: bereinigt } });
@@ -54,7 +54,7 @@ export type AutomodusEingabe = z.infer<typeof automodusSchema>;
 
 /** Nur ADMIN darf den Automodus einstellen (docs/09-bauplan.md Phase 7). Änderung ins AuditLog. */
 export async function automodusEinstellungenSpeichern(eingabe: AutomodusEingabe) {
-  const { tenantId, userId, role } = await requireSession();
+  const { tenantId, userId, role } = await requireBueroSession();
   if (role !== "ADMIN") {
     throw new Error("Nur Admins dürfen den Automodus einstellen.");
   }
@@ -92,7 +92,7 @@ export type DatenschutzEingabe = z.infer<typeof datenschutzSchema>;
 
 /** Nur ADMIN darf die Aufbewahrungsfristen ändern (docs/08-datenschutz-sicherheit.md). Änderung ins AuditLog. */
 export async function datenschutzEinstellungenSpeichern(eingabe: DatenschutzEingabe) {
-  const { tenantId, userId, role } = await requireSession();
+  const { tenantId, userId, role } = await requireBueroSession();
   if (role !== "ADMIN") {
     throw new Error("Nur Admins dürfen die Aufbewahrungsfristen ändern.");
   }

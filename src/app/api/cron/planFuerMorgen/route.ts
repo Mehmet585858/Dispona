@@ -1,4 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { bearerErlaubt } from "@/lib/geheimnis";
+import { cronLaufMitSperre, fuerAlleMandanten, planFuerMorgenBeanspruchen } from "@/core/betrieb/cronLauf";
 import { prisma } from "@/lib/prisma";
 import { datumIso } from "@/core/shifts/week";
 import { planFuerMorgenBerechnen } from "@/core/disposition/planFuerMorgen";
@@ -10,9 +12,7 @@ import { planFuerMorgenBerechnen } from "@/core/disposition/planFuerMorgen";
  * (siehe src/lib/db.ts) – deshalb hier direkt prisma statt withTenant.
  */
 export async function GET(request: NextRequest) {
-  const secret = process.env.CRON_SECRET;
-  const erlaubnis = request.headers.get("authorization");
-  if (!secret || erlaubnis !== `Bearer ${secret}`) {
+  if (!bearerErlaubt(request, process.env.CRON_SECRET)) {
     return NextResponse.json({ error: "Nicht erlaubt." }, { status: 401 });
   }
 
@@ -28,18 +28,17 @@ export async function GET(request: NextRequest) {
     select: { tenantId: true, planFuerMorgenZeit: true, planFuerMorgenLauf: true },
   });
 
-  const ergebnisse = [];
-  for (const mandant of mandanten) {
-    const schonHeuteGelaufen = mandant.planFuerMorgenLauf && datumIso(mandant.planFuerMorgenLauf) === heuteIso;
-    if (schonHeuteGelaufen || jetztBerlin < mandant.planFuerMorgenZeit) continue;
-
-    const ergebnis = await planFuerMorgenBerechnen(mandant.tenantId);
-    await prisma.tenantSettings.update({
-      where: { tenantId: mandant.tenantId },
-      data: { planFuerMorgenLauf: new Date() },
-    });
-    ergebnisse.push({ tenantId: mandant.tenantId, ...ergebnis });
-  }
+  // Maßnahme M-16 Punkt 3 (S3-011, R2-3): "heute gelaufen" wird VOR dem Lauf atomar beansprucht –
+  // ein zweiter Takt während eines langen Laufs (oder nach einem Fehler) rechnet nicht noch einmal.
+  // Ein fehlgeschlagener Lauf steht im Laufprotokoll (CronLauf "planFuerMorgen").
+  const faellig = mandanten
+    .filter((m) => !(m.planFuerMorgenLauf && datumIso(m.planFuerMorgenLauf) === heuteIso))
+    .filter((m) => jetztBerlin >= m.planFuerMorgenZeit)
+    .map((m) => m.tenantId);
+  const ergebnisse = await fuerAlleMandanten(faellig, async (tenantId) => {
+    if (!(await planFuerMorgenBeanspruchen(tenantId, heuteIso))) return { status: "schon gelaufen" as const };
+    return cronLaufMitSperre(tenantId, "planFuerMorgen", () => planFuerMorgenBerechnen(tenantId));
+  });
 
   return NextResponse.json({ mandanten: mandanten.length, gelaufen: ergebnisse.length, ergebnisse });
 }

@@ -122,6 +122,38 @@ describe("loeschfristenDurchsetzen", () => {
     expect(await prisma.ride.findUnique({ where: { id: neueFahrt.id } })).not.toBeNull();
   });
 
+  it("S2-016: entfernt nach dataRetentionDays auch Zusammenfassung und Anrufernummer, nicht nur das Transkript", async () => {
+    const alterCall = await prisma.call.create({
+      data: {
+        tenantId,
+        providerCallId: `call-summary-alt-${kennung}`,
+        toNumber: "+4924010000000",
+        fromNumber: "+491700000001",
+        startedAt: vorTagen(400),
+        summary: "PRUEF Testmann bestellt Dialysefahrt, Rückruf +491700000001",
+      },
+    });
+    const neuerCall = await prisma.call.create({
+      data: {
+        tenantId,
+        providerCallId: `call-summary-neu-${kennung}`,
+        toNumber: "+4924010000000",
+        fromNumber: "+491700000002",
+        startedAt: vorTagen(1),
+        summary: "PRUEF neu",
+      },
+    });
+
+    await loeschfristenDurchsetzen(tenantId);
+
+    const alt = await prisma.call.findUniqueOrThrow({ where: { id: alterCall.id } });
+    expect(alt.summary).toBeNull();
+    expect(alt.fromNumber).toBeNull();
+    const neu = await prisma.call.findUniqueOrThrow({ where: { id: neuerCall.id } });
+    expect(neu.summary).toBe("PRUEF neu");
+    expect(neu.fromNumber).toBe("+491700000002");
+  });
+
   it("löscht GPS-Punkte älter als 90 Tage, lässt neuere stehen", async () => {
     const alterPunkt = await prisma.vehicleLocation.create({
       data: { tenantId, vehicleId, lat: 50.77, lng: 6.08, at: vorTagen(100) },

@@ -11,7 +11,7 @@ const gespraech: Testgespraech = {
     "Ach, vergessen Sie's, geben Sie mir einfach jemanden von Ihnen am Telefon.",
   ],
   erwartetesErgebnis:
-    "Nach wiederholtem Nichtverstehen (laut Systemanweisung: nach drei Versuchen) bietet die KI selbst an_mensch_weiterleiten oder rueckruf_anlegen an, statt endlos weiter nachzufragen; sobald der Anrufer explizit einen Menschen will, wird sofort weitergeleitet.",
+    "Nach wiederholtem Nichtverstehen (laut Systemanweisung: nach drei Versuchen) bietet die KI selbst die Weiterleitung (transferCall, Maßnahme M-47) oder rueckruf_anlegen an, statt endlos weiter nachzufragen; sobald der Anrufer explizit einen Menschen will, wird sofort weitergeleitet.",
 };
 
 export default gespraech;

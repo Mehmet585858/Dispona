@@ -26,10 +26,31 @@ export function stornierteFahrtText(uhrzeit: string): string {
   return `Fahrt ${uhrzeit} entfällt. Bitte App öffnen.`;
 }
 
+/** Maßnahme M-19: laufende Fahrt vom Büro abgebrochen – anders als ein Storno vor der Abholung. */
+export function abgebrocheneFahrtText(uhrzeit: string): string {
+  return `Fahrt ${uhrzeit} wurde vom Büro abgebrochen. Bitte Büro anrufen.`;
+}
+
 export function keineBestaetigungAlarmText(uhrzeit: string): string {
   return `Fahrer hat Fahrt ${uhrzeit} nicht bestätigt. Bitte prüfen.`;
 }
 
 export function keinFahrzeugAlarmText(uhrzeit: string): string {
   return `Für Fahrt ${uhrzeit} ist noch kein Fahrzeug gefunden. Bitte prüfen.`;
+}
+
+/** Einmal-Link für die Fahrer-App per SMS – nur der Link, keine Namen, keine Fahrtdaten. */
+export function anmeldeLinkText(url: string): string {
+  return `Anmelde-Link für die Fahrer-App (10 Minuten gültig): ${url}`;
+}
+
+const CRON_BEZEICHNUNG: Record<string, string> = {
+  automodus: "Die automatische Disposition",
+  eskalation: "Die Bestätigungs-Überwachung",
+};
+
+/** Alarm an den Inhaber (Maßnahme M-16): ein minütlicher Hintergrundlauf ist ausgefallen. Keine Fahrtdaten. */
+export function cronAusfallAlarmText(cron: string, seitUhrzeit: string): string {
+  if (cron === "planFuerMorgen") return `Der Plan für morgen ist um ${seitUhrzeit} fehlgeschlagen. Bitte Dispo prüfen.`;
+  return `${CRON_BEZEICHNUNG[cron] ?? "Ein Hintergrundlauf"} läuft seit ${seitUhrzeit} nicht. Bitte Dispo prüfen.`;
 }

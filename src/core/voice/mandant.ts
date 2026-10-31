@@ -6,6 +6,7 @@
  */
 import { prisma } from "@/lib/prisma";
 import type { TenantVoiceSettings } from "@/providers/voice/types";
+import { weiterleitungsnummerE164 } from "@/core/einrichtung/rufnummer";
 import { aiJetztErreichbar } from "./zeitplan";
 
 export type MandantFuerAnruf = {
@@ -42,7 +43,9 @@ export async function mandantFuerNummerLaden(
       ort: tenant.city ?? "",
       greeting: settings.greeting,
       voiceId: settings.voiceId,
-      escalationNumber: settings.escalationNumber,
+      // Maßnahme M-47 (S2-019): Bestandsdaten wie "0241 12345" als E.164, Unbrauchbares als "" –
+      // damit geht nie eine leere oder national geschriebene Nummer als Weiterleitungsziel hinaus.
+      escalationNumber: weiterleitungsnummerE164(settings.escalationNumber) ?? "",
       anrufernummer: anrufernummer ?? undefined,
       bestaetigungsweg: " in Kürze",
     },

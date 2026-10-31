@@ -5,10 +5,12 @@
 // Feldnamen im Gesprächsbericht sind aus der Doku übernommen, aber noch nicht gegen einen echten
 // Vapi-Anruf getestet (siehe docs/04a-vapi-notizen.md, Punkt 9 und 10/offene Punkte). Vor dem
 // ersten Testanruf mit einem echten Webhook-Payload abgleichen.
-import { voiceSystemPrompt } from "@/core/notify/voicePrompt";
+import { geheimnisGleich } from "@/lib/geheimnis";
+import { voiceNotbetriebPrompt, voiceSystemPrompt } from "@/core/notify/voicePrompt";
+import { weiterleitungsnummerE164 } from "@/core/einrichtung/rufnummer";
 import { DOC_STATUS, TRANSPORT_TYPES } from "@/core/rides/validation";
 import { WOCHENTAGE } from "@/core/shifts/rrule";
-import type { CallReport, TenantVoiceSettings, ToolCall, ToolResult, VoiceProvider } from "./types";
+import type { AssistantOptionen, CallReport, TenantVoiceSettings, ToolCall, ToolResult, VoiceProvider } from "./types";
 
 type VapiNachricht = {
   type: string;
@@ -48,10 +50,16 @@ const WERKZEUGE = [
     type: "function",
     function: {
       name: "fahrgast_suchen",
-      description: "Bekannten Fahrgast anhand Rückrufnummer, Nachname oder Geburtsdatum finden, bevor eine neue Fahrt angelegt wird.",
+      description:
+        "Bekannten Fahrgast finden und seine Identität für dieses Gespräch bestätigen. Die echte Anrufernummer prüft das System selbst; " +
+        "ruft jemand von einer anderen Nummer an, sind Nachname UND Geburtsdatum nötig.",
       parameters: {
         type: "object",
-        properties: { telefon: { type: "string" }, nachname: { type: "string" }, geburtsdatum: { type: "string", description: "JJJJ-MM-TT" } },
+        properties: {
+          telefon: { type: "string", description: "Nur als Zusatzangabe; allein findet sie niemanden." },
+          nachname: { type: "string" },
+          geburtsdatum: { type: "string", description: "JJJJ-MM-TT" },
+        },
       },
     },
   },
@@ -78,11 +86,14 @@ const WERKZEUGE = [
           ...FAHRGAST_FELDER,
           pickupPlaceId: { type: "string" },
           dropoffPlaceId: { type: "string" },
-          datum: { type: "string", description: "JJJJ-MM-TT" },
-          abholzeit: { type: "string", description: "HH:MM" },
-          terminzeit: { type: "string", description: "HH:MM, optional" },
+          datum: { type: "string", description: "JJJJ-MM-TT, z. B. 2026-11-03 (aus dem heutigen Datum in den Anweisungen ausrechnen)" },
+          abholzeit: { type: "string", description: "HH:MM im 24-Stunden-Format, z. B. 07:30" },
+          terminzeit: { type: "string", description: "HH:MM im 24-Stunden-Format, optional" },
           rueckfahrt: { type: "boolean" },
-          rueckfahrtzeit: { type: "string", description: "HH:MM, falls Rückfahrt" },
+          rueckfahrtzeit: {
+            type: "string",
+            description: "HH:MM, falls Rückfahrt. Weglassen, wenn der Anrufer die Zeit noch nicht weiß – die Rückfahrt wird dann mit offener Zeit vermerkt und das Team stimmt sie ab.",
+          },
           transportType: TRANSPORT_TYPE_FELD,
           companion: { type: "boolean", description: "Begleitperson dabei?" },
           assistanceNotes: { type: "string" },
@@ -124,7 +135,7 @@ const WERKZEUGE = [
     type: "function",
     function: {
       name: "fahrt_finden",
-      description: "Kommende Fahrten eines bekannten Fahrgasts nachschlagen, z. B. für Änderungen oder Stornierungen.",
+      description: "Kommende Fahrten eines in diesem Gespräch bestätigten Fahrgasts nachschlagen, z. B. für Änderungen oder Stornierungen.",
       parameters: {
         type: "object",
         properties: { passengerId: { type: "string" }, datum: { type: "string", description: "JJJJ-MM-TT, optional" } },
@@ -168,6 +179,24 @@ const WERKZEUGE = [
   {
     type: "function",
     function: {
+      name: "serie_beenden",
+      description:
+        "Eine regelmäßige Fahrt (Serie, z. B. Dialyse) eines in diesem Gespräch bestätigten Fahrgasts beenden. " +
+        "Alle geplanten Fahrten ab dem Datum werden storniert.",
+      parameters: {
+        type: "object",
+        properties: {
+          passengerId: { type: "string" },
+          seriesId: { type: "string", description: "Nur nötig, wenn mehrere Serien laufen." },
+          ab: { type: "string", description: "JJJJ-MM-TT, erster Tag ohne Fahrt; ohne Angabe ab heute." },
+        },
+        required: ["passengerId"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "abholzeit_auskunft",
       description: "Auskunft zum aktuellen Status/der Abholzeit einer Fahrt geben, z. B. ob der Fahrer schon unterwegs ist.",
       parameters: {
@@ -191,41 +220,64 @@ const WERKZEUGE = [
   },
 ] as const;
 
+/**
+ * Name des Vapi-eigenen Werkzeugs für die Übergabe an einen Menschen (docs/04a-vapi-notizen.md
+ * Punkt 4). Maßnahme M-47 (S2-019): Der Prompt nennt genau diesen Namen – vorher befahl er
+ * "an_mensch_weiterleiten", ein Werkzeug, das die KI gar nicht hatte.
+ */
+export const VAPI_WEITERLEITEN_WERKZEUG = "transferCall";
+
+/** Entscheidung B1 zu M-47: im Notbetrieb das einzige Werkzeug (Rückrufwunsch). */
+export const NOTBETRIEB_WERKZEUG = "rueckruf_anlegen";
+
 export const vapiProvider: VoiceProvider = {
   name: "vapi",
 
   async verifyWebhook(req) {
-    const secret = process.env.VAPI_WEBHOOK_SECRET;
-    if (!secret) return false;
+    // Maßnahme M-14 Punkt 3 (S4-007): zeitkonstanter Vergleich. Eine HMAC-Signatur mit Zeitstempel
+    // (Schutz gegen Wiederholung) folgt, sobald der Anbieter sie anbietet.
     const header = req.headers.get("authorization") ?? req.headers.get("x-vapi-secret");
     const token = header?.replace(/^Bearer\s+/i, "").trim();
-    return token === secret;
+    return geheimnisGleich(token, process.env.VAPI_WEBHOOK_SECRET);
   },
 
-  buildAssistantConfig(settings: TenantVoiceSettings) {
+  buildAssistantConfig(eingabe: TenantVoiceSettings, optionen: AssistantOptionen = {}) {
+    // Maßnahme M-47: Weiterleitungsziel nur als gültige E.164-Nummer – Prompt und Werkzeugliste
+    // entscheiden auf derselben Grundlage, ob ein Mensch erreichbar ist.
+    const settings = { ...eingabe, escalationNumber: weiterleitungsnummerE164(eingabe.escalationNumber) ?? "" };
     // Dieselbe URL für alles Weitere in diesem Anruf (Werkzeugaufrufe, Gesprächsbericht) - Vapi
     // schickt "assistant-request" an die auf Organisationsebene hinterlegte Server-URL (da zu
     // diesem Zeitpunkt noch kein Assistent existiert), aber alle Nachrichten danach an die
     // server.url, die wir hier mitgeben (docs/04a-vapi-notizen.md Punkt 2 und 6).
     const serverUrl = process.env.APP_URL ? `${process.env.APP_URL}/api/voice/webhook` : undefined;
-    // "an_mensch_weiterleiten": fest hinterlegtes Ziel, kein eigener Werkzeugaufruf bei uns nötig
-    // (docs/04a-vapi-notizen.md Punkt 4). Ohne escalationNumber (z. B. Live-Demo auf der
-    // Marketing-Seite, die an niemanden weiterleiten soll) gibt es das Werkzeug gar nicht erst –
-    // voiceSystemPrompt() weist die KI dann an, stattdessen freundlich abzusagen.
-    const tools: unknown[] = [...WERKZEUGE];
-    if (settings.escalationNumber) {
+    const jetzt = new Date();
+    // Entscheidung B1 zu M-47: Notbetrieb – nur der Rückrufwunsch als Werkzeug, keine Weiterleitung
+    // (es gibt ja keine gültige Nummer), eigener Prompt. Das Sprachmodell kann nur Werkzeuge
+    // aufrufen, die hier stehen; zusätzlich weist der Webhook alles außer rueckruf_anlegen ab.
+    const notbetrieb = optionen.nurRueckruf === true;
+    // Weiterleitung an einen Menschen: Vapi-eigenes transferCall mit fest hinterlegtem Ziel, kein
+    // eigener Werkzeugaufruf bei uns nötig (docs/04a-vapi-notizen.md Punkt 4). Ohne gültige
+    // escalationNumber (z. B. Live-Demo auf der Marketing-Seite, die an niemanden weiterleiten soll)
+    // gibt es das Werkzeug gar nicht erst – voiceSystemPrompt() weist die KI dann an, stattdessen
+    // freundlich abzusagen bzw. im Notfall nur auf die 112 zu verweisen.
+    const tools: unknown[] = notbetrieb ? WERKZEUGE.filter((w) => w.function.name === NOTBETRIEB_WERKZEUG) : [...WERKZEUGE];
+    if (!notbetrieb && settings.escalationNumber) {
       tools.push({
-        type: "transferCall",
+        type: VAPI_WEITERLEITEN_WERKZEUG,
         destinations: [{ type: "number", number: settings.escalationNumber, message: "Einen Moment, ich verbinde." }],
       });
     }
+    const prompt = notbetrieb
+      ? voiceNotbetriebPrompt(settings, { jetzt })
+      : voiceSystemPrompt(settings, { jetzt, weiterleitenWerkzeug: VAPI_WEITERLEITEN_WERKZEUG });
     return {
       assistant: {
         firstMessage: settings.greeting,
         model: {
           provider: "openai",
           model: "gpt-4o",
-          messages: [{ role: "system", content: voiceSystemPrompt(settings) }],
+          // Maßnahme M-46 (S1-007): Datum/Uhrzeit des Anrufs – die Konfiguration entsteht je Anruf neu.
+          messages: [{ role: "system", content: prompt }],
         },
         // "vapi" (Vapis eigener Sprachanbieter, "Vapi Voices"), nicht "11labs" - wir haben keinen
         // eigenen ElevenLabs-Account/Stimm-IDs, settings.voiceId sind echte Vapi-Stimmnamen (z. B.

@@ -6,7 +6,32 @@ export type Problem =
   | "DOPPELBUCHUNG"
   | "AUSSERHALB_EINSATZGEBIET"
   | "GENEHMIGUNG_FEHLT"
-  | "ADRESSE_UNSICHER";
+  | "ADRESSE_UNSICHER"
+  | "RUECKFAHRT_ZEIT_OFFEN"
+  | "ABHOLZEIT_VERGANGEN"
+  | "TERMIN_VOR_ABHOLUNG";
+
+/**
+ * Maßnahme M-46 Punkt 2 (S1-007): Wie weit eine Abholzeit in der Vergangenheit liegen darf, ohne
+ * Problem zu sein – "jetzt sofort" bestellt um 10:02 für 10:00 ist kein Fehler. Annahme 15 Minuten
+ * (die Spezifikation schweigt); alles darüber ist fast immer ein falsch verstandenes Datum.
+ */
+export const VERGANGENHEIT_TOLERANZ_MINUTEN = 15;
+
+/**
+ * Plausibilität der Zeit (Maßnahme M-46, S1-007): Abholung nicht in der Vergangenheit, Termin am
+ * Ziel nach der Abholung. Rein, `jetzt` kommt vom Aufrufer.
+ */
+export function zeitProbleme(eingabe: { pickupAt: Date; appointmentAt?: Date | null; jetzt: Date }): Problem[] {
+  const probleme: Problem[] = [];
+  if (eingabe.pickupAt.getTime() < eingabe.jetzt.getTime() - VERGANGENHEIT_TOLERANZ_MINUTEN * 60_000) {
+    probleme.push("ABHOLZEIT_VERGANGEN");
+  }
+  if (eingabe.appointmentAt && eingabe.appointmentAt.getTime() <= eingabe.pickupAt.getTime()) {
+    probleme.push("TERMIN_VOR_ABHOLUNG");
+  }
+  return probleme;
+}
 
 export function imEinsatzgebiet(
   ort: { lat: number; lng: number },
@@ -45,6 +70,12 @@ type FahrtPruefungEingabe = {
   serviceAreaCenter: { lat: number; lng: number } | null;
   serviceAreaKm: number;
   adresseUnsicher?: boolean;
+  /** Maßnahme M-07: Rückfahrt bestellt, Uhrzeit noch offen – pickupAt ist nur ein Platzhalter. */
+  rueckfahrtZeitOffen?: boolean;
+  /** Maßnahme M-46: Termin am Ziel, falls bekannt. */
+  appointmentAt?: Date | null;
+  /** Maßnahme M-46: Bezugszeitpunkt für "in der Vergangenheit" (Pflicht, damit kein Aufrufer ihn vergisst). */
+  jetzt: Date;
 };
 
 /** Fasst alle Prüfungen für eine neue Fahrt zusammen. Liefert die gefundenen Probleme. */
@@ -70,6 +101,12 @@ export function fahrtPruefen(eingabe: FahrtPruefungEingabe): Problem[] {
   if (eingabe.adresseUnsicher) {
     probleme.push("ADRESSE_UNSICHER");
   }
+
+  if (eingabe.rueckfahrtZeitOffen) {
+    probleme.push("RUECKFAHRT_ZEIT_OFFEN");
+  }
+
+  probleme.push(...zeitProbleme(eingabe));
 
   return probleme;
 }

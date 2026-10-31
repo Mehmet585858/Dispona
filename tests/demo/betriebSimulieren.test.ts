@@ -10,6 +10,7 @@ describe("demoBetriebSimulieren", () => {
   let wohnungId: string;
   let klinikId: string;
   let fahrzeugId: string;
+  let fahrerId: string;
 
   beforeAll(async () => {
     const tenant = await prisma.tenant.create({
@@ -46,6 +47,11 @@ describe("demoBetriebSimulieren", () => {
       data: { tenantId, plate: `B-TEST ${kennung}`, active: true, seats: 4, wheelchairSpots: 1, carryChair: false, stretcher: false },
     });
     fahrzeugId = fahrzeug.id;
+    // M-72: eine DISPONIERT-Fahrt gibt es nur mit Fahrer (die Datenbank lehnt alles andere ab).
+    const user = await prisma.user.create({
+      data: { id: randomUUID(), tenantId, email: `${randomUUID()}@pruef.de`, name: "Test Fahrer", role: "FAHRER" },
+    });
+    fahrerId = (await prisma.driver.create({ data: { tenantId, userId: user.id } })).id;
   });
 
   afterAll(async () => {
@@ -57,6 +63,8 @@ describe("demoBetriebSimulieren", () => {
     await prisma.call.deleteMany({ where: { tenantId } });
     await prisma.passenger.deleteMany({ where: { tenantId } });
     await prisma.place.deleteMany({ where: { tenantId } });
+    await prisma.driver.deleteMany({ where: { tenantId } });
+    await prisma.user.deleteMany({ where: { tenantId } });
     await prisma.vehicle.deleteMany({ where: { tenantId } });
     await prisma.tenantSettings.delete({ where: { tenantId } });
     await prisma.tenant.delete({ where: { id: tenantId } });
@@ -97,6 +105,7 @@ describe("demoBetriebSimulieren", () => {
         status: "DISPONIERT",
         source: "ANRUF",
         vehicleId: fahrzeugId,
+        driverId: fahrerId,
       },
     });
 

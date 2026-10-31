@@ -2,11 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { withTenant } from "@/lib/db";
-import { requireSession } from "@/lib/session";
+import { requireBueroSession } from "@/lib/session";
 import { ortSchema, PLACE_TYPES, type OrtEingabe } from "@/core/places/validation";
 
 export async function orteLaden() {
-  const { tenantId } = await requireSession();
+  const { tenantId } = await requireBueroSession();
   return withTenant(tenantId).place.findMany({ orderBy: { label: "asc" } });
 }
 
@@ -17,7 +17,7 @@ export async function ortSpeichern(
   id: string | null,
   eingabe: OrtEingabe,
 ): Promise<{ ok: true } | { ok: false; fehler: string }> {
-  const { tenantId } = await requireSession();
+  const { tenantId } = await requireBueroSession();
   const ergebnis = ortSchema.safeParse(eingabe);
   if (!ergebnis.success) {
     return { ok: false, fehler: ergebnis.error.issues[0]?.message ?? "Eingabe ungültig." };
@@ -34,7 +34,7 @@ export async function ortSpeichern(
 }
 
 export async function ortLöschen(id: string) {
-  const { tenantId } = await requireSession();
+  const { tenantId } = await requireBueroSession();
   await withTenant(tenantId).place.delete({ where: { id } });
   revalidatePath("/dispo/orte");
 }
@@ -42,7 +42,7 @@ export async function ortLöschen(id: string) {
 export async function orteImportieren(
   zeilen: Record<string, string>[],
 ): Promise<{ ok: number; fehler: string[] }> {
-  const { tenantId } = await requireSession();
+  const { tenantId } = await requireBueroSession();
   const db = withTenant(tenantId);
   const fehler: string[] = [];
   let ok = 0;

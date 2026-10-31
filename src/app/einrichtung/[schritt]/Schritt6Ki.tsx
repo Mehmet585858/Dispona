@@ -11,13 +11,22 @@ export function Schritt6Ki({ initial }: { initial: KiEingabe }) {
   const [werte, setWerte] = useState<KiEingabe>(initial);
   const [speichert, setSpeichert] = useState(false);
   const [erfolg, setErfolg] = useState<string | null>(null);
+  const [fehler, setFehler] = useState<string | null>(null);
 
   async function speichern() {
     setSpeichert(true);
     setErfolg(null);
+    setFehler(null);
     try {
-      await kiEinstellungenSpeichern(werte);
-      setErfolg("Gespeichert.");
+      // Maßnahme M-47: ungültige Weiterleitungsnummer wird abgelehnt – Meldung zeigen, gespeicherte
+      // (normalisierte) Nummer übernehmen.
+      const ergebnis = await kiEinstellungenSpeichern(werte);
+      if (ergebnis.ok) {
+        setWerte({ ...werte, escalationNumber: ergebnis.escalationNumber });
+        setErfolg("Gespeichert.");
+      } else {
+        setFehler(ergebnis.fehler);
+      }
     } finally {
       setSpeichert(false);
     }
@@ -80,6 +89,11 @@ export function Schritt6Ki({ initial }: { initial: KiEingabe }) {
       </Card>
 
       {erfolg ? <p className="text-sm text-accent">{erfolg}</p> : null}
+      {fehler ? (
+        <p className="text-sm text-danger-ink" role="alert">
+          {fehler}
+        </p>
+      ) : null}
       <div>
         <Button type="button" onClick={speichern} disabled={speichert}>
           {speichert ? "Speichert …" : "Speichern"}

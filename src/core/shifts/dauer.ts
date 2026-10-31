@@ -5,6 +5,7 @@
  */
 import { entfernungKm } from "@/lib/geo";
 import type { LatLng } from "@/lib/geo";
+import { berlinerMitternacht, datumIso, mitUhrzeit, tagVerschieben } from "./week";
 
 const DURCHSCHNITT_KMH = 32;
 const LADEZEIT_MINUTEN: Record<string, number> = {
@@ -41,4 +42,17 @@ export function fahrtDauerMinuten(
 export function geplantesEnde(pickupAt: Date, transportType: string, pickupOrt: LatLng, dropoffOrt: LatLng): Date {
   const minuten = fahrtDauerMinuten(transportType, pickupOrt, dropoffOrt);
   return new Date(pickupAt.getTime() + minuten * 60_000);
+}
+
+/**
+ * Zeitraum einer Schicht aus Tag + Uhrzeiten (Maßnahme M-18, Prüfbericht S2-004). Liegt die Endzeit
+ * vor (oder auf) der Startzeit, endet die Schicht am Folgetag – "22:00–06:00" ist eine Nachtschicht,
+ * kein Fehler. Vorher wurde das Ende vor dem Beginn gespeichert; nachts fand das System dann nie
+ * einen Fahrer im Dienst. Rechnet über week.ts (Berliner Zeit, sommerzeitfest).
+ */
+export function schichtZeitraum(tag: Date, startHhMm: string, endeHhMm: string): { start: Date; end: Date; folgetag: boolean } {
+  const start = mitUhrzeit(tag, startHhMm);
+  const folgetag = endeHhMm <= startHhMm;
+  const endTag = folgetag ? berlinerMitternacht(tagVerschieben(datumIso(tag), 1)) : tag;
+  return { start, end: mitUhrzeit(endTag, endeHhMm), folgetag };
 }
