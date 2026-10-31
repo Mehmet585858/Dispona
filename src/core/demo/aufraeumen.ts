@@ -9,11 +9,15 @@
  * danach einfach wieder neue Fahrten nach, der Tag wirkt dadurch nie dauerhaft leer.
  */
 import { withTenant } from "@/lib/db";
-import { DEMO_TENANT_ID } from "./const";
 
 const DEMO_AUFRAEUM_STUNDEN = 3;
 
-export async function demoZuruecksetzen(tenantId: string = DEMO_TENANT_ID) {
+/**
+ * Maßnahme M-01 (Punkt 4): kein Standardwert für den Mandanten mehr – wer löscht, nennt den
+ * Mandanten ausdrücklich (der Cron übergibt DEMO_TENANT_ID). Ein versehentlicher Aufruf ohne
+ * Argument ist damit ein Typfehler statt einer stillen Löschung.
+ */
+export async function demoZuruecksetzen(tenantId: string) {
   const db = withTenant(tenantId);
   const grenze = new Date(Date.now() - DEMO_AUFRAEUM_STUNDEN * 60 * 60_000);
 
