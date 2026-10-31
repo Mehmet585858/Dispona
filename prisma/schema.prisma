@@ -429,10 +429,10 @@ enum CallOutcome {
 }
 
 model Call {
-  id             String       @id @default(cuid())
+  id             String          @id @default(cuid())
   tenantId       String
-  tenant         Tenant       @relation(fields: [tenantId], references: [id])
-  providerCallId String       @unique
+  tenant         Tenant          @relation(fields: [tenantId], references: [id])
+  providerCallId String          @unique
   fromNumber     String?
   toNumber       String
   startedAt      DateTime
@@ -442,6 +442,26 @@ model Call {
   audioUrl       String?
   outcome        CallOutcome?
   rides          Ride[]
+  toolCalls      VoiceToolCall[]
+}
+
+// Jeder Werkzeugaufruf der KI genau einmal (Prüfbericht S2-014): Vapi wiederholt Webhooks bei
+// Timeout, ohne diesen Merker legte ein erneut gesendetes fahrt_anlegen die Fahrt doppelt an.
+// Hängt per Cascade am Anruf, verschwindet also mit ihm (Löschfristen, Demo-Aufräumen).
+model VoiceToolCall {
+  id         String    @id @default(cuid())
+  tenantId   String
+  callId     String
+  call       Call      @relation(fields: [callId], references: [id], onDelete: Cascade)
+  toolCallId String
+  name       String
+  result     String?
+  error      String?
+  createdAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  @@unique([callId, toolCallId])
+  @@index([tenantId])
 }
 
 enum AdapterKey {

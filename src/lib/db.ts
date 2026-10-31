@@ -23,6 +23,7 @@ const TENANT_MODELS = new Set([
   "Call",
   "Notification",
   "AuditLog",
+  "VoiceToolCall",
 ]);
 
 const READ_MANY_OPS = new Set([

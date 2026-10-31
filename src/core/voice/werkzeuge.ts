@@ -4,7 +4,7 @@
  * verständlichen Text zurück. werkzeugAusfuehren() ist der einzige Einstiegspunkt von außen.
  */
 import { z } from "zod";
-import { withTenant } from "@/lib/db";
+import { istEindeutigkeitsFehler, withTenant } from "@/lib/db";
 import {
   fahrgaesteAehnlicheNamen,
   istAehnlicherName,
@@ -346,6 +346,42 @@ async function rueckrufAnlegen(tenantId: string, callId: string, args: unknown):
  * bleibt als Rückfalllösung bestehen, falls Vapi es doch über die Werkzeuge schickt.
  */
 export async function werkzeugAusfuehren(tenantId: string, callId: string, toolCall: ToolCall): Promise<ToolResult> {
+  // Prüfbericht S2-014: Jeder Werkzeugaufruf wirkt genau einmal. Vapi wiederholt Webhooks bei
+  // Timeout; ohne Merker legte ein erneut gesendetes fahrt_anlegen/serie_anlegen die Fahrt bzw.
+  // die ganze Serie doppelt an. Der Merker (VoiceToolCall, eindeutig je Anruf + toolCallId) wird
+  // VOR der Ausführung angelegt – die Eindeutigkeit entscheidet die Datenbank, auch bei zwei
+  // gleichzeitig eintreffenden Wiederholungen.
+  const db = withTenant(tenantId);
+  let merker: { id: string };
+  try {
+    merker = await db.voiceToolCall.create({
+      data: { tenantId, callId, toolCallId: toolCall.id, name: toolCall.name },
+      select: { id: true },
+    });
+  } catch (fehler) {
+    if (!istEindeutigkeitsFehler(fehler)) {
+      return { id: toolCall.id, error: fehler instanceof Error ? fehler.message : "Unbekannter Fehler." };
+    }
+    // Wiederholung: bis zu einigen Sekunden auf das Ergebnis des ersten Durchlaufs warten.
+    for (let versuch = 0; versuch < 20; versuch += 1) {
+      const vorhanden = await db.voiceToolCall.findFirst({ where: { callId, toolCallId: toolCall.id } });
+      if (vorhanden?.finishedAt) {
+        return vorhanden.error ? { id: toolCall.id, error: vorhanden.error } : { id: toolCall.id, result: vorhanden.result ?? "" };
+      }
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+    return { id: toolCall.id, result: "Diese Anfrage wird gerade schon verarbeitet. Bitte nicht erneut anlegen." };
+  }
+
+  const ergebnis = await werkzeugEinmalAusfuehren(tenantId, callId, toolCall);
+  await db.voiceToolCall.update({
+    where: { id: merker.id },
+    data: { result: ergebnis.result ?? null, error: ergebnis.error ?? null, finishedAt: new Date() },
+  });
+  return ergebnis;
+}
+
+async function werkzeugEinmalAusfuehren(tenantId: string, callId: string, toolCall: ToolCall): Promise<ToolResult> {
   try {
     let result: string;
     switch (toolCall.name) {

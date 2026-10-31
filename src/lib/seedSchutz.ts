@@ -54,6 +54,7 @@ export async function mandantKomplettLoeschen(tenantId: string): Promise<void> {
   await prisma.auditLog.deleteMany({ where });
   await prisma.notification.deleteMany({ where });
   await prisma.ride.deleteMany({ where });
+  await prisma.voiceToolCall.deleteMany({ where });
   await prisma.call.deleteMany({ where });
   await prisma.rideSeries.deleteMany({ where });
   await prisma.shift.deleteMany({ where });

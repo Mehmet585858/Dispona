@@ -2,7 +2,7 @@
 // und wird beim Gesprächsende vervollständigt – so kann fahrt_anlegen während des Gesprächs schon
 // auf die (unsere) Call-ID verweisen (Ride.callId), bevor der Gesprächsbericht da ist.
 import type { CallOutcome } from "@/generated/prisma/enums";
-import { withTenant } from "@/lib/db";
+import { istEindeutigkeitsFehler, withTenant } from "@/lib/db";
 import { encrypt } from "@/lib/crypto";
 import type { CallReport } from "@/providers/voice/types";
 
@@ -14,16 +14,27 @@ export async function anrufSicherstellen(
   const db = withTenant(tenantId);
   const bestehend = await db.call.findFirst({ where: { providerCallId }, select: { id: true } });
   if (bestehend) return bestehend;
-  return db.call.create({
-    data: {
-      tenantId,
-      providerCallId,
-      fromNumber: angaben.fromNumber ?? undefined,
-      toNumber: angaben.toNumber,
-      startedAt: new Date(),
-    },
-    select: { id: true },
-  });
+  try {
+    return await db.call.create({
+      data: {
+        tenantId,
+        providerCallId,
+        fromNumber: angaben.fromNumber ?? undefined,
+        toNumber: angaben.toNumber,
+        startedAt: new Date(),
+      },
+      select: { id: true },
+    });
+  } catch (fehler) {
+    // Prüfbericht S2-014: zwei gleichzeitige Erstkontakte (assistant-request und erster
+    // Werkzeugaufruf, oder ein Vapi-Retry) – Call.providerCallId ist eindeutig, der Verlierer
+    // nimmt die Zeile des Gewinners statt mit einem Fehler den ganzen Webhook scheitern zu lassen.
+    if (istEindeutigkeitsFehler(fehler)) {
+      const gewinner = await db.call.findFirst({ where: { providerCallId }, select: { id: true } });
+      if (gewinner) return gewinner;
+    }
+    throw fehler;
+  }
 }
 
 export async function anrufAbschliessen(
