@@ -7,6 +7,7 @@
 // ersten Testanruf mit einem echten Webhook-Payload abgleichen.
 import { geheimnisGleich } from "@/lib/geheimnis";
 import { voiceSystemPrompt } from "@/core/notify/voicePrompt";
+import { weiterleitungsnummerE164 } from "@/core/einrichtung/rufnummer";
 import { DOC_STATUS, TRANSPORT_TYPES } from "@/core/rides/validation";
 import { WOCHENTAGE } from "@/core/shifts/rrule";
 import type { CallReport, TenantVoiceSettings, ToolCall, ToolResult, VoiceProvider } from "./types";
@@ -219,6 +220,13 @@ const WERKZEUGE = [
   },
 ] as const;
 
+/**
+ * Name des Vapi-eigenen Werkzeugs für die Übergabe an einen Menschen (docs/04a-vapi-notizen.md
+ * Punkt 4). Maßnahme M-47 (S2-019): Der Prompt nennt genau diesen Namen – vorher befahl er
+ * "an_mensch_weiterleiten", ein Werkzeug, das die KI gar nicht hatte.
+ */
+export const VAPI_WEITERLEITEN_WERKZEUG = "transferCall";
+
 export const vapiProvider: VoiceProvider = {
   name: "vapi",
 
@@ -230,20 +238,24 @@ export const vapiProvider: VoiceProvider = {
     return geheimnisGleich(token, process.env.VAPI_WEBHOOK_SECRET);
   },
 
-  buildAssistantConfig(settings: TenantVoiceSettings) {
+  buildAssistantConfig(eingabe: TenantVoiceSettings) {
+    // Maßnahme M-47: Weiterleitungsziel nur als gültige E.164-Nummer – Prompt und Werkzeugliste
+    // entscheiden auf derselben Grundlage, ob ein Mensch erreichbar ist.
+    const settings = { ...eingabe, escalationNumber: weiterleitungsnummerE164(eingabe.escalationNumber) ?? "" };
     // Dieselbe URL für alles Weitere in diesem Anruf (Werkzeugaufrufe, Gesprächsbericht) - Vapi
     // schickt "assistant-request" an die auf Organisationsebene hinterlegte Server-URL (da zu
     // diesem Zeitpunkt noch kein Assistent existiert), aber alle Nachrichten danach an die
     // server.url, die wir hier mitgeben (docs/04a-vapi-notizen.md Punkt 2 und 6).
     const serverUrl = process.env.APP_URL ? `${process.env.APP_URL}/api/voice/webhook` : undefined;
-    // "an_mensch_weiterleiten": fest hinterlegtes Ziel, kein eigener Werkzeugaufruf bei uns nötig
-    // (docs/04a-vapi-notizen.md Punkt 4). Ohne escalationNumber (z. B. Live-Demo auf der
-    // Marketing-Seite, die an niemanden weiterleiten soll) gibt es das Werkzeug gar nicht erst –
-    // voiceSystemPrompt() weist die KI dann an, stattdessen freundlich abzusagen.
+    // Weiterleitung an einen Menschen: Vapi-eigenes transferCall mit fest hinterlegtem Ziel, kein
+    // eigener Werkzeugaufruf bei uns nötig (docs/04a-vapi-notizen.md Punkt 4). Ohne gültige
+    // escalationNumber (z. B. Live-Demo auf der Marketing-Seite, die an niemanden weiterleiten soll)
+    // gibt es das Werkzeug gar nicht erst – voiceSystemPrompt() weist die KI dann an, stattdessen
+    // freundlich abzusagen bzw. im Notfall nur auf die 112 zu verweisen.
     const tools: unknown[] = [...WERKZEUGE];
     if (settings.escalationNumber) {
       tools.push({
-        type: "transferCall",
+        type: VAPI_WEITERLEITEN_WERKZEUG,
         destinations: [{ type: "number", number: settings.escalationNumber, message: "Einen Moment, ich verbinde." }],
       });
     }
@@ -254,7 +266,9 @@ export const vapiProvider: VoiceProvider = {
           provider: "openai",
           model: "gpt-4o",
           // Maßnahme M-46 (S1-007): Datum/Uhrzeit des Anrufs – die Konfiguration entsteht je Anruf neu.
-          messages: [{ role: "system", content: voiceSystemPrompt(settings, { jetzt: new Date() }) }],
+          messages: [
+            { role: "system", content: voiceSystemPrompt(settings, { jetzt: new Date(), weiterleitenWerkzeug: VAPI_WEITERLEITEN_WERKZEUG }) },
+          ],
         },
         // "vapi" (Vapis eigener Sprachanbieter, "Vapi Voices"), nicht "11labs" - wir haben keinen
         // eigenen ElevenLabs-Account/Stimm-IDs, settings.voiceId sind echte Vapi-Stimmnamen (z. B.

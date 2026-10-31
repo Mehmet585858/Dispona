@@ -6,7 +6,8 @@ import { z } from "zod";
 import { registrierungErlaubt } from "@/core/einrichtung/registrierungsLimit";
 import { istEindeutigkeitsFehler } from "@/lib/db";
 import { prisma } from "@/lib/prisma";
-import { willkommenGruss } from "@/core/einrichtung/texte";
+import { HANDYNUMMER_UNGUELTIG, willkommenGruss } from "@/core/einrichtung/texte";
+import { weiterleitungsnummerE164 } from "@/core/einrichtung/rufnummer";
 
 const DEUTSCHLAND_MITTE = { lat: 51.1657, lng: 10.4515 };
 
@@ -44,7 +45,11 @@ export async function firmaRegistrieren(
     const emailFehler = geprueft.error.issues.some((i) => i.path[0] === "email");
     return { ok: false, fehler: emailFehler ? "Bitte eine gültige E-Mail-Adresse angeben." : "Bitte alle Felder ausfüllen." };
   }
-  const { firmenname, vorname, nachname, email, handynummer } = geprueft.data;
+  const { firmenname, vorname, nachname, email } = geprueft.data;
+  // Maßnahme M-47 Punkt 3 (S2-019): Die Handynummer wird die erste Weiterleitungsnummer der KI –
+  // nur eine echte Rufnummer, gespeichert als E.164 (vorher wie eingegeben, z. B. "0171 2345678").
+  const handynummer = weiterleitungsnummerE164(geprueft.data.handynummer);
+  if (!handynummer) return { ok: false, fehler: HANDYNUMMER_UNGUELTIG };
 
   // Maßnahme M-23 Punkt 2: Ratenbegrenzung je Anschluss – vor jeder Datenbankabfrage zur E-Mail,
   // damit sich auch nicht massenhaft prüfen lässt, welche Adressen schon registriert sind.

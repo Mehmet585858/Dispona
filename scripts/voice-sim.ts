@@ -17,6 +17,8 @@ import { voiceSystemPrompt } from "../src/core/notify/voicePrompt";
 import { werkzeugAusfuehren } from "../src/core/voice/werkzeuge";
 import { anrufSicherstellen, anrufAbschliessen } from "../src/core/voice/anruf";
 import { anrufZusammenfassen } from "../src/core/notify/anrufZusammenfassung";
+import { weiterleitungsnummerE164 } from "../src/core/einrichtung/rufnummer";
+import { VAPI_WEITERLEITEN_WERKZEUG } from "../src/providers/voice/vapi";
 import type { ToolCall } from "../src/providers/voice/types";
 
 const WERKZEUGE: Anthropic.Tool[] = [
@@ -142,11 +144,6 @@ const WERKZEUGE: Anthropic.Tool[] = [
     input_schema: { type: "object", properties: { rideId: { type: "string" } }, required: ["rideId"] },
   },
   {
-    name: "an_mensch_weiterleiten",
-    description: "Das Gespräch an einen Menschen weiterleiten (z. B. Notfall, Anrufer möchte einen Menschen).",
-    input_schema: { type: "object", properties: { grund: { type: "string" } }, required: ["grund"] },
-  },
-  {
     name: "rueckruf_anlegen",
     description: "Einen Rückruf-Wunsch für den Disponenten hinterlegen.",
     input_schema: {
@@ -185,16 +182,30 @@ async function main() {
   const providerCallId = `sim-${randomUUID()}`;
   const anruf = await anrufSicherstellen(tenant.id, providerCallId, { fromNumber: anrufernummer, toNumber: angerufeneNummer });
 
+  // Maßnahme M-47: dasselbe Weiterleitungswerkzeug wie bei Vapi (transferCall), nur wenn eine
+  // gültige Weiterleitungsnummer hinterlegt ist – sonst nennt der Prompt es auch nicht.
+  const weiterleitungsnummer = weiterleitungsnummerE164(settings.escalationNumber) ?? "";
+  const werkzeuge: Anthropic.Tool[] = weiterleitungsnummer
+    ? [
+        ...WERKZEUGE,
+        {
+          name: VAPI_WEITERLEITEN_WERKZEUG,
+          description: "Das Gespräch an einen Menschen übergeben (z. B. Notfall, Anrufer möchte einen Menschen).",
+          input_schema: { type: "object", properties: {} },
+        },
+      ]
+    : WERKZEUGE;
+
   const system = voiceSystemPrompt({
     tenantId: tenant.id,
     firmenname: tenant.name,
     ort: tenant.city ?? "",
     greeting: settings.greeting,
     voiceId: settings.voiceId,
-    escalationNumber: settings.escalationNumber,
+    escalationNumber: weiterleitungsnummer,
     anrufernummer,
     bestaetigungsweg: " in Kürze",
-  }, { jetzt: new Date() });
+  }, { jetzt: new Date(), weiterleitenWerkzeug: VAPI_WEITERLEITEN_WERKZEUG });
 
   const verlauf: Anthropic.MessageParam[] = [];
   const transkriptZeilen: string[] = [`KI: ${settings.greeting}`];
@@ -213,7 +224,7 @@ async function main() {
         model: CLAUDE_MODELL,
         max_tokens: 1024,
         system,
-        tools: WERKZEUGE,
+        tools: werkzeuge,
         messages: verlauf,
       });
       verlauf.push({ role: "assistant", content: antwort.content });
@@ -235,6 +246,11 @@ async function main() {
         werkzeugBloecke.map(async (block) => {
           const aufruf: ToolCall = { id: block.id, name: block.name, arguments: block.input as Record<string, unknown> };
           console.log(`  [Werkzeug] ${block.name}(${JSON.stringify(block.input)})`);
+          if (block.name === VAPI_WEITERLEITEN_WERKZEUG) {
+            // Bei Vapi übernimmt der Anbieter die Übergabe selbst; im Simulator gibt es keinen Anruf.
+            console.log("  [Simulator] Hier würde Vapi das Gespräch an die Weiterleitungsnummer übergeben.");
+            return { id: block.id, result: "Simulator: Das Gespräch wird jetzt an einen Menschen übergeben." };
+          }
           const ergebnis = await werkzeugAusfuehren(tenant.id, anruf.id, aufruf);
           console.log(`  [Ergebnis] ${ergebnis.result ?? ergebnis.error}`);
           return ergebnis;

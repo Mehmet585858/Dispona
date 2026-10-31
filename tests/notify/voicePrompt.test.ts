@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { voiceSystemPrompt } from "@/core/notify/voicePrompt";
 
-// M-46: Pflichtangabe Anrufzeitpunkt.
-const JETZT = { jetzt: new Date("2026-11-02T09:00:00Z") };
+// M-46/M-47: Pflichtangaben Anrufzeitpunkt und Weiterleitungswerkzeug des Anbieters.
+const JETZT = { jetzt: new Date("2026-11-02T09:00:00Z"), weiterleitenWerkzeug: "transferCall" };
 
 describe("voiceSystemPrompt", () => {
   it("setzt alle Platzhalter eines Mandanten ein", () => {

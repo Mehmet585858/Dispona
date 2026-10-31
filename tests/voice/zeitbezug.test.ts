@@ -29,7 +29,7 @@ describe("Zeitbezug im Prompt (M-46, S1-007)", () => {
   });
 
   it("M-46: Prompt nennt Wochentag, Datum, Uhrzeit und Zeitzone – Montag 23:40 Berliner Zeit", () => {
-    const text = voiceSystemPrompt(EINSTELLUNGEN, { jetzt: new Date("2026-11-02T22:40:00Z") });
+    const text = voiceSystemPrompt(EINSTELLUNGEN, { jetzt: new Date("2026-11-02T22:40:00Z"), weiterleitenWerkzeug: "transferCall" });
     expect(text).toContain("Heute ist Montag, der 02.11.2026 (2026-11-02)");
     expect(text).toContain("23:40 Uhr");
     expect(text).toContain("Europe/Berlin");
@@ -39,7 +39,7 @@ describe("Zeitbezug im Prompt (M-46, S1-007)", () => {
   });
 
   it("M-46: Datum nach Berliner Zeit, nicht nach Serverzeit – 00:30 Berlin ist in UTC noch der Vortag", () => {
-    const text = voiceSystemPrompt(EINSTELLUNGEN, { jetzt: new Date("2026-11-02T23:30:00Z") });
+    const text = voiceSystemPrompt(EINSTELLUNGEN, { jetzt: new Date("2026-11-02T23:30:00Z"), weiterleitenWerkzeug: "transferCall" });
     expect(text).toContain("Heute ist Dienstag, der 03.11.2026 (2026-11-03)");
     expect(text).toContain("00:30 Uhr");
   });

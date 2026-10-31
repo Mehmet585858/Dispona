@@ -77,6 +77,15 @@ async function assistantRequestBehandeln(body: unknown) {
   }
 
   if (!mandant.aiErreichbarJetzt) {
+    // Maßnahme M-47 (S2-019): ohne gültige Weiterleitungsnummer kein Ziel "" an Vapi, sondern eine
+    // klare Absage – und ein Eintrag im Log (nur IDs), damit der Betrieb die Lücke bemerkt.
+    if (!mandant.settings.escalationNumber) {
+      console.error("KI aus, aber keine gültige Weiterleitungsnummer – Anruf kann nicht weitergeleitet werden", {
+        tenantId: mandant.tenantId,
+        anrufId,
+      });
+      return NextResponse.json({ error: "Weiterleitung nicht eingerichtet." });
+    }
     return NextResponse.json({ destination: { type: "number", number: mandant.settings.escalationNumber } });
   }
 

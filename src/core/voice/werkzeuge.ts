@@ -473,7 +473,8 @@ async function fahrtStornierenWerkzeug(tenantId: string, callId: string, args: u
   // auch eine Fahrt mit Problem – klärt ein Mensch.
   const fahrt = await withTenant(tenantId).ride.findUnique({ where: { id: rideId }, select: { status: true } });
   if (!fahrt || !KI_STORNIERBAR.has(fahrt.status)) {
-    return "Diese Fahrt kann ich nicht stornieren, sie läuft bereits oder ist abgeschlossen. Bitte an einen Mitarbeiter weiterleiten (an_mensch_weiterleiten) oder rueckruf_anlegen.";
+    // Maßnahme M-47: kein Name eines Werkzeugs, das es nicht gibt (vorher "an_mensch_weiterleiten").
+    return "Diese Fahrt kann ich nicht stornieren, sie läuft bereits oder ist abgeschlossen. Bitte an einen Mitarbeiter weiterleiten oder rueckruf_anlegen anbieten.";
   }
   await fahrtStornierenKern(tenantId, rideId);
   return "Fahrt storniert.";
@@ -565,12 +566,14 @@ async function rueckrufAnlegen(tenantId: string, callId: string, args: unknown):
 }
 
 /**
- * Führt einen Werkzeugaufruf aus und fängt dabei jeden Fehler ab – Vapi erwartet immer HTTP 200
- * mit einem Ergebnis je Aufruf, Fehler stehen im `error`-Feld (docs/04a-vapi-notizen.md Punkt 3).
- * "an_mensch_weiterleiten" läuft normalerweise über Vapis eigenes transferCall-Werkzeug
- * (buildAssistantConfig in providers/voice/vapi.ts) und kommt hier gar nicht erst an; der Fall
- * bleibt als Rückfalllösung bestehen, falls Vapi es doch über die Werkzeuge schickt.
+ * Maßnahme M-47 (S2-019): Die Weiterleitung an einen Menschen läuft über das Werkzeug des Anbieters
+ * (Vapi: transferCall mit fest hinterlegtem Ziel, providers/voice/vapi.ts) und kommt hier nie an.
+ * Kommt doch ein Weiterleitungsaufruf bei uns an, hat KEINE Weiterleitung stattgefunden – vorher
+ * antwortete das System trotzdem "Wird weitergeleitet." und die KI sagte "Ich verbinde Sie".
  */
+const WEITERLEITUNG_NICHT_MOEGLICH =
+  "Weiterleitung nicht möglich, es wurde niemand verbunden. Bei einem Notfall den Anrufer auffordern, sofort die 112 anzurufen. Sonst rueckruf_anlegen anbieten.";
+
 /** Führt eine Aufgabe nach der Antwort an den Telefonanbieter aus (im Webhook: next/server after()). */
 export type Hintergrund = (aufgabe: () => Promise<unknown>) => void;
 
@@ -582,6 +585,10 @@ export type WerkzeugOptionen = {
   hintergrund?: Hintergrund;
 };
 
+/**
+ * Führt einen Werkzeugaufruf aus und fängt dabei jeden Fehler ab – Vapi erwartet immer HTTP 200
+ * mit einem Ergebnis je Aufruf, Fehler stehen im `error`-Feld (docs/04a-vapi-notizen.md Punkt 3).
+ */
 export async function werkzeugAusfuehren(
   tenantId: string,
   callId: string,
@@ -673,8 +680,9 @@ async function werkzeugEinmalAusfuehren(
         break;
       case "an_mensch_weiterleiten":
       case "transferCall":
-        result = "Wird weitergeleitet.";
-        break;
+        // Maßnahme M-47: Fehler statt vorgetäuschtem Erfolg; Protokoll nur mit IDs.
+        console.error("Weiterleitungsaufruf kam beim Webhook an statt beim Telefonanbieter – Konfiguration prüfen", { tenantId, callId });
+        return { id: toolCall.id, error: WEITERLEITUNG_NICHT_MOEGLICH };
       default:
         return { id: toolCall.id, error: `Unbekanntes Werkzeug: ${toolCall.name}` };
     }

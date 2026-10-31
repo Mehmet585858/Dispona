@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { istEindeutigkeitsFehler, withTenant } from "@/lib/db";
-import { rufnummerE164 } from "@/core/einrichtung/rufnummer";
+import { rufnummerE164, weiterleitungsnummerE164 } from "@/core/einrichtung/rufnummer";
+import { WEITERLEITUNGSNUMMER_UNGUELTIG } from "@/core/einrichtung/texte";
 import { requireAdminSession, requireBueroSession } from "@/lib/session";
 import { LETZTER_SCHRITT } from "@/core/einrichtung/schritte";
 import { routingProvider, GEOCODE_SICHER_SCHWELLE } from "@/providers/routing";
@@ -134,15 +135,23 @@ export async function testanrufPruefen(seit: string) {
 const kiSchema = z.object({
   voiceId: z.string().min(1),
   greeting: z.string().min(1),
-  escalationNumber: z.string().min(1),
+  // Format prüft weiterleitungsnummerE164 unten (M-47) – mit verständlicher Meldung statt ZodError.
+  escalationNumber: z.string(),
 });
 export type KiEingabe = z.infer<typeof kiSchema>;
 
-export async function kiEinstellungenSpeichern(eingabe: KiEingabe) {
+export type KiSpeichernErgebnis = { ok: true; escalationNumber: string } | { ok: false; fehler: string };
+
+export async function kiEinstellungenSpeichern(eingabe: KiEingabe): Promise<KiSpeichernErgebnis> {
   const { tenantId } = await adminSession();
   const daten = kiSchema.parse(eingabe);
-  await withTenant(tenantId).tenantSettings.update({ where: { tenantId }, data: daten });
+  // Maßnahme M-47 Punkt 3 (S2-019, V-015): Weiterleitung an einen Menschen nur an eine echte
+  // Rufnummer, gespeichert als E.164 – Vapi bekam vorher "" oder "0241 12345" als Ziel.
+  const escalationNumber = weiterleitungsnummerE164(daten.escalationNumber);
+  if (!escalationNumber) return { ok: false, fehler: WEITERLEITUNGSNUMMER_UNGUELTIG };
+  await withTenant(tenantId).tenantSettings.update({ where: { tenantId }, data: { ...daten, escalationNumber } });
   revalidatePath("/einrichtung");
+  return { ok: true, escalationNumber };
 }
 
 // ---- Schritt 7: Testanruf ----
