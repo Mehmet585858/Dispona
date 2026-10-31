@@ -9,7 +9,7 @@ import { FremdeReferenzError, withTenant } from "@/lib/db";
 import { berlinerMitternacht, datumIso, mitUhrzeit, tagVerschieben } from "@/core/shifts/week";
 import { vorschlagBerechnenUndSpeichern } from "@/core/disposition/vorschlagSpeichern";
 import { fahrtPruefen, type Problem } from "./pruefungen";
-import { fahrtSchema, istRueckfahrtZeitOffen, type FahrtEingabe } from "./validation";
+import { fahrtSchema, type FahrtEingabe } from "./validation";
 import { fahrtStatusAendern } from "./status";
 
 /**
