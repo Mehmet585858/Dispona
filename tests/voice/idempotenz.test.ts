@@ -35,6 +35,9 @@ describe("werkzeugAusfuehren – Idempotenz je toolCallId (S2-014)", () => {
     });
     callId = call.id;
     passengerId = (await prisma.passenger.create({ data: { tenantId, firstName: "PRUEF", lastName: "Replay", phones: [] } })).id;
+    // Maßnahme M-13: gebucht wird nur für einen im Anruf bestätigten Fahrgast (wie nach einem
+    // erfolgreichen fahrgast_suchen im selben Gespräch).
+    await prisma.call.update({ where: { id: callId }, data: { identifiedPassengerIds: [passengerId] } });
     ortId = (
       await prisma.place.create({
         data: { tenantId, label: "PRUEF Ort", street: "A 1", zip: "52062", city: "Aachen", lat: 50.77, lng: 6.08, type: "SONSTIGES" },

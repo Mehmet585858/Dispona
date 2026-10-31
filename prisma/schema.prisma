@@ -448,6 +448,10 @@ model Call {
   summary        String?
   audioUrl       String?
   outcome        CallOutcome?
+  // Maßnahme M-13 (S2-002): Fahrgäste, deren Identität in DIESEM Anruf bestätigt wurde (echte
+  // Anrufernummer, Nachname + Geburtsdatum oder im Anruf neu angelegt). Nur für diese darf die KI
+  // Fahrten nennen, ändern oder stornieren. Reine IDs, keine Personendaten.
+  identifiedPassengerIds String[]      @default([])
   rides          Ride[]
   toolCalls      VoiceToolCall[]
 }

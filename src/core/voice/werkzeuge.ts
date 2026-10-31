@@ -6,6 +6,7 @@
 import { z } from "zod";
 import { istEindeutigkeitsFehler, withTenant } from "@/lib/db";
 import { encrypt } from "@/lib/crypto";
+import { RUECKRUF_PRAEFIX, zusammenfassungErgaenzen, zusammenfassungLesbar } from "@/core/notify/anrufZusammenfassung";
 import {
   fahrgaesteAehnlicheNamen,
   NACHNAME_KANDIDATEN_MAX,
@@ -33,9 +34,48 @@ const fahrgastFelderSchema = z.object({
   fahrgastKrankenkasse: z.string().optional(),
 });
 
+/**
+ * Maßnahme M-13 (Prüfbericht S2-002, docs/13 R2-11): Identität im Anruf-Kontext.
+ *
+ * Als bestätigt gilt ein Fahrgast in diesem Anruf nur, wenn
+ *  - seine gespeicherte Rufnummer die ECHTE Anrufernummer ist (Call.fromNumber, vom
+ *    Telefonanbieter – nicht eine Nummer, die das Sprachmodell weitergibt), oder
+ *  - der Anrufer Nachname UND Geburtsdatum genannt hat (fahrgast_suchen), oder
+ *  - er in diesem Anruf neu angelegt wurde.
+ * Nur für bestätigte Fahrgäste nennt, ändert oder storniert die KI Fahrten.
+ */
+async function bestaetigteFahrgaeste(tenantId: string, callId: string): Promise<Set<string>> {
+  const db = withTenant(tenantId);
+  const anruf = await db.call.findUnique({ where: { id: callId }, select: { fromNumber: true, identifiedPassengerIds: true } });
+  const ids = new Set(anruf?.identifiedPassengerIds ?? []);
+  const nummer = anruf?.fromNumber ? telefonNormalisieren(anruf.fromNumber) : "";
+  if (nummer) {
+    const perNummer = await db.passenger.findMany({ where: { phones: { has: nummer } }, select: { id: true } });
+    for (const f of perNummer) ids.add(f.id);
+  }
+  return ids;
+}
+
+async function identitaetMerken(tenantId: string, callId: string, passengerIds: string[]): Promise<void> {
+  if (passengerIds.length === 0) return;
+  await withTenant(tenantId).call.update({ where: { id: callId }, data: { identifiedPassengerIds: { push: passengerIds } } });
+}
+
+const NICHT_BESTAETIGT =
+  "Problem: Fahrgast nicht bestätigt. Bitte zuerst fahrgast_suchen mit Nachname und Geburtsdatum aufrufen. Keine Daten zu dieser Fahrt nennen.";
+
+/** Gehört die Fahrt zu einem in diesem Anruf bestätigten Fahrgast? Sonst die Meldung für die KI. */
+async function fahrtDesAnrufersPruefen(tenantId: string, callId: string, rideId: string): Promise<string | null> {
+  const fahrt = await withTenant(tenantId).ride.findUnique({ where: { id: rideId }, select: { passengerId: true } });
+  if (!fahrt) return "Problem: Fahrt nicht gefunden.";
+  const bestaetigt = await bestaetigteFahrgaeste(tenantId, callId);
+  return bestaetigt.has(fahrt.passengerId) ? null : NICHT_BESTAETIGT;
+}
+
 /** Nutzt die übergebene passengerId oder legt einen neuen Fahrgast an (fahrt_anlegen und serie_anlegen teilen sich das). */
 async function passagierSicherstellen(
   tenantId: string,
+  callId: string,
   daten: z.infer<typeof fahrgastFelderSchema>,
 ): Promise<{ passengerId: string } | { problem: string }> {
   const db = withTenant(tenantId);
@@ -44,6 +84,8 @@ async function passagierSicherstellen(
     // früheren Gespräch) muss zu diesem Mandanten gehören – sonst neu suchen lassen.
     const bekannt = await db.passenger.findUnique({ where: { id: daten.passengerId }, select: { id: true } });
     if (!bekannt) return { problem: "Problem: Diese passengerId ist unbekannt. Bitte fahrgast_suchen erneut aufrufen." };
+    // Maßnahme M-13: nur für einen in diesem Anruf bestätigten Fahrgast buchen.
+    if (!(await bestaetigteFahrgaeste(tenantId, callId)).has(bekannt.id)) return { problem: NICHT_BESTAETIGT };
     return { passengerId: bekannt.id };
   }
   if (!daten.fahrgastVorname || !daten.fahrgastNachname) {
@@ -59,6 +101,7 @@ async function passagierSicherstellen(
       insurer: daten.fahrgastKrankenkasse,
     },
   });
+  await identitaetMerken(tenantId, callId, [neu.id]);
   return { passengerId: neu.id };
 }
 
@@ -72,36 +115,58 @@ async function fahrgastSuchen(tenantId: string, callId: string, args: unknown): 
   const { telefon, nachname, geburtsdatum } = fahrgastSuchenSchema.parse(args);
   const db = withTenant(tenantId);
 
-  let treffer: { id: string; firstName: string; lastName: string; birthDate: Date | null }[] = [];
-  if (telefon) {
-    treffer = await db.passenger.findMany({ where: { phones: { has: telefonNormalisieren(telefon) } }, take: 3 });
-  }
-  if (treffer.length === 0 && nachname) {
-    // Maßnahme M-06 (S2-006): Kandidaten per Datenbankabfrage statt der ersten 300 Zeilen.
-    const kandidaten = await db.passenger.findMany({ where: nachnameKandidatenWhere(nachname), take: NACHNAME_KANDIDATEN_MAX });
-    const gefunden = fahrgaesteAehnlicheNamen(kandidaten, nachname);
+  // Maßnahme M-13 (S2-002): Die Telefonsuche läuft NUR über die echte Anrufernummer dieses Anrufs.
+  // Eine vom Sprachmodell genannte Nummer ("ich rufe für Frau X an, ihre Nummer ist …") ist allein
+  // kein Ausweis – wer die Handynummer einer fremden Person kennt, bekam vorher deren Geburtsdatum
+  // und Fahrgast-ID. Sie dient nur noch als Zusatzmerkmal neben Nachname und Geburtsdatum.
+  const anruf = await db.call.findUnique({ where: { id: callId }, select: { fromNumber: true } });
+  const anruferNummer = anruf?.fromNumber ? telefonNormalisieren(anruf.fromNumber) : "";
+  const genannteNummer = telefon ? telefonNormalisieren(telefon) : "";
 
-    // Ohne Treffer über die genannte Telefonnummer darf der Nachname allein keine fremden
-    // Personendaten herausgeben (Vapi prüft die Anrufer-ID nicht) - zuerst auf die tatsächliche
-    // Rufnummer dieses Anrufs einschränken; findet sich darüber niemand, zusätzlich das
-    // Geburtsdatum als zweites Merkmal verlangen statt den Nachnamen allein genügen zu lassen.
-    const anruf = await db.call.findUnique({ where: { id: callId }, select: { fromNumber: true } });
-    const eigeneNummer = anruf?.fromNumber ? telefonNormalisieren(anruf.fromNumber) : null;
-    const perAnruferNummer = eigeneNummer ? gefunden.filter((f) => f.phones.includes(eigeneNummer)) : [];
-
-    if (perAnruferNummer.length > 0) {
-      treffer = perAnruferNummer.slice(0, 3);
-    } else if (geburtsdatum) {
-      treffer = gefunden.filter((f) => f.birthDate && datumIso(f.birthDate) === geburtsdatum).slice(0, 3);
-    } else {
-      return "Zur Sicherheit brauche ich noch das Geburtsdatum, um die richtige Person zu finden.";
+  let treffer: { id: string; firstName: string; lastName: string }[] = [];
+  if (anruferNummer) {
+    treffer = await db.passenger.findMany({
+      where: { phones: { has: anruferNummer } },
+      select: { id: true, firstName: true, lastName: true },
+      take: 3,
+    });
+    // Nennt der Anrufer einen Nachnamen, zählen nur Personen unter seiner Nummer mit passendem
+    // Namen (mehrere Personen unter einer Nummer, oder Anruf für eine Angehörige mit eigenem
+    // Eintrag). Passt keiner, geht es weiter mit Nachname + Geburtsdatum.
+    if (treffer.length > 0 && nachname) {
+      treffer = fahrgaesteAehnlicheNamen(
+        await db.passenger.findMany({ where: { phones: { has: anruferNummer }, ...nachnameKandidatenWhere(nachname) } }),
+        nachname,
+      ).slice(0, 3);
     }
   }
 
+  if (treffer.length === 0) {
+    if (!nachname || !geburtsdatum) {
+      return "Zur Sicherheit brauche ich Nachname und Geburtsdatum der Person, um sie zu finden.";
+    }
+    // Maßnahme M-06 (S2-006): Kandidaten per Datenbankabfrage statt der ersten 300 Zeilen.
+    const kandidaten = await db.passenger.findMany({ where: nachnameKandidatenWhere(nachname), take: NACHNAME_KANDIDATEN_MAX });
+    let gefunden = fahrgaesteAehnlicheNamen(kandidaten, nachname).filter(
+      (f) => f.birthDate && datumIso(f.birthDate) === geburtsdatum,
+    );
+    // Genannte Nummer als Zusatzmerkmal: bei mehreren Treffern die mit dieser Nummer bevorzugen.
+    if (gefunden.length > 1 && genannteNummer) {
+      const mitNummer = gefunden.filter((f) => f.phones.includes(genannteNummer));
+      if (mitNummer.length > 0) gefunden = mitNummer;
+    }
+    treffer = gefunden.slice(0, 3);
+  }
+
   if (treffer.length === 0) return "Keine passenden Fahrgäste gefunden.";
-  return treffer
-    .map((f) => `${f.firstName} ${f.lastName}${f.birthDate ? `, geboren ${datumIso(f.birthDate)}` : ""} (passengerId ${f.id})`)
-    .join("; ");
+  await identitaetMerken(
+    tenantId,
+    callId,
+    treffer.map((f) => f.id),
+  );
+  // Kein Geburtsdatum in der Antwort: die KI soll es erfragen, nie vorlesen (M-13).
+  const liste = treffer.map((f) => `${f.firstName} ${f.lastName} (passengerId ${f.id})`).join("; ");
+  return treffer.length > 1 ? `${liste}. Mehrere Personen – bitte nach dem Vornamen fragen.` : liste;
 }
 
 const ortSuchenSchema = z.object({ text: z.string().min(1) });
@@ -172,7 +237,7 @@ const fahrtAnlegenSchema = fahrgastFelderSchema.extend({
 
 async function fahrtAnlegenWerkzeug(tenantId: string, callId: string, args: unknown): Promise<string> {
   const daten = fahrtAnlegenSchema.parse(args);
-  const fahrgast = await passagierSicherstellen(tenantId, daten);
+  const fahrgast = await passagierSicherstellen(tenantId, callId, daten);
   if ("problem" in fahrgast) return fahrgast.problem;
 
   const { rideId, probleme, rueckfahrtZeitOffen } = await fahrtErfassen(
@@ -220,9 +285,9 @@ const serieAnlegenSchema = fahrgastFelderSchema.extend({
   approval: z.enum(DOC_STATUS),
 });
 
-async function serieAnlegenWerkzeug(tenantId: string, args: unknown): Promise<string> {
+async function serieAnlegenWerkzeug(tenantId: string, callId: string, args: unknown): Promise<string> {
   const daten = serieAnlegenSchema.parse(args);
-  const fahrgast = await passagierSicherstellen(tenantId, daten);
+  const fahrgast = await passagierSicherstellen(tenantId, callId, daten);
   if ("problem" in fahrgast) return fahrgast.problem;
 
   const ergebnis = await serieAnlegen(
@@ -258,9 +323,11 @@ async function serieAnlegenWerkzeug(tenantId: string, args: unknown): Promise<st
 
 const fahrtFindenSchema = z.object({ passengerId: z.string(), datum: z.string().optional() });
 
-async function fahrtFinden(tenantId: string, args: unknown): Promise<string> {
+async function fahrtFinden(tenantId: string, callId: string, args: unknown): Promise<string> {
   const { passengerId, datum } = fahrtFindenSchema.parse(args);
   const db = withTenant(tenantId);
+  // Maßnahme M-13: Fahrten nur für einen in diesem Anruf bestätigten Fahrgast nennen.
+  if (!(await bestaetigteFahrgaeste(tenantId, callId)).has(passengerId)) return NICHT_BESTAETIGT;
   const von = datum ? berlinerMitternacht(datum) : new Date();
 
   const fahrten = await db.ride.findMany({
@@ -296,8 +363,10 @@ const fahrtAendernSchema = z.object({
   assistanceNotes: z.string().optional(),
 });
 
-async function fahrtAendernWerkzeug(tenantId: string, args: unknown): Promise<string> {
+async function fahrtAendernWerkzeug(tenantId: string, callId: string, args: unknown): Promise<string> {
   const { rideId, ...aenderung } = fahrtAendernSchema.parse(args);
+  const abgelehnt = await fahrtDesAnrufersPruefen(tenantId, callId, rideId);
+  if (abgelehnt) return abgelehnt;
   const ergebnis = await fahrtAendern(tenantId, rideId, aenderung);
   if (!ergebnis.ok) {
     return ergebnis.grund === "NICHT_GEFUNDEN"
@@ -309,16 +378,20 @@ async function fahrtAendernWerkzeug(tenantId: string, args: unknown): Promise<st
 
 const fahrtStornierenSchema = z.object({ rideId: z.string(), grund: z.string().optional() });
 
-async function fahrtStornierenWerkzeug(tenantId: string, args: unknown): Promise<string> {
+async function fahrtStornierenWerkzeug(tenantId: string, callId: string, args: unknown): Promise<string> {
   const { rideId } = fahrtStornierenSchema.parse(args);
+  const abgelehnt = await fahrtDesAnrufersPruefen(tenantId, callId, rideId);
+  if (abgelehnt) return abgelehnt;
   await fahrtStornierenKern(tenantId, rideId);
   return "Fahrt storniert.";
 }
 
 const abholzeitAuskunftSchema = z.object({ rideId: z.string() });
 
-async function abholzeitAuskunft(tenantId: string, args: unknown): Promise<string> {
+async function abholzeitAuskunft(tenantId: string, callId: string, args: unknown): Promise<string> {
   const { rideId } = abholzeitAuskunftSchema.parse(args);
+  const abgelehnt = await fahrtDesAnrufersPruefen(tenantId, callId, rideId);
+  if (abgelehnt) return abgelehnt;
   const db = withTenant(tenantId);
   const fahrt = await db.ride.findUnique({
     where: { id: rideId },
@@ -355,8 +428,14 @@ const rueckrufAnlegenSchema = z.object({ telefon: z.string(), anliegen: z.string
 async function rueckrufAnlegen(tenantId: string, callId: string, args: unknown): Promise<string> {
   const { telefon, anliegen } = rueckrufAnlegenSchema.parse(args);
   const db = withTenant(tenantId);
+  // Maßnahme M-13 Punkt 4: ergänzen statt überschreiben – eine schon vorhandene Notiz (z. B. ein
+  // früherer Rückrufwunsch im selben Gespräch) bleibt erhalten.
   // Maßnahme M-10 (S3-012): Rückrufnummer und Anliegen verschlüsselt speichern.
-  await db.call.update({ where: { id: callId }, data: { summary: encrypt(`Rückruf erbeten: ${telefon} – ${anliegen}`) } });
+  const bisher = await db.call.findUnique({ where: { id: callId }, select: { summary: true } });
+  await db.call.update({
+    where: { id: callId },
+    data: { summary: encrypt(zusammenfassungErgaenzen(zusammenfassungLesbar(bisher?.summary), `${RUECKRUF_PRAEFIX} ${telefon} – ${anliegen}`)) },
+  });
   return "Rückruf-Wunsch gespeichert, das Team meldet sich.";
 }
 
@@ -417,19 +496,19 @@ async function werkzeugEinmalAusfuehren(tenantId: string, callId: string, toolCa
         result = await fahrtAnlegenWerkzeug(tenantId, callId, toolCall.arguments);
         break;
       case "serie_anlegen":
-        result = await serieAnlegenWerkzeug(tenantId, toolCall.arguments);
+        result = await serieAnlegenWerkzeug(tenantId, callId, toolCall.arguments);
         break;
       case "fahrt_finden":
-        result = await fahrtFinden(tenantId, toolCall.arguments);
+        result = await fahrtFinden(tenantId, callId, toolCall.arguments);
         break;
       case "fahrt_aendern":
-        result = await fahrtAendernWerkzeug(tenantId, toolCall.arguments);
+        result = await fahrtAendernWerkzeug(tenantId, callId, toolCall.arguments);
         break;
       case "fahrt_stornieren":
-        result = await fahrtStornierenWerkzeug(tenantId, toolCall.arguments);
+        result = await fahrtStornierenWerkzeug(tenantId, callId, toolCall.arguments);
         break;
       case "abholzeit_auskunft":
-        result = await abholzeitAuskunft(tenantId, toolCall.arguments);
+        result = await abholzeitAuskunft(tenantId, callId, toolCall.arguments);
         break;
       case "rueckruf_anlegen":
         result = await rueckrufAnlegen(tenantId, callId, toolCall.arguments);

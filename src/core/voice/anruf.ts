@@ -4,6 +4,7 @@
 import type { CallOutcome } from "@/generated/prisma/enums";
 import { istEindeutigkeitsFehler, withTenant } from "@/lib/db";
 import { encrypt } from "@/lib/crypto";
+import { zusammenfassungLesbar, zusammenfassungMitRueckrufen } from "@/core/notify/anrufZusammenfassung";
 import type { CallReport } from "@/providers/voice/types";
 
 export async function anrufSicherstellen(
@@ -48,6 +49,10 @@ export async function anrufAbschliessen(
     fromNumber: bericht.fromNumber,
     toNumber: bericht.toNumber,
   });
+  // Maßnahme M-13 Punkt 4: Rückrufwünsche aus dem Gespräch (rueckruf_anlegen) bleiben neben der
+  // KI-Zusammenfassung stehen, statt von ihr überschrieben zu werden.
+  const bisher = await db.call.findUnique({ where: { id: call.id }, select: { summary: true } });
+  const gesamt = zusammenfassungMitRueckrufen(zusammenfassung, zusammenfassungLesbar(bisher?.summary));
   await db.call.update({
     where: { id: call.id },
     data: {
@@ -55,7 +60,7 @@ export async function anrufAbschliessen(
       durationSec: bericht.durationSec,
       transcript: bericht.transcript ? encrypt(bericht.transcript) : undefined,
       // Maßnahme M-10 (S3-012): Zusammenfassung verschlüsselt wie das Transkript.
-      summary: zusammenfassung ? encrypt(zusammenfassung) : undefined,
+      summary: gesamt ? encrypt(gesamt) : undefined,
       audioUrl: bericht.recordingUrl,
       outcome,
     },

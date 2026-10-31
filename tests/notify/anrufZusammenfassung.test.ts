@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { encrypt, istVerschluesselt } from "@/lib/crypto";
 import { anrufAbschliessen } from "@/core/voice/anruf";
+import { zusammenfassungMitRueckrufen } from "@/core/notify/anrufZusammenfassung";
 import { prisma } from "@/lib/prisma";
 import { mandantKomplettLoeschen } from "@/lib/seedSchutz";
 
@@ -59,5 +60,19 @@ describe("anrufAbschliessen speichert die Zusammenfassung verschlüsselt (M-10, 
     expect(roh.summary).not.toContain("Testmann");
     expect(istVerschluesselt(roh.summary ?? "")).toBe(true);
     expect(zusammenfassungLesbar(roh.summary)).toBe("PRUEF Testmann bestellt Dialysefahrt");
+  });
+});
+
+describe("zusammenfassungMitRueckrufen (M-13 Punkt 4)", () => {
+  it("M-13: die KI-Zusammenfassung am Gesprächsende behält den Rückrufwunsch aus dem Gespräch", () => {
+    const bisher = "Rückruf erbeten: +4924010000009 – PRUEF Anliegen";
+    expect(zusammenfassungMitRueckrufen("PRUEF Zusammenfassung", bisher)).toBe(`PRUEF Zusammenfassung\n${bisher}`);
+  });
+
+  it("verdoppelt bei wiederholtem Abschluss nichts und übernimmt sonst nur Rückruf-Zeilen", () => {
+    const einmal = zusammenfassungMitRueckrufen("A", "Rückruf erbeten: 1 – x");
+    expect(zusammenfassungMitRueckrufen("A", einmal)).toBe(einmal);
+    expect(zusammenfassungMitRueckrufen("Neu", "Alte Zusammenfassung")).toBe("Neu");
+    expect(zusammenfassungMitRueckrufen(null, null)).toBeNull();
   });
 });

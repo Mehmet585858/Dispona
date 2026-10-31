@@ -48,10 +48,16 @@ const WERKZEUGE = [
     type: "function",
     function: {
       name: "fahrgast_suchen",
-      description: "Bekannten Fahrgast anhand Rückrufnummer, Nachname oder Geburtsdatum finden, bevor eine neue Fahrt angelegt wird.",
+      description:
+        "Bekannten Fahrgast finden und seine Identität für dieses Gespräch bestätigen. Die echte Anrufernummer prüft das System selbst; " +
+        "ruft jemand von einer anderen Nummer an, sind Nachname UND Geburtsdatum nötig.",
       parameters: {
         type: "object",
-        properties: { telefon: { type: "string" }, nachname: { type: "string" }, geburtsdatum: { type: "string", description: "JJJJ-MM-TT" } },
+        properties: {
+          telefon: { type: "string", description: "Nur als Zusatzangabe; allein findet sie niemanden." },
+          nachname: { type: "string" },
+          geburtsdatum: { type: "string", description: "JJJJ-MM-TT" },
+        },
       },
     },
   },
@@ -127,7 +133,7 @@ const WERKZEUGE = [
     type: "function",
     function: {
       name: "fahrt_finden",
-      description: "Kommende Fahrten eines bekannten Fahrgasts nachschlagen, z. B. für Änderungen oder Stornierungen.",
+      description: "Kommende Fahrten eines in diesem Gespräch bestätigten Fahrgasts nachschlagen, z. B. für Änderungen oder Stornierungen.",
       parameters: {
         type: "object",
         properties: { passengerId: { type: "string" }, datum: { type: "string", description: "JJJJ-MM-TT, optional" } },

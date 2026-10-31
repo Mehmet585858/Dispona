@@ -43,3 +43,27 @@ export function zusammenfassungLesbar(gespeichert: string | null | undefined): s
     return ZUSAMMENFASSUNG_NICHT_VERFUEGBAR;
   }
 }
+
+/** Kennzeichen der Notiz, die rueckruf_anlegen während des Gesprächs hinterlegt. */
+export const RUECKRUF_PRAEFIX = "Rückruf erbeten:";
+
+/**
+ * Maßnahme M-13 Punkt 4: Eine Notiz ergänzt die vorhandene Zusammenfassung, statt sie zu ersetzen.
+ * Gleiche Zeilen werden nicht doppelt angehängt (ein wiederholter Aufruf ändert nichts).
+ */
+export function zusammenfassungErgaenzen(bisher: string | null | undefined, neu: string): string {
+  if (!bisher) return neu;
+  const zeilen = bisher.split("\n");
+  return zeilen.includes(neu) ? bisher : `${bisher}\n${neu}`;
+}
+
+/**
+ * Beim Gesprächsende ersetzt die KI-Zusammenfassung den Zwischenstand – Rückrufwünsche aus dem
+ * Gespräch dürfen dabei nicht verloren gehen (sonst ruft niemand zurück). Übernommen werden nur
+ * die Rückruf-Zeilen, damit ein wiederholter Abschluss nichts verdoppelt.
+ */
+export function zusammenfassungMitRueckrufen(neu: string | null, bisher: string | null | undefined): string | null {
+  const rueckrufe = (bisher ?? "").split("\n").filter((z) => z.startsWith(RUECKRUF_PRAEFIX));
+  if (rueckrufe.length === 0) return neu;
+  return rueckrufe.reduce((text, zeile) => zusammenfassungErgaenzen(text, zeile), neu ?? "");
+}
