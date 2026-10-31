@@ -1,7 +1,9 @@
 "use server";
 
 import { randomUUID } from "node:crypto";
+import { headers } from "next/headers";
 import { z } from "zod";
+import { registrierungErlaubt } from "@/core/einrichtung/registrierungsLimit";
 import { istEindeutigkeitsFehler } from "@/lib/db";
 import { prisma } from "@/lib/prisma";
 import { willkommenGruss } from "@/core/einrichtung/texte";
@@ -44,6 +46,12 @@ export async function firmaRegistrieren(
   }
   const { firmenname, vorname, nachname, email, handynummer } = geprueft.data;
 
+  // Maßnahme M-23 Punkt 2: Ratenbegrenzung je Anschluss – vor jeder Datenbankabfrage zur E-Mail,
+  // damit sich auch nicht massenhaft prüfen lässt, welche Adressen schon registriert sind.
+  if (!(await registrierungErlaubt(await anschlussKennung()))) {
+    return { ok: false, fehler: "Zu viele Registrierungen von diesem Anschluss. Bitte später erneut versuchen." };
+  }
+
   const vorhanden = await prisma.user.findUnique({ where: { email }, select: { id: true } });
   if (vorhanden) {
     return { ok: false, fehler: "Diese E-Mail-Adresse ist schon registriert. Bitte stattdessen anmelden." };
@@ -85,4 +93,15 @@ export async function firmaRegistrieren(
   }
 
   return { ok: true };
+}
+
+/** Anschluss des Aufrufers (erste Adresse aus x-forwarded-for bzw. x-real-ip), sonst "unbekannt". */
+async function anschlussKennung(): Promise<string> {
+  try {
+    const kopf = await headers();
+    return kopf.get("x-forwarded-for")?.split(",")[0]?.trim() || kopf.get("x-real-ip") || "unbekannt";
+  } catch {
+    // Außerhalb einer Anfrage (Skripte, Tests).
+    return "unbekannt";
+  }
 }

@@ -5,7 +5,7 @@
  * (src/app/api/voice/tools/fahrt_anlegen.ts). Framework-unabhängig (docs/09-bauplan.md Phase 6).
  */
 import type { RideSource } from "@/generated/prisma/enums";
-import { FremdeReferenzError, withTenant } from "@/lib/db";
+import { FremdeReferenzError, withTenant, type TenantTx } from "@/lib/db";
 import { berlinerMitternacht, datumIso, mitUhrzeit, tagVerschieben } from "@/core/shifts/week";
 import { vorschlagBerechnenUndSpeichern } from "@/core/disposition/vorschlagSpeichern";
 import { fahrtPruefen, type Problem } from "./pruefungen";
@@ -44,6 +44,7 @@ type Rueckfahrt = { pickupAt: Date; zeitOffen: boolean; hinRideId: string };
 
 async function einzelneFahrtAnlegen(
   tenantId: string,
+  db: TenantTx,
   daten: FahrtEingabe,
   tag: Date,
   optionen: FahrtErfassenOptionen,
@@ -54,7 +55,6 @@ async function einzelneFahrtAnlegen(
   // eine unabhängige echte Fahrt zur exakt selben Uhrzeit aus – DOPPELBUCHUNG blieb dann stumm.
   ignoriereRideId?: string,
 ): Promise<{ rideId: string; probleme: Problem[] }> {
-  const db = withTenant(tenantId);
   const pickupPlaceId = rueckfahrt ? daten.dropoffPlaceId : daten.pickupPlaceId;
   const dropoffPlaceId = rueckfahrt ? daten.pickupPlaceId : daten.dropoffPlaceId;
   const pickupAt = rueckfahrt ? rueckfahrt.pickupAt : mitUhrzeit(tag, daten.abholzeit);
@@ -113,10 +113,22 @@ async function einzelneFahrtAnlegen(
       problems: probleme,
     },
   });
-  await fahrtStatusAendern(tenantId, entwurf.id, "ERFASST", { userId: optionen.userId });
-  await vorschlagBerechnenUndSpeichern(tenantId, entwurf.id, optionen.userId);
+  await fahrtStatusAendern(tenantId, entwurf.id, "ERFASST", { userId: optionen.userId, tx: db });
 
   return { rideId: entwurf.id, probleme };
+}
+
+/**
+ * Vorschlag nach dem Anlegen. Scheitert er (z. B. Routing nicht erreichbar), bleibt die Fahrt
+ * ERFASST – ein gültiger Zustand, den das Büro und "Plan für morgen" aufgreifen – statt dass der
+ * ganze Aufruf mit einem Fehler endet und die KI womöglich noch einmal anlegt (Maßnahme M-23).
+ */
+async function vorschlagNachAnlage(tenantId: string, rideId: string, userId?: string): Promise<void> {
+  try {
+    await vorschlagBerechnenUndSpeichern(tenantId, rideId, userId);
+  } catch (fehler) {
+    console.error("Vorschlag nach Erfassen fehlgeschlagen", { tenantId, rideId, fehler: fehler instanceof Error ? fehler.name : "unbekannt" });
+  }
 }
 
 export type FahrtErfassenErgebnis = {
@@ -143,24 +155,33 @@ export async function fahrtErfassen(
   const daten = fahrtSchema.parse(eingabe);
   const tag = berlinerMitternacht(daten.datum);
 
-  const hin = await einzelneFahrtAnlegen(tenantId, daten, tag, optionen, undefined, ignoriereDoppelbuchungRideId);
-
-  if (daten.rueckfahrt) {
+  // Maßnahme M-23 Punkt 3 (S4-009): Hin- und Rückfahrt samt Statuswechsel in EINER Transaktion –
+  // entweder beide oder keine. Die Vorschlagsrechnung (externe Routing-Aufrufe) läuft danach.
+  const { hin, rueck, rueckfahrtZeitOffen } = await withTenant(tenantId).$transaction(async (tx) => {
+    const hinFahrt = await einzelneFahrtAnlegen(tenantId, tx, daten, tag, optionen, undefined, ignoriereDoppelbuchungRideId);
+    if (!daten.rueckfahrt) return { hin: hinFahrt, rueck: undefined, rueckfahrtZeitOffen: undefined };
     // Maßnahme M-07 (S1-005): Rückfahrt ohne Uhrzeit wurde vorher stillschweigend verworfen – die
     // KI meldete trotzdem "Fahrt erfasst". Jetzt entsteht sie immer; ohne Zeit mit Platzhalter und
     // Problem RUECKFAHRT_ZEIT_OFFEN, über Mitternacht am Folgetag (R1-3). Von der
     // Doppelbuchungsprüfung ausgenommen ist genau die Hinfahrt dieses Aufrufs (R1-2).
     const hinPickupAt = mitUhrzeit(tag, daten.abholzeit);
     const rueckfahrt = rueckfahrtAbholzeit(tag, hinPickupAt, daten.rueckfahrtzeit || undefined);
-    const rueck = await einzelneFahrtAnlegen(
+    const rueckFahrt = await einzelneFahrtAnlegen(
       tenantId,
+      tx,
       daten,
       tag,
       optionen,
-      { ...rueckfahrt, hinRideId: hin.rideId },
-      hin.rideId,
+      { ...rueckfahrt, hinRideId: hinFahrt.rideId },
+      hinFahrt.rideId,
     );
-    return { ...hin, rueckfahrtRideId: rueck.rideId, rueckfahrtProbleme: rueck.probleme, rueckfahrtZeitOffen: rueckfahrt.zeitOffen };
+    return { hin: hinFahrt, rueck: rueckFahrt, rueckfahrtZeitOffen: rueckfahrt.zeitOffen };
+  });
+
+  await vorschlagNachAnlage(tenantId, hin.rideId, optionen.userId);
+  if (rueck) {
+    await vorschlagNachAnlage(tenantId, rueck.rideId, optionen.userId);
+    return { ...hin, rueckfahrtRideId: rueck.rideId, rueckfahrtProbleme: rueck.probleme, rueckfahrtZeitOffen };
   }
 
   return hin;

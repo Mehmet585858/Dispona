@@ -126,30 +126,30 @@ enum AutoMode {
 }
 
 model TenantSettings {
-  tenantId             String   @id
-  tenant               Tenant   @relation(fields: [tenantId], references: [id])
-  aiActive             Boolean  @default(false)
+  tenantId             String    @id
+  tenant               Tenant    @relation(fields: [tenantId], references: [id])
+  aiActive             Boolean   @default(false)
   aiSchedule           Json?
   greeting             String
   voiceId              String
   escalationNumber     String
   openingHours         Json
   serviceAreaCenter    Json
-  serviceAreaKm        Int      @default(30)
+  serviceAreaKm        Int       @default(30)
   depotAddress         Json?
-  autoMode             AutoMode @default(AUS)
+  autoMode             AutoMode  @default(AUS)
   autoModeSchedule     Json?
-  autoModeMinMargin    Int      @default(5)
-  autoModeMaxDaysAhead Int      @default(3)
-  requireDocsForAuto   Boolean  @default(true)
-  driverAckMinutes     Int      @default(5)
+  autoModeMinMargin    Int       @default(5)
+  autoModeMaxDaysAhead Int       @default(3)
+  requireDocsForAuto   Boolean   @default(true)
+  driverAckMinutes     Int       @default(5)
   alertPhone           String?
   alertEmail           String?
-  planFuerMorgenZeit   String   @default("18:00")
+  planFuerMorgenZeit   String    @default("18:00")
   planFuerMorgenLauf   DateTime?
   exportTemplate       Json?
-  audioRetentionDays   Int      @default(30)
-  dataRetentionDays    Int      @default(3650)
+  audioRetentionDays   Int       @default(30)
+  dataRetentionDays    Int       @default(3650)
 }
 
 model PhoneNumber {
@@ -390,9 +390,9 @@ model RideStatusEvent {
 }
 
 model RideSeries {
-  id              String   @id @default(cuid())
+  id              String    @id @default(cuid())
   tenantId        String
-  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+  tenant          Tenant    @relation(fields: [tenantId], references: [id])
   passengerId     String
   rrule           String
   pickupTime      String
@@ -440,24 +440,24 @@ enum CallOutcome {
 }
 
 model Call {
-  id             String          @id @default(cuid())
-  tenantId       String
-  tenant         Tenant          @relation(fields: [tenantId], references: [id])
-  providerCallId String          @unique
-  fromNumber     String?
-  toNumber       String
-  startedAt      DateTime
-  durationSec    Int?
-  transcript     String?
-  summary        String?
-  audioUrl       String?
-  outcome        CallOutcome?
+  id                     String          @id @default(cuid())
+  tenantId               String
+  tenant                 Tenant          @relation(fields: [tenantId], references: [id])
+  providerCallId         String          @unique
+  fromNumber             String?
+  toNumber               String
+  startedAt              DateTime
+  durationSec            Int?
+  transcript             String?
+  summary                String?
+  audioUrl               String?
+  outcome                CallOutcome?
   // Maßnahme M-13 (S2-002): Fahrgäste, deren Identität in DIESEM Anruf bestätigt wurde (echte
   // Anrufernummer, Nachname + Geburtsdatum oder im Anruf neu angelegt). Nur für diese darf die KI
   // Fahrten nennen, ändern oder stornieren. Reine IDs, keine Personendaten.
-  identifiedPassengerIds String[]      @default([])
-  rides          Ride[]
-  toolCalls      VoiceToolCall[]
+  identifiedPassengerIds String[]        @default([])
+  rides                  Ride[]
+  toolCalls              VoiceToolCall[]
 }
 
 // Jeder Werkzeugaufruf der KI genau einmal (Prüfbericht S2-014): Vapi wiederholt Webhooks bei
@@ -539,6 +539,18 @@ model CronLauf {
 
   @@unique([tenantId, cron])
   @@index([tenantId])
+}
+
+// Maßnahme M-23 (Prüfbericht S2-011): Ratenbegrenzung der öffentlichen Registrierung. Plattformweit
+// (vor dem Anlegen gibt es noch keinen Mandanten). schluessel = SHA-256 aus Anschluss (IP) und
+// AUTH_SECRET – keine IP im Klartext; Einträge älter als 24 Stunden werden beim nächsten Versuch
+// gelöscht.
+model Registrierungsversuch {
+  id         String   @id @default(cuid())
+  schluessel String
+  at         DateTime @default(now())
+
+  @@index([schluessel, at])
 }
 
 model Job {
