@@ -3,23 +3,21 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { withTenant } from "@/lib/db";
-import { requireSession } from "@/lib/session";
+import { istEindeutigkeitsFehler, withTenant } from "@/lib/db";
+import { rufnummerE164 } from "@/core/einrichtung/rufnummer";
+import { requireAdminSession, requireBueroSession } from "@/lib/session";
 import { LETZTER_SCHRITT } from "@/core/einrichtung/schritte";
 import { routingProvider, GEOCODE_SICHER_SCHWELLE } from "@/providers/routing";
 import { parseDeutscheAdresse } from "@/core/places/adresse";
+import { einsatzgebietMitteLaden } from "@/core/einrichtung/einsatzgebiet";
 
 async function adminSession() {
-  const session = await requireSession();
-  if (session.role !== "ADMIN") {
-    throw new Error("Nur der Inhaber (Admin) kann die Einrichtung ändern.");
-  }
-  return session;
+  return requireAdminSession();
 }
 
 /** Lädt alles, was die Einrichtungs-Schritte zum Anzeigen brauchen, in einem Rutsch. */
 export async function einrichtungLaden() {
-  const { tenantId } = await requireSession();
+  const { tenantId } = await requireBueroSession();
   const db = withTenant(tenantId);
   const [tenant, settings, telefonnummer] = await Promise.all([
     prisma.tenant.findUniqueOrThrow({ where: { id: tenantId } }),
@@ -44,7 +42,11 @@ export async function schrittAbschliessen(schritt: number) {
 
 /** Adresssuche fürs Firmen-/Betriebshof-Formular (gleicher Geocoder wie OrtAuswahl, aber ohne Place anzulegen). */
 export async function adresseSuchen(text: string) {
-  const ergebnisse = await routingProvider.geocode(text);
+  // Maßnahme M-02 / Prüfbericht S3-003: vorher ohne Anmeldung aufrufbar (offener Geocoding-Proxy).
+  const { tenantId } = await requireBueroSession();
+  // Maßnahme M-06 (S2-007): Geocoding mit Bezug zum Einsatzgebiet (bei Neuanlage noch die
+  // Voreinstellung Deutschland-Mitte, dann praktisch ohne Wirkung).
+  const ergebnisse = await routingProvider.geocode(text, await einsatzgebietMitteLaden(tenantId));
   return ergebnisse.map((r) => ({
     ...parseDeutscheAdresse(r.label),
     label: r.label,
@@ -92,21 +94,31 @@ export async function firmaSpeichern(eingabe: FirmaEingabe) {
 
 export async function kiNummerSpeichern(e164: string) {
   const { tenantId } = await adminSession();
-  const nummer = e164.trim();
-  if (!nummer) throw new Error("Nummer fehlt.");
+  // Prüfbericht S2-011: nur echte E.164-Nummern; eine Nummer, die schon einem anderen Fahrdienst
+  // gehört, wird mit klarer Meldung abgelehnt statt mit einem Datenbankfehler. (Dass die Nummer
+  // dem Mandanten wirklich gehört, kann nur der Betreiber bestätigen – siehe Behebungsprotokoll.)
+  const nummer = rufnummerE164(e164);
+  if (!nummer) throw new Error("Rufnummer bitte im internationalen Format angeben, z. B. +49 2401 123456.");
   const db = withTenant(tenantId);
   const vorhanden = await db.phoneNumber.findFirst({ where: { tenantId } });
-  if (vorhanden) {
-    await db.phoneNumber.update({ where: { id: vorhanden.id }, data: { e164: nummer, provider: "VAPI" } });
-  } else {
-    await db.phoneNumber.create({ data: { tenantId, e164: nummer, provider: "VAPI" } });
+  try {
+    if (vorhanden) {
+      await db.phoneNumber.update({ where: { id: vorhanden.id }, data: { e164: nummer, provider: "VAPI" } });
+    } else {
+      await db.phoneNumber.create({ data: { tenantId, e164: nummer, provider: "VAPI" } });
+    }
+  } catch (fehler) {
+    if (istEindeutigkeitsFehler(fehler)) {
+      throw new Error("Diese Rufnummer ist schon einem anderen Fahrdienst zugeordnet.");
+    }
+    throw fehler;
   }
   revalidatePath("/einrichtung");
 }
 
 /** Prüft, ob seit `seit` ein Anruf bei diesem Mandanten angekommen ist (für den Rufumleitungs-Test). */
 export async function testanrufPruefen(seit: string) {
-  const { tenantId } = await requireSession();
+  const { tenantId } = await requireBueroSession();
   const anruf = await withTenant(tenantId).call.findFirst({
     where: { startedAt: { gte: new Date(seit) } },
     orderBy: { startedAt: "desc" },
@@ -136,7 +148,7 @@ export async function kiEinstellungenSpeichern(eingabe: KiEingabe) {
 // ---- Schritt 7: Testanruf ----
 
 export async function fahrerFuerTestanrufLaden() {
-  const { tenantId } = await requireSession();
+  const { tenantId } = await requireBueroSession();
   return withTenant(tenantId).driver.findMany({
     include: { user: { select: { name: true } }, pushSubscriptions: { select: { id: true } } },
     orderBy: { user: { name: "asc" } },
@@ -144,7 +156,7 @@ export async function fahrerFuerTestanrufLaden() {
 }
 
 export async function letzteFahrtenLaden(seit: string) {
-  const { tenantId } = await requireSession();
+  const { tenantId } = await requireBueroSession();
   return withTenant(tenantId).ride.findMany({
     where: { createdAt: { gte: new Date(seit) } },
     include: { passenger: { select: { firstName: true, lastName: true } } },

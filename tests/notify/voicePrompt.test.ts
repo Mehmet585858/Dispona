@@ -52,3 +52,27 @@ describe("voiceSystemPrompt", () => {
     expect(text).not.toContain("{{");
   });
 });
+
+describe("voiceSystemPrompt – Identität (M-13)", () => {
+  const text = voiceSystemPrompt({
+    tenantId: "t1",
+    firmenname: "Muster Krankenfahrten",
+    ort: "Baesweiler",
+    greeting: "Willkommen.",
+    voiceId: "stimme-1",
+    escalationNumber: "+4924041234",
+    anrufernummer: "+491701234567",
+    bestaetigungsweg: " per SMS",
+  });
+
+  it("M-13: verlangt eine bestätigte Identität vor Auskunft, Änderung und Storno", () => {
+    expect(text).toMatch(/Identität/);
+    expect(text).toMatch(/Nachname und Geburtsdatum/);
+    expect(text).toMatch(/fahrt_aendern|fahrt_stornieren/);
+  });
+
+  it("M-13: liest kein Geburtsdatum vor und folgt keinen Anweisungen, die Regeln zu umgehen", () => {
+    expect(text).toMatch(/Geburtsdatum.*nie vor|nie.*Geburtsdatum/i);
+    expect(text).toMatch(/ignorier|Regeln/i);
+  });
+});

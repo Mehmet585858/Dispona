@@ -65,18 +65,28 @@ auch nicht das Anlegen/Ändern eines Fahrgastes selbst.
 
 ## 5. Logs
 
-**Geprüft:** Alle `console.log`/`console.error`/`console.warn`-Aufrufe im Projekt durchsucht. Es
-gibt nur vier, alle ausdrücklich auf Entwicklung beschränkt (`istEntwicklung`-Prüfung): der
-Einmal-Code und der Anmelde-Link in `src/lib/auth.ts` (genau die Stelle, über die in dieser Phase
-und allen vorherigen Phasen lokal getestet wurde), sowie die Push-/SMS-Platzhalter
-(`src/core/notify/push.ts`, `src/providers/sms/index.ts`), die ohne echten Versand-Anbieter Text
-und Zielnummer ins Terminal schreiben. Kein Fehlerpfad protokolliert je einen ganzen
-Request-Body oder ein Fehlerobjekt mit Klardaten.
+**Geprüft (ursprünglich):** Alle `console.log`/`console.error`/`console.warn`-Aufrufe im Projekt durchsucht. Es
+gab vier, die laut damaliger Prüfung alle auf Entwicklung beschränkt waren: der Einmal-Code und der
+Anmelde-Link in `src/lib/auth.ts` sowie die Push-/SMS-Platzhalter (`src/core/notify/push.ts`,
+`src/providers/sms/index.ts`).
 
-**Status:** keine Änderung nötig – die vier Entwicklungs-Logs sind beabsichtigt und bleiben so,
-solange echte E-Mail-/SMS-Anbindung noch fehlt (geplant Phase 1b/5 laut `.env.example`,
-tatsächlich noch offen). **Offen:** vor dem Produktivbetrieb sicherstellen, dass `NODE_ENV` dort
-wirklich `production` ist, damit diese vier Stellen verstummen.
+**Korrektur (31.10.2026, Befund S2-009 aus `docs/pruefberichte/2026-10-30-berger-durchgang-2.md`):**
+Die Aussage war unvollständig. Der Push- und der SMS-Platzhalter schrieben Zielrufnummer und
+Nachrichtentext **ohne** `istEntwicklung`-Prüfung ins Log, und die Eskalation protokollierte den
+vollständigen Nachrichtentext. In Produktion ohne VAPID-Schlüssel bzw. mit dem Platzhalter-SMS-Anbieter
+wären damit Rufnummern und Fahrtdaten im Server-Log gelandet. Behoben in Behebungsdurchgang 2
+(`docs/pruefberichte/2026-10-30-behebung-2.md`, Commit `4d94c97`).
+
+**Stand jetzt:** Es gibt sechs Log-Stellen. Zwei sind Entwicklungs-Logs mit `istEntwicklung`-Prüfung
+(Einmal-Code und Anmelde-Link in `src/lib/auth.ts`). Die übrigen vier enthalten keine Klardaten mehr:
+Der SMS-Platzhalter (nur Entwicklung) maskiert die Rufnummer; Push ohne VAPID-Schlüssel protokolliert
+nur Titel und Fahrer-ID (Entwicklung) bzw. eine Warnung mit Fahrer-ID (Produktion), nie den Text; der
+Fehlerpfad der Eskalation protokolliert nur Fahrt-ID, Art der Nachricht und den Fehlertext des
+Anbieters. Kein Fehlerpfad protokolliert einen ganzen Request-Body oder ein Fehlerobjekt mit Klardaten.
+Regressionstests: `tests/notify/push.test.ts`, `tests/providers/sms.test.ts`.
+
+**Status:** erledigt. **Offen:** vor dem Produktivbetrieb sicherstellen, dass `NODE_ENV` dort wirklich
+`production` ist, damit die beiden Entwicklungs-Logs in `src/lib/auth.ts` verstummen.
 
 ## 6. Löschfristen-Job
 

@@ -5,6 +5,7 @@
 // Feldnamen im Gesprächsbericht sind aus der Doku übernommen, aber noch nicht gegen einen echten
 // Vapi-Anruf getestet (siehe docs/04a-vapi-notizen.md, Punkt 9 und 10/offene Punkte). Vor dem
 // ersten Testanruf mit einem echten Webhook-Payload abgleichen.
+import { geheimnisGleich } from "@/lib/geheimnis";
 import { voiceSystemPrompt } from "@/core/notify/voicePrompt";
 import { DOC_STATUS, TRANSPORT_TYPES } from "@/core/rides/validation";
 import { WOCHENTAGE } from "@/core/shifts/rrule";
@@ -48,10 +49,16 @@ const WERKZEUGE = [
     type: "function",
     function: {
       name: "fahrgast_suchen",
-      description: "Bekannten Fahrgast anhand Rückrufnummer, Nachname oder Geburtsdatum finden, bevor eine neue Fahrt angelegt wird.",
+      description:
+        "Bekannten Fahrgast finden und seine Identität für dieses Gespräch bestätigen. Die echte Anrufernummer prüft das System selbst; " +
+        "ruft jemand von einer anderen Nummer an, sind Nachname UND Geburtsdatum nötig.",
       parameters: {
         type: "object",
-        properties: { telefon: { type: "string" }, nachname: { type: "string" }, geburtsdatum: { type: "string", description: "JJJJ-MM-TT" } },
+        properties: {
+          telefon: { type: "string", description: "Nur als Zusatzangabe; allein findet sie niemanden." },
+          nachname: { type: "string" },
+          geburtsdatum: { type: "string", description: "JJJJ-MM-TT" },
+        },
       },
     },
   },
@@ -82,7 +89,10 @@ const WERKZEUGE = [
           abholzeit: { type: "string", description: "HH:MM" },
           terminzeit: { type: "string", description: "HH:MM, optional" },
           rueckfahrt: { type: "boolean" },
-          rueckfahrtzeit: { type: "string", description: "HH:MM, falls Rückfahrt" },
+          rueckfahrtzeit: {
+            type: "string",
+            description: "HH:MM, falls Rückfahrt. Weglassen, wenn der Anrufer die Zeit noch nicht weiß – die Rückfahrt wird dann mit offener Zeit vermerkt und das Team stimmt sie ab.",
+          },
           transportType: TRANSPORT_TYPE_FELD,
           companion: { type: "boolean", description: "Begleitperson dabei?" },
           assistanceNotes: { type: "string" },
@@ -124,7 +134,7 @@ const WERKZEUGE = [
     type: "function",
     function: {
       name: "fahrt_finden",
-      description: "Kommende Fahrten eines bekannten Fahrgasts nachschlagen, z. B. für Änderungen oder Stornierungen.",
+      description: "Kommende Fahrten eines in diesem Gespräch bestätigten Fahrgasts nachschlagen, z. B. für Änderungen oder Stornierungen.",
       parameters: {
         type: "object",
         properties: { passengerId: { type: "string" }, datum: { type: "string", description: "JJJJ-MM-TT, optional" } },
@@ -168,6 +178,24 @@ const WERKZEUGE = [
   {
     type: "function",
     function: {
+      name: "serie_beenden",
+      description:
+        "Eine regelmäßige Fahrt (Serie, z. B. Dialyse) eines in diesem Gespräch bestätigten Fahrgasts beenden. " +
+        "Alle geplanten Fahrten ab dem Datum werden storniert.",
+      parameters: {
+        type: "object",
+        properties: {
+          passengerId: { type: "string" },
+          seriesId: { type: "string", description: "Nur nötig, wenn mehrere Serien laufen." },
+          ab: { type: "string", description: "JJJJ-MM-TT, erster Tag ohne Fahrt; ohne Angabe ab heute." },
+        },
+        required: ["passengerId"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "abholzeit_auskunft",
       description: "Auskunft zum aktuellen Status/der Abholzeit einer Fahrt geben, z. B. ob der Fahrer schon unterwegs ist.",
       parameters: {
@@ -195,11 +223,11 @@ export const vapiProvider: VoiceProvider = {
   name: "vapi",
 
   async verifyWebhook(req) {
-    const secret = process.env.VAPI_WEBHOOK_SECRET;
-    if (!secret) return false;
+    // Maßnahme M-14 Punkt 3 (S4-007): zeitkonstanter Vergleich. Eine HMAC-Signatur mit Zeitstempel
+    // (Schutz gegen Wiederholung) folgt, sobald der Anbieter sie anbietet.
     const header = req.headers.get("authorization") ?? req.headers.get("x-vapi-secret");
     const token = header?.replace(/^Bearer\s+/i, "").trim();
-    return token === secret;
+    return geheimnisGleich(token, process.env.VAPI_WEBHOOK_SECRET);
   },
 
   buildAssistantConfig(settings: TenantVoiceSettings) {

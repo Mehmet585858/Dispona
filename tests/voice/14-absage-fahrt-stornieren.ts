@@ -11,7 +11,7 @@ const gespraech: Testgespraech = {
     "Ja, bitte stornieren Sie die.",
   ],
   erwartetesErgebnis:
-    "KI ruft zuerst fahrt_finden (oder fahrgast_suchen + fahrt_finden) auf, um die richtige rideId zu bestimmen, bestätigt die Fahrt (Uhrzeit/Ziel) mit dem Anrufer und ruft erst danach fahrt_stornieren auf – storniert nicht blind die falsche oder eine beliebige Fahrt.",
+    "KI ruft zuerst fahrt_finden (oder fahrgast_suchen + fahrt_finden) auf, um die richtige rideId zu bestimmen, bestätigt die Fahrt (Uhrzeit/Ziel) mit dem Anrufer und ruft erst danach fahrt_stornieren auf – storniert nicht blind die falsche oder eine beliebige Fahrt. Maßnahme M-13: Ohne Anrufernummer (bzw. von einer fremden Nummer) fragt die KI vorher nach Nachname und Geburtsdatum und ruft fahrgast_suchen damit auf; ohne Bestätigung nennt sie keine Daten zur Fahrt.",
 };
 
 export default gespraech;

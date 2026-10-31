@@ -164,7 +164,7 @@ describe("planFuerMorgenBerechnen", () => {
     });
 
     const ergebnis = await planFuerMorgenBerechnen(ohneDepot.id);
-    expect(ergebnis).toEqual({ geprueft: 0, automatischDisponiert: 0, vorgeschlagen: 0, keinKandidat: 0 });
+    expect(ergebnis).toEqual({ geprueft: 0, automatischDisponiert: 0, vorgeschlagen: 0, keinKandidat: 0, fehler: 0 });
 
     await prisma.tenantSettings.delete({ where: { tenantId: ohneDepot.id } });
     await prisma.tenant.delete({ where: { id: ohneDepot.id } });

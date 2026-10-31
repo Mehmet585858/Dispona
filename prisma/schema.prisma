@@ -126,30 +126,30 @@ enum AutoMode {
 }
 
 model TenantSettings {
-  tenantId             String   @id
-  tenant               Tenant   @relation(fields: [tenantId], references: [id])
-  aiActive             Boolean  @default(false)
+  tenantId             String    @id
+  tenant               Tenant    @relation(fields: [tenantId], references: [id])
+  aiActive             Boolean   @default(false)
   aiSchedule           Json?
   greeting             String
   voiceId              String
   escalationNumber     String
   openingHours         Json
   serviceAreaCenter    Json
-  serviceAreaKm        Int      @default(30)
+  serviceAreaKm        Int       @default(30)
   depotAddress         Json?
-  autoMode             AutoMode @default(AUS)
+  autoMode             AutoMode  @default(AUS)
   autoModeSchedule     Json?
-  autoModeMinMargin    Int      @default(5)
-  autoModeMaxDaysAhead Int      @default(3)
-  requireDocsForAuto   Boolean  @default(true)
-  driverAckMinutes     Int      @default(5)
+  autoModeMinMargin    Int       @default(5)
+  autoModeMaxDaysAhead Int       @default(3)
+  requireDocsForAuto   Boolean   @default(true)
+  driverAckMinutes     Int       @default(5)
   alertPhone           String?
   alertEmail           String?
-  planFuerMorgenZeit   String   @default("18:00")
+  planFuerMorgenZeit   String    @default("18:00")
   planFuerMorgenLauf   DateTime?
   exportTemplate       Json?
-  audioRetentionDays   Int      @default(30)
-  dataRetentionDays    Int      @default(3650)
+  audioRetentionDays   Int       @default(30)
+  dataRetentionDays    Int       @default(3650)
 }
 
 model PhoneNumber {
@@ -195,6 +195,10 @@ model Driver {
   shifts            Shift[]
   pushSubscriptions PushSubscription[]
   gpsConsentAt      DateTime?
+  // Maßnahme M-12 (Offboarding): deaktivierte Fahrer haben keine Sitzung, kein Push, keine
+  // Schicht und tauchen in keinem Vorschlag auf (src/core/drivers/deaktivieren.ts).
+  active            Boolean            @default(true)
+  deactivatedAt     DateTime?
 }
 
 model PushSubscription {
@@ -347,6 +351,9 @@ model Ride {
   seriesId        String?
   series          RideSeries?       @relation(fields: [seriesId], references: [id])
   returnOfId      String?
+  // Maßnahme M-07: Rückfahrt bestellt, Uhrzeit noch offen – pickupAt ist dann nur ein Platzhalter,
+  // die Fahrt trägt das Problem RUECKFAHRT_ZEIT_OFFEN und wartet auf das Büro ("Braucht Sie").
+  returnTimeOpen  Boolean           @default(false)
   callId          String?
   call            Call?             @relation(fields: [callId], references: [id])
   problems        String[]
@@ -383,15 +390,19 @@ model RideStatusEvent {
 }
 
 model RideSeries {
-  id              String   @id @default(cuid())
+  id              String    @id @default(cuid())
   tenantId        String
-  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+  tenant          Tenant    @relation(fields: [tenantId], references: [id])
   passengerId     String
   rrule           String
   pickupTime      String
   appointmentTime String?
   until           DateTime
   template        Json
+  // Maßnahme M-22 (S2-005): Pause (z. B. Krankenhausaufenthalt, Urlaub) – in diesem Zeitraum
+  // erzeugt serienVerlaengern keine Fahrten. Berliner Tage, jeweils einschließlich.
+  pausedFrom      DateTime?
+  pausedUntil     DateTime?
   rides           Ride[]
 }
 
@@ -429,19 +440,43 @@ enum CallOutcome {
 }
 
 model Call {
-  id             String       @id @default(cuid())
-  tenantId       String
-  tenant         Tenant       @relation(fields: [tenantId], references: [id])
-  providerCallId String       @unique
-  fromNumber     String?
-  toNumber       String
-  startedAt      DateTime
-  durationSec    Int?
-  transcript     String?
-  summary        String?
-  audioUrl       String?
-  outcome        CallOutcome?
-  rides          Ride[]
+  id                     String          @id @default(cuid())
+  tenantId               String
+  tenant                 Tenant          @relation(fields: [tenantId], references: [id])
+  providerCallId         String          @unique
+  fromNumber             String?
+  toNumber               String
+  startedAt              DateTime
+  durationSec            Int?
+  transcript             String?
+  summary                String?
+  audioUrl               String?
+  outcome                CallOutcome?
+  // Maßnahme M-13 (S2-002): Fahrgäste, deren Identität in DIESEM Anruf bestätigt wurde (echte
+  // Anrufernummer, Nachname + Geburtsdatum oder im Anruf neu angelegt). Nur für diese darf die KI
+  // Fahrten nennen, ändern oder stornieren. Reine IDs, keine Personendaten.
+  identifiedPassengerIds String[]        @default([])
+  rides                  Ride[]
+  toolCalls              VoiceToolCall[]
+}
+
+// Jeder Werkzeugaufruf der KI genau einmal (Prüfbericht S2-014): Vapi wiederholt Webhooks bei
+// Timeout, ohne diesen Merker legte ein erneut gesendetes fahrt_anlegen die Fahrt doppelt an.
+// Hängt per Cascade am Anruf, verschwindet also mit ihm (Löschfristen, Demo-Aufräumen).
+model VoiceToolCall {
+  id         String    @id @default(cuid())
+  tenantId   String
+  callId     String
+  call       Call      @relation(fields: [callId], references: [id], onDelete: Cascade)
+  toolCallId String
+  name       String
+  result     String?
+  error      String?
+  createdAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  @@unique([callId, toolCallId])
+  @@index([tenantId])
 }
 
 enum AdapterKey {
@@ -485,6 +520,37 @@ model AuditLog {
   at       DateTime @default(now())
 
   @@index([tenantId, at])
+}
+
+// Maßnahme M-16 (Prüfbericht S2-010, S3-011, docs/13 R2-3): Laufprotokoll und Laufsperre je
+// Cron und Mandant. laeuftSeit ist eine Sperre mit Ablauf (10 Minuten) – funktioniert auch hinter
+// einem Transaktions-Pooler, anders als sitzungsgebundene Advisory-Locks. Fehlertexte nur als
+// Fehlerart (keine Personendaten).
+model CronLauf {
+  id              String    @id @default(cuid())
+  tenantId        String
+  cron            String
+  laeuftSeit      DateTime?
+  letzterStart    DateTime?
+  letzterErfolg   DateTime?
+  letzterFehler   String?
+  letzterFehlerAm DateTime?
+  alarmGesendetAm DateTime?
+
+  @@unique([tenantId, cron])
+  @@index([tenantId])
+}
+
+// Maßnahme M-23 (Prüfbericht S2-011): Ratenbegrenzung der öffentlichen Registrierung. Plattformweit
+// (vor dem Anlegen gibt es noch keinen Mandanten). schluessel = SHA-256 aus Anschluss (IP) und
+// AUTH_SECRET – keine IP im Klartext; Einträge älter als 24 Stunden werden beim nächsten Versuch
+// gelöscht.
+model Registrierungsversuch {
+  id         String   @id @default(cuid())
+  schluessel String
+  at         DateTime @default(now())
+
+  @@index([schluessel, at])
 }
 
 model Job {

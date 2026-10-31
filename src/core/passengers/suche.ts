@@ -42,6 +42,27 @@ export function istAehnlicherName(a: string, b: string): boolean {
 
 type FahrgastKandidat = { id: string; firstName: string; lastName: string };
 
+/**
+ * Prisma-where für die Kandidaten der unscharfen Namenssuche (Maßnahme M-06, Prüfbericht S2-006):
+ * statt der ersten 200/300 Zeilen ohne Sortierung im Speicher werden nur Nachnamen geladen, die
+ * mit denselben zwei Buchstaben beginnen oder den Suchtext enthalten (Index tenantId+lastName).
+ * Die Levenshtein-Ähnlichkeit (fahrgaesteAehnlicheNamen) läuft danach über diese Kandidaten.
+ */
+export function nachnameKandidatenWhere(nachname: string): {
+  OR: { lastName: { startsWith?: string; contains?: string; mode: "insensitive" } }[];
+} {
+  const text = nachname.trim();
+  return {
+    OR: [
+      { lastName: { startsWith: text.slice(0, 2), mode: "insensitive" } },
+      { lastName: { contains: text, mode: "insensitive" } },
+    ],
+  };
+}
+
+/** Obergrenze der Kandidaten je Suche – mehr als genug für ein Präfix, schützt vor Vollscans. */
+export const NACHNAME_KANDIDATEN_MAX = 500;
+
 /** Unscharfe Namenssuche: "Schmidt" findet auch "Schmitt". */
 export function fahrgaesteAehnlicheNamen<T extends FahrgastKandidat>(
   alle: T[],
@@ -50,11 +71,32 @@ export function fahrgaesteAehnlicheNamen<T extends FahrgastKandidat>(
   return alle.filter((f) => istAehnlicherName(f.lastName, nachname));
 }
 
-/** Normalisiert eine Telefonnummer grob für den Vergleich (nur Ziffern, führende 0 -> +49). */
+/**
+ * Normalisiert eine Telefonnummer zum gemeinsamen Suchschlüssel (E.164-ähnlich, nur Ziffern mit
+ * führendem +). Derselbe Schlüssel wird beim Speichern (Oberfläche, Import, KI) und beim Suchen
+ * benutzt (Prüfbericht S2-013); die SQL-Migration 20261031090000_telefonnummern_e164 rechnet
+ * Bestandsdaten mit genau denselben Regeln um:
+ *   "0171 2345678"       → +491712345678   (führende 0 = deutsche Ortsvorwahl)
+ *   "0049 171 2345678"   → +491712345678   (00 = internationale Vorwahl)
+ *   "+49 (0) 171 234567" → +49171234567    (die (0) nach +49 ist nur Schreibweise)
+ *   "0031612345678"      → +31612345678    (bleibt niederländisch)
+ * Ohne Ziffern (z. B. ein Name) ergibt sich "", damit eine Suche danach nie trifft.
+ */
 export function telefonNormalisieren(nummer: string): string {
-  const ziffern = nummer.replace(/[^0-9+]/g, "");
-  if (ziffern.startsWith("0")) {
-    return `+49${ziffern.slice(1)}`;
+  const roh = nummer.trim();
+  const plusAmAnfang = roh.startsWith("+");
+  let ziffern = roh.replace(/[^0-9]/g, "");
+  if (ziffern.length === 0) return "";
+  if (plusAmAnfang) {
+    ziffern = `+${ziffern}`;
+  } else if (ziffern.startsWith("00")) {
+    ziffern = `+${ziffern.slice(2)}`;
+  } else if (ziffern.startsWith("0")) {
+    ziffern = `+49${ziffern.slice(1)}`;
+  }
+  // "+49 (0) 171 …": nach der deutschen Ländervorwahl steht nie eine 0 (Verkehrsausscheidungsziffer).
+  if (ziffern.startsWith("+490")) {
+    ziffern = `+49${ziffern.slice(4)}`;
   }
   return ziffern;
 }

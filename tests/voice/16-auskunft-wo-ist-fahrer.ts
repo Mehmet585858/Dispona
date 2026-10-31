@@ -9,7 +9,7 @@ const gespraech: Testgespraech = {
     "Können Sie mal schauen, wo er ist?",
   ],
   erwartetesErgebnis:
-    "KI findet die Fahrt über fahrt_finden und ruft abholzeit_auskunft auf, gibt dann eine ruhige, konkrete Antwort (geschätzte Ankunftszeit oder Status) statt nur zu vertrösten.",
+    "KI findet die Fahrt über fahrt_finden und ruft abholzeit_auskunft auf, gibt dann eine ruhige, konkrete Antwort (geschätzte Ankunftszeit oder Status) statt nur zu vertrösten. Maßnahme M-13: Ohne Anrufernummer (bzw. von einer fremden Nummer) fragt die KI vorher nach Nachname und Geburtsdatum und ruft fahrgast_suchen damit auf; ohne Bestätigung nennt sie keine Daten zur Fahrt.",
 };
 
 export default gespraech;

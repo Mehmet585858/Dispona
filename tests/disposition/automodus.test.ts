@@ -143,3 +143,26 @@ describe("automodusStatusText", () => {
     expect(automodusStatusText("NACHTS_WOCHENENDE", TAGSUEBER)).toContain("aus");
   });
 });
+
+/**
+ * Maßnahme M-17 (Prüfbericht S2-003): GPS-Frische (≤ 10 Min) gilt nur für Sofort-Disposition
+ * (Abholung in < 60 Minuten). Für Vorausplanung startet das Fahrzeug am Betriebshof bzw. am Ziel
+ * der vorherigen geplanten Fahrt – das rechnet die Vorschlagsberechnung bereits so.
+ */
+describe("pruefeGpsOderBetriebshof – Vorausplanung (M-17)", () => {
+  it("M-17: Fahrt in 3 Stunden ohne GPS und nicht vom Betriebshof → erlaubt (Vorausplanung)", () => {
+    expect(pruefeGpsOderBetriebshof(null, false, 180).erlaubt).toBe(true);
+  });
+  it("M-17: Fahrt in 30 Minuten ohne GPS → weiterhin blockiert (Sofort-Disposition)", () => {
+    expect(pruefeGpsOderBetriebshof(null, false, 30).erlaubt).toBe(false);
+    expect(pruefeGpsOderBetriebshof(15, false, 59).erlaubt).toBe(false);
+  });
+  it("M-17: sicherheitsbedingungenPruefen nachts um 3 Uhr für eine Fahrt am nächsten Morgen ohne GPS → erlaubt", () => {
+    const eingabe = basisEingabe();
+    eingabe.gpsAlterMinuten = null;
+    eingabe.startetVomBetriebshof = false;
+    eingabe.jetzt = new Date("2026-06-15T03:00:00+02:00");
+    eingabe.pickupAt = new Date("2026-06-15T08:00:00+02:00");
+    expect(sicherheitsbedingungenPruefen(eingabe).erlaubt).toBe(true);
+  });
+});

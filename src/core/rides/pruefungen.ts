@@ -6,7 +6,8 @@ export type Problem =
   | "DOPPELBUCHUNG"
   | "AUSSERHALB_EINSATZGEBIET"
   | "GENEHMIGUNG_FEHLT"
-  | "ADRESSE_UNSICHER";
+  | "ADRESSE_UNSICHER"
+  | "RUECKFAHRT_ZEIT_OFFEN";
 
 export function imEinsatzgebiet(
   ort: { lat: number; lng: number },
@@ -45,6 +46,8 @@ type FahrtPruefungEingabe = {
   serviceAreaCenter: { lat: number; lng: number } | null;
   serviceAreaKm: number;
   adresseUnsicher?: boolean;
+  /** Maßnahme M-07: Rückfahrt bestellt, Uhrzeit noch offen – pickupAt ist nur ein Platzhalter. */
+  rueckfahrtZeitOffen?: boolean;
 };
 
 /** Fasst alle Prüfungen für eine neue Fahrt zusammen. Liefert die gefundenen Probleme. */
@@ -69,6 +72,10 @@ export function fahrtPruefen(eingabe: FahrtPruefungEingabe): Problem[] {
 
   if (eingabe.adresseUnsicher) {
     probleme.push("ADRESSE_UNSICHER");
+  }
+
+  if (eingabe.rueckfahrtZeitOffen) {
+    probleme.push("RUECKFAHRT_ZEIT_OFFEN");
   }
 
   return probleme;

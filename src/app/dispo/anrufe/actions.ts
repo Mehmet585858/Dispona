@@ -1,12 +1,13 @@
 "use server";
 
 import { withTenant } from "@/lib/db";
-import { requireSession } from "@/lib/session";
+import { requireBueroSession } from "@/lib/session";
 import { decrypt } from "@/lib/crypto";
 import { telefonMaskiert } from "@/core/notify/telefonMaskierung";
+import { zusammenfassungLesbar } from "@/core/notify/anrufZusammenfassung";
 
 export async function anrufeLaden() {
-  const { tenantId } = await requireSession();
+  const { tenantId } = await requireBueroSession();
   const anrufe = await withTenant(tenantId).call.findMany({
     orderBy: { startedAt: "desc" },
     take: 100,
@@ -21,7 +22,7 @@ export async function anrufeLaden() {
     startedAt: a.startedAt,
     durationSec: a.durationSec,
     fromNumber: a.fromNumber ? telefonMaskiert(a.fromNumber) : null,
-    summary: a.summary,
+    summary: zusammenfassungLesbar(a.summary),
     outcome: a.outcome,
     audioUrl: a.audioUrl,
     hatTranskript: Boolean(a.transcript),
@@ -34,7 +35,7 @@ export async function anrufeLaden() {
 }
 
 export async function anrufTranskriptLaden(callId: string): Promise<string | null> {
-  const { tenantId, userId } = await requireSession();
+  const { tenantId, userId } = await requireBueroSession();
   const db = withTenant(tenantId);
   const anruf = await db.call.findUnique({ where: { id: callId }, select: { transcript: true } });
   if (!anruf?.transcript) return null;

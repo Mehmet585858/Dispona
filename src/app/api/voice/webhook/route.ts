@@ -1,4 +1,4 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { after, NextResponse, type NextRequest } from "next/server";
 import { voiceProvider } from "@/providers/voice";
 import { withTenant } from "@/lib/db";
 import { prisma } from "@/lib/prisma";
@@ -16,12 +16,29 @@ import { outcomeKlassifizieren } from "@/core/voice/outcome";
  * hätte in Vapi aber bedeutet, nur eine davon zu hinterlegen und die anderen beiden nie zu
  * erreichen. Jetzt an einer Stelle, nach Nachrichtentyp verzweigt.
  */
+const MAX_BODY_BYTES = 1_000_000;
+
 export async function POST(request: NextRequest) {
   if (!(await voiceProvider.verifyWebhook(request))) {
     return NextResponse.json({ error: "Ungültige Signatur." }, { status: 401 });
   }
 
-  const body = await request.json();
+  // Prüfbericht S2-014/S3-016: Eingabegrenzen. Ein echter Vapi-Body liegt im Kilobyte-Bereich;
+  // alles jenseits 1 MB ist kein Anruf. Kaputtes JSON ist ein Fehler des Senders (400), kein 500.
+  const laenge = Number(request.headers.get("content-length") ?? "0");
+  if (laenge > MAX_BODY_BYTES) {
+    return NextResponse.json({ error: "Anfrage zu groß." }, { status: 413 });
+  }
+  const roh = await request.text();
+  if (roh.length > MAX_BODY_BYTES) {
+    return NextResponse.json({ error: "Anfrage zu groß." }, { status: 413 });
+  }
+  let body: unknown;
+  try {
+    body = JSON.parse(roh);
+  } catch {
+    return NextResponse.json({ error: "Ungültiges JSON." }, { status: 400 });
+  }
 
   if (voiceProvider.istAssistantRequest(body)) {
     return assistantRequestBehandeln(body);
@@ -87,8 +104,23 @@ async function toolCallsBehandeln(body: unknown, aufrufe: ReturnType<typeof voic
     toNumber: angerufeneNummer,
   });
 
+  // Maßnahme M-14 Punkt 4: lange Arbeit (Serientermine) erst nach der Antwort – sonst überschreitet
+  // der Webhook das Zeitlimit des Anbieters, der dann wiederholt. Ein Fehler dort wird nur mit IDs
+  // protokolliert; der tägliche Cron serienVerlaengern holt fehlende Termine nach.
+  const hintergrund = (aufgabe: () => Promise<unknown>) =>
+    after(async () => {
+      try {
+        await aufgabe();
+      } catch (fehler) {
+        console.error("Hintergrundaufgabe nach Werkzeugaufruf fehlgeschlagen", {
+          tenantId: mandant.tenantId,
+          callId: anruf.id,
+          fehler: fehler instanceof Error ? fehler.name : "unbekannt",
+        });
+      }
+    });
   const ergebnisse = await Promise.all(
-    aufrufe.map((aufruf) => werkzeugAusfuehren(mandant.tenantId, anruf.id, aufruf)),
+    aufrufe.map((aufruf) => werkzeugAusfuehren(mandant.tenantId, anruf.id, aufruf, { hintergrund })),
   );
 
   return NextResponse.json(voiceProvider.formatToolResult(ergebnisse));
@@ -100,6 +132,16 @@ async function endOfCallBehandeln(bericht: NonNullable<ReturnType<typeof voicePr
   const nummer = await prisma.phoneNumber.findUnique({ where: { e164: bericht.toNumber }, select: { tenantId: true } });
   if (!nummer) {
     return NextResponse.json({ ok: true });
+  }
+
+  // Prüfbericht S2-014: Ein wiederholter Gesprächsbericht (Vapi-Retry) darf weder Transkript/
+  // Zusammenfassung erneut schreiben noch die KI-Zusammenfassung ein zweites Mal bezahlen.
+  const schonAbgeschlossen = await withTenant(nummer.tenantId).call.findFirst({
+    where: { providerCallId: bericht.providerCallId, outcome: { not: null } },
+    select: { id: true },
+  });
+  if (schonAbgeschlossen) {
+    return NextResponse.json({ ok: true, bereitsVerarbeitet: true });
   }
 
   const zusammenfassung = await anrufZusammenfassen(bericht.transcript);

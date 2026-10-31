@@ -1,8 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { withTenant } from "@/lib/db";
-import { requireSession } from "@/lib/session";
+import { referenzenPruefen, withTenant } from "@/lib/db";
+import { requireBueroSession } from "@/lib/session";
 import {
   fahrgastSchema,
   genehmigungSchema,
@@ -11,18 +11,25 @@ import {
   type GenehmigungEingabe,
 } from "@/core/passengers/validation";
 import { fahrgastAnonymisieren, fahrgastExportieren } from "@/core/passengers/loeschung";
+import { telefonNormalisieren } from "@/core/passengers/suche";
+import { serieAendern, serieBeenden, seriePausieren, type SerienAenderung } from "@/core/rides/serie";
+import { wochentageAusRrule } from "@/core/shifts/rrule";
+import { berlinerMitternacht, datumIso } from "@/core/shifts/week";
 
 export async function fahrgaesteLaden(suche?: string) {
-  const { tenantId } = await requireSession();
+  const { tenantId } = await requireBueroSession();
   const db = withTenant(tenantId);
   const text = suche?.trim();
+  // Prüfbericht S2-013: Nummern liegen normalisiert vor – die Eingabe "0171 …" muss den
+  // Schlüssel "+49171…" treffen (und umgekehrt KI-Fahrgäste finden).
+  const telefonSchluessel = text ? telefonNormalisieren(text) : "";
   return db.passenger.findMany({
     where: text
       ? {
           OR: [
             { firstName: { contains: text, mode: "insensitive" } },
             { lastName: { contains: text, mode: "insensitive" } },
-            { phones: { has: text } },
+            { phones: { hasSome: [text, ...(telefonSchluessel ? [telefonSchluessel] : [])] } },
           ],
         }
       : undefined,
@@ -33,7 +40,7 @@ export async function fahrgaesteLaden(suche?: string) {
 }
 
 export async function fahrgastSpeichern(id: string | null, eingabe: FahrgastEingabe) {
-  const { tenantId, userId } = await requireSession();
+  const { tenantId, userId } = await requireBueroSession();
   const geprüft = fahrgastSchema.parse(eingabe);
   const daten = {
     firstName: geprüft.firstName,
@@ -65,15 +72,17 @@ export async function fahrgastSpeichern(id: string | null, eingabe: FahrgastEing
 
 /** Protokolliert das Ansehen eines einzelnen Fahrgastdatensatzes (docs/08-datenschutz-sicherheit.md). */
 export async function fahrgastAngesehen(passengerId: string) {
-  const { tenantId, userId } = await requireSession();
+  const { tenantId, userId } = await requireBueroSession();
   await withTenant(tenantId).auditLog.create({
     data: { tenantId, userId, action: "passenger.angesehen", entity: "Passenger", entityId: passengerId },
   });
 }
 
 export async function genehmigungSpeichern(passengerId: string, eingabe: GenehmigungEingabe) {
-  const { tenantId } = await requireSession();
+  const { tenantId } = await requireBueroSession();
   const geprüft = genehmigungSchema.parse(eingabe);
+  // Prüfbericht S2-008: der Fahrgast muss zu diesem Mandanten gehören.
+  await referenzenPruefen(tenantId, { passenger: [passengerId] });
   await withTenant(tenantId).approval.create({
     data: {
       tenantId,
@@ -88,7 +97,7 @@ export async function genehmigungSpeichern(passengerId: string, eingabe: Genehmi
 }
 
 export async function genehmigungLöschen(id: string) {
-  const { tenantId } = await requireSession();
+  const { tenantId } = await requireBueroSession();
   await withTenant(tenantId).approval.delete({ where: { id } });
   revalidatePath("/dispo/fahrgaeste");
 }
@@ -96,7 +105,7 @@ export async function genehmigungLöschen(id: string) {
 export async function fahrgaesteImportieren(
   zeilen: Record<string, string>[],
 ): Promise<{ ok: number; fehler: string[] }> {
-  const { tenantId } = await requireSession();
+  const { tenantId } = await requireBueroSession();
   const db = withTenant(tenantId);
   const fehler: string[] = [];
   let ok = 0;
@@ -127,7 +136,7 @@ export async function fahrgaesteImportieren(
  * Fahrten, verknüpfte Anrufe mit Transkript. Nur ADMIN (docs/08-datenschutz-sicherheit.md).
  */
 export async function fahrgastExportLaden(passengerId: string) {
-  const { tenantId, userId, role } = await requireSession();
+  const { tenantId, userId, role } = await requireBueroSession();
   if (role !== "ADMIN") throw new Error("Nur Admins dürfen Fahrgastdaten exportieren.");
   const daten = await fahrgastExportieren(tenantId, passengerId);
   await withTenant(tenantId).auditLog.create({
@@ -143,11 +152,50 @@ export async function fahrgastExportLaden(passengerId: string) {
  * eine laufende Serie endet sofort. Nur ADMIN.
  */
 export async function fahrgastLoeschen(passengerId: string) {
-  const { tenantId, userId, role } = await requireSession();
+  const { tenantId, userId, role } = await requireBueroSession();
   if (role !== "ADMIN") throw new Error("Nur Admins dürfen einen Fahrgast löschen.");
   await fahrgastAnonymisieren(tenantId, passengerId, userId);
   await withTenant(tenantId).auditLog.create({
     data: { tenantId, userId, action: "passenger.geloescht", entity: "Passenger", entityId: passengerId },
   });
   revalidatePath("/dispo/fahrgaeste");
+}
+
+/** Maßnahme M-22: laufende Serien eines Fahrgasts für die Anzeige beim Fahrgast. */
+export async function serienLaden(passengerId: string) {
+  const { tenantId } = await requireBueroSession();
+  const heute = berlinerMitternacht(datumIso(new Date()));
+  const serien = await withTenant(tenantId).rideSeries.findMany({
+    where: { passengerId, until: { gte: heute } },
+    orderBy: { until: "asc" },
+  });
+  return serien.map((s) => ({
+    id: s.id,
+    wochentage: wochentageAusRrule(s.rrule),
+    abholzeit: s.pickupTime,
+    bis: datumIso(s.until),
+    pauseVon: s.pausedFrom ? datumIso(s.pausedFrom) : null,
+    pauseBis: s.pausedUntil ? datumIso(s.pausedUntil) : null,
+  }));
+}
+
+export async function serieBeendenAktion(seriesId: string, abIso: string) {
+  const { tenantId, userId } = await requireBueroSession();
+  const ergebnis = await serieBeenden(tenantId, seriesId, abIso, { userId });
+  revalidatePath("/dispo");
+  return ergebnis;
+}
+
+export async function seriePausierenAktion(seriesId: string, vonIso: string, bisIso: string) {
+  const { tenantId, userId } = await requireBueroSession();
+  const ergebnis = await seriePausieren(tenantId, seriesId, vonIso, bisIso, { userId });
+  revalidatePath("/dispo");
+  return ergebnis;
+}
+
+export async function serieAendernAktion(seriesId: string, aenderung: SerienAenderung) {
+  const { tenantId, userId } = await requireBueroSession();
+  const ergebnis = await serieAendern(tenantId, seriesId, aenderung, { userId });
+  revalidatePath("/dispo");
+  return ergebnis;
 }

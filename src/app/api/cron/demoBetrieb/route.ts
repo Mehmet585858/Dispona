@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { bearerErlaubt } from "@/lib/geheimnis";
 import { demoBetriebSimulieren } from "@/core/demo/betriebSimulieren";
 
 // Jede Fahrzeug-Zuweisung/Status-Änderung braucht mehrere sequentielle Datenbank-Umläufe
@@ -10,9 +11,7 @@ export const maxDuration = 60;
 /** Für einen externen Scheduler (jede Minute, wie automodus.ts), gesichert mit CRON_SECRET - siehe
  * src/core/demo/betriebSimulieren.ts. */
 export async function GET(request: NextRequest) {
-  const secret = process.env.CRON_SECRET;
-  const erlaubnis = request.headers.get("authorization");
-  if (!secret || erlaubnis !== `Bearer ${secret}`) {
+  if (!bearerErlaubt(request, process.env.CRON_SECRET)) {
     return NextResponse.json({ error: "Nicht erlaubt." }, { status: 401 });
   }
 

@@ -3,11 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@/generated/prisma/client";
 import { withTenant } from "@/lib/db";
-import { requireSession } from "@/lib/session";
+import { requireBueroSession } from "@/lib/session";
 import { fahrzeugSchema, textZuJaNein, type FahrzeugEingabe } from "@/core/vehicles/validation";
 
 export async function fahrzeugeLaden() {
-  const { tenantId } = await requireSession();
+  const { tenantId } = await requireBueroSession();
   return withTenant(tenantId).vehicle.findMany({ orderBy: { plate: "asc" } });
 }
 
@@ -19,7 +19,7 @@ export async function fahrzeugSpeichern(
   id: string | null,
   eingabe: FahrzeugEingabe,
 ): Promise<{ ok: true } | { ok: false; fehler: string }> {
-  const { tenantId } = await requireSession();
+  const { tenantId } = await requireBueroSession();
   const ergebnis = fahrzeugSchema.safeParse(eingabe);
   if (!ergebnis.success) {
     return { ok: false, fehler: ergebnis.error.issues[0]?.message ?? "Eingabe ungültig." };
@@ -44,7 +44,7 @@ export async function fahrzeugSpeichern(
 }
 
 export async function fahrzeugLöschen(id: string) {
-  const { tenantId } = await requireSession();
+  const { tenantId } = await requireBueroSession();
   await withTenant(tenantId).vehicle.update({ where: { id }, data: { active: false } });
   revalidatePath("/dispo/fahrzeuge");
 }
@@ -52,7 +52,7 @@ export async function fahrzeugLöschen(id: string) {
 export async function fahrzeugeImportieren(
   zeilen: Record<string, string>[],
 ): Promise<{ ok: number; fehler: string[] }> {
-  const { tenantId } = await requireSession();
+  const { tenantId } = await requireBueroSession();
   const db = withTenant(tenantId);
   const fehler: string[] = [];
   let ok = 0;

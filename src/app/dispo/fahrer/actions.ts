@@ -2,8 +2,8 @@
 
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
-import { withTenant } from "@/lib/db";
-import { requireSession } from "@/lib/session";
+import { referenzenPruefen, withTenant } from "@/lib/db";
+import { requireAdminSession, requireBueroSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import {
   fahrerEinladenSchema,
@@ -12,10 +12,12 @@ import {
   type FahrerEinladenEingabe,
   type SchichtMusterEingabe,
 } from "@/core/drivers/validation";
-import { berlinerMitternacht, mitUhrzeit, wochenTage } from "@/core/shifts/week";
+import { berlinerMitternacht, wochenTage } from "@/core/shifts/week";
+import { schichtZeitraum } from "@/core/shifts/dauer";
+import { fahrerDeaktivieren as fahrerDeaktivierenKern } from "@/core/drivers/deaktivieren";
 
 export async function fahrerLaden() {
-  const { tenantId } = await requireSession();
+  const { tenantId } = await requireBueroSession();
   return withTenant(tenantId).driver.findMany({
     include: { user: true },
     orderBy: { user: { name: "asc" } },
@@ -23,7 +25,7 @@ export async function fahrerLaden() {
 }
 
 export async function fahrzeugeFuerAuswahl() {
-  const { tenantId } = await requireSession();
+  const { tenantId } = await requireBueroSession();
   return withTenant(tenantId).vehicle.findMany({
     where: { active: true },
     orderBy: { plate: "asc" },
@@ -32,7 +34,7 @@ export async function fahrzeugeFuerAuswahl() {
 }
 
 export async function schichtenFuerWoche(montagIso: string) {
-  const { tenantId } = await requireSession();
+  const { tenantId } = await requireBueroSession();
   const montag = berlinerMitternacht(montagIso);
   const sonntagEnde = new Date(montag);
   sonntagEnde.setDate(sonntagEnde.getDate() + 7);
@@ -46,37 +48,46 @@ export async function schichtenFuerWoche(montagIso: string) {
 export async function fahrerEinladen(
   eingabe: FahrerEinladenEingabe,
 ): Promise<{ email: string }> {
-  const { tenantId } = await requireSession();
+  const { tenantId } = await requireBueroSession();
   const daten = fahrerEinladenSchema.parse(eingabe);
   const email = technischeFahrerEmail(daten.phone);
   const db = withTenant(tenantId);
 
-  const user = await db.user.create({
-    data: {
-      id: randomUUID(),
-      tenantId,
-      email,
-      name: daten.name,
-      phone: daten.phone,
-      role: "FAHRER",
-      emailVerified: true,
-    },
+  // Maßnahme M-23 Punkt 3 (S4-009): Nutzer und Fahrerprofil gemeinsam oder gar nicht – vorher blieb
+  // bei einem Fehler zwischen beiden Schritten ein Nutzer ohne Fahrerprofil zurück.
+  await db.$transaction(async (tx) => {
+    const user = await tx.user.create({
+      data: {
+        id: randomUUID(),
+        tenantId,
+        email,
+        name: daten.name,
+        phone: daten.phone,
+        role: "FAHRER",
+        emailVerified: true,
+      },
+    });
+    await tx.driver.create({ data: { tenantId, userId: user.id } });
   });
-  await db.driver.create({ data: { tenantId, userId: user.id } });
   revalidatePath("/dispo/fahrer");
   return { email };
 }
 
 export async function schichtMusterAnlegen(eingabe: SchichtMusterEingabe, montagIso: string) {
-  const { tenantId } = await requireSession();
+  const { tenantId } = await requireBueroSession();
   const daten = schichtMusterSchema.parse(eingabe);
   const tage = wochenTage(berlinerMitternacht(montagIso));
   const db = withTenant(tenantId);
+  // Prüfbericht S2-008: Fahrer und Fahrzeug müssen zu diesem Mandanten gehören.
+  await referenzenPruefen(tenantId, { driver: [daten.driverId], vehicle: [daten.vehicleId] });
+  // Maßnahme M-12: für deaktivierte Fahrer keine neuen Schichten (sonst wären sie wieder Kandidat).
+  const fahrer = await db.driver.findUnique({ where: { id: daten.driverId }, select: { active: true } });
+  if (!fahrer?.active) throw new Error("Dieser Fahrer ist deaktiviert.");
 
   for (const wochentagIndex of daten.wochentage) {
     const tag = tage[wochentagIndex];
-    const start = mitUhrzeit(tag, daten.start);
-    const end = mitUhrzeit(tag, daten.end);
+    // Maßnahme M-18: Endzeit vor Startzeit -> Ende am Folgetag (Nachtschicht).
+    const { start, end } = schichtZeitraum(tag, daten.start, daten.end);
 
     // Keine doppelte Schicht anlegen, wenn für diesen Fahrer an dem Tag schon eine
     // überlappende Schicht existiert (z. B. weil "Für diese Woche anlegen" zweimal
@@ -95,7 +106,7 @@ export async function schichtMusterAnlegen(eingabe: SchichtMusterEingabe, montag
 }
 
 export async function schichtLöschen(id: string) {
-  const { tenantId } = await requireSession();
+  const { tenantId } = await requireBueroSession();
   await withTenant(tenantId).shift.delete({ where: { id } });
   revalidatePath("/dispo/fahrer");
 }
@@ -103,7 +114,7 @@ export async function schichtLöschen(id: string) {
 export async function fahrerImportieren(
   zeilen: Record<string, string>[],
 ): Promise<{ ok: number; fehler: string[] }> {
-  const { tenantId } = await requireSession();
+  const { tenantId } = await requireBueroSession();
   const db = withTenant(tenantId);
   const fehler: string[] = [];
   let ok = 0;
@@ -119,18 +130,21 @@ export async function fahrerImportieren(
       fehler.push(`Zeile ${index + 2}: Handynummer schon vorhanden`);
       continue;
     }
-    const user = await db.user.create({
-      data: {
-        id: randomUUID(),
-        tenantId,
-        email,
-        name: ergebnis.data.name,
-        phone: ergebnis.data.phone,
-        role: "FAHRER",
-        emailVerified: true,
-      },
+    // Maßnahme M-23 Punkt 3: Nutzer und Fahrerprofil gemeinsam oder gar nicht.
+    await db.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          id: randomUUID(),
+          tenantId,
+          email,
+          name: ergebnis.data.name,
+          phone: ergebnis.data.phone,
+          role: "FAHRER",
+          emailVerified: true,
+        },
+      });
+      await tx.driver.create({ data: { tenantId, userId: user.id } });
     });
-    await db.driver.create({ data: { tenantId, userId: user.id } });
     ok += 1;
   }
   revalidatePath("/dispo/fahrer");
@@ -144,7 +158,7 @@ export async function fahrerImportieren(
  * (eigene Tabelle von better-auth, nicht über withTenant), mit eigener Mandantenprüfung.
  */
 export async function fahrerGeraeteLaden(driverId: string) {
-  const { tenantId } = await requireSession();
+  const { tenantId } = await requireBueroSession();
   const fahrer = await withTenant(tenantId).driver.findUnique({ where: { id: driverId }, select: { userId: true } });
   if (!fahrer) throw new Error("Fahrer nicht gefunden.");
   return prisma.session.findMany({
@@ -155,7 +169,7 @@ export async function fahrerGeraeteLaden(driverId: string) {
 }
 
 export async function fahrerGeraetAbmelden(driverId: string, sessionId: string) {
-  const { tenantId, userId, role } = await requireSession();
+  const { tenantId, userId, role } = await requireBueroSession();
   if (role !== "ADMIN") {
     throw new Error("Nur Admins dürfen Geräte abmelden.");
   }
@@ -167,4 +181,17 @@ export async function fahrerGeraetAbmelden(driverId: string, sessionId: string) 
     data: { tenantId, userId, action: "driver.geraet_abgemeldet", entity: "Driver", entityId: driverId },
   });
   revalidatePath("/dispo/fahrer");
+}
+
+/**
+ * Fahrer deaktivieren (Offboarding, Maßnahme M-12): nur ADMIN. Löscht Sitzungen und Push-Abos,
+ * beendet die laufende Schicht, markiert kommende Schichten als ausgefallen und lässt offene
+ * Fahrten neu vorschlagen – siehe src/core/drivers/deaktivieren.ts.
+ */
+export async function fahrerDeaktivieren(driverId: string) {
+  const { tenantId, userId } = await requireAdminSession();
+  const ergebnis = await fahrerDeaktivierenKern(tenantId, driverId, userId);
+  revalidatePath("/dispo/fahrer");
+  revalidatePath("/dispo");
+  return ergebnis;
 }

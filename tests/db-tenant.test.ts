@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { withTenant } from "@/lib/db";
+import { FremdeReferenzError, withTenant } from "@/lib/db";
 import { prisma } from "@/lib/prisma";
 
 describe("withTenant – Mandantentrennung", () => {
@@ -182,5 +182,152 @@ describe("withTenant – Mandantentrennung", () => {
         data: { label: "Übernommen" },
       }),
     ).rejects.toThrow();
+  });
+});
+
+describe("withTenant – innerhalb einer Transaktion (M-04/M-23)", () => {
+  it("M-04: findUnique/update sehen eine in derselben Transaktion angelegte Zeile des eigenen Mandanten", async () => {
+    const tenant = await prisma.tenant.create({ data: { name: `PRUEF_tx ${randomUUID().slice(0, 8)}` } });
+    const fremd = await prisma.tenant.create({ data: { name: `PRUEF_tx-fremd ${randomUUID().slice(0, 8)}` } });
+    const fremderFahrgast = await prisma.passenger.create({
+      data: { tenantId: fremd.id, firstName: "PRUEF", lastName: "Fremd", phones: [] },
+    });
+    const db = withTenant(tenant.id);
+    try {
+      const ergebnis = await db.$transaction(async (tx) => {
+        const neu = await tx.passenger.create({ data: { tenantId: tenant.id, firstName: "PRUEF", lastName: "Tx", phones: [] } });
+        const gelesen = await tx.passenger.findUnique({ where: { id: neu.id } });
+        const aktualisiert = await tx.passenger.update({ where: { id: neu.id }, data: { lastName: "Tx2" } });
+        // Fremde Zeile bleibt auch in der Transaktion unsichtbar bzw. unveränderbar.
+        const fremdGelesen = await tx.passenger.findUnique({ where: { id: fremderFahrgast.id } });
+        await expect(tx.passenger.update({ where: { id: fremderFahrgast.id }, data: { lastName: "X" } })).rejects.toThrow(
+          "Nicht gefunden.",
+        );
+        return { gelesen, aktualisiert, fremdGelesen };
+      });
+      expect(ergebnis.gelesen?.lastName).toBe("Tx");
+      expect(ergebnis.aktualisiert.lastName).toBe("Tx2");
+      expect(ergebnis.fremdGelesen).toBeNull();
+      expect((await prisma.passenger.findUniqueOrThrow({ where: { id: fremderFahrgast.id } })).lastName).toBe("Fremd");
+    } finally {
+      await prisma.passenger.deleteMany({ where: { tenantId: { in: [tenant.id, fremd.id] } } });
+      await prisma.tenant.deleteMany({ where: { id: { in: [tenant.id, fremd.id] } } });
+    }
+  });
+});
+
+
+/**
+ * Maßnahme M-11 (Prüfbericht S2-008): withTenant() filterte nur die Zieltabelle. Fremdschlüssel
+ * in `data` (Fahrgast, Ort, Fahrer, Fahrzeug, …) wurden nur geprüft, wo ein Aufrufer daran dachte
+ * (referenzenPruefen). Hier wird der Mandanten-Client direkt benutzt – ohne Hilfsfunktion –, wie
+ * es ein künftiger, neuer Codepfad tun würde.
+ */
+describe("withTenant – Fremdschlüssel über die Mandantengrenze (M-11)", () => {
+  const kennung = randomUUID().slice(0, 8);
+  let a: string;
+  let b: string;
+  let placeA: string;
+  let placeB: string;
+  let passengerA: string;
+  let passengerB: string;
+  let vehicleA: string;
+  let vehicleB: string;
+  let driverA: string;
+  let driverB: string;
+  let rideA: string;
+
+  const fahrtDaten = (passengerId: string, pickupPlaceId: string, dropoffPlaceId: string) => ({
+    passengerId,
+    pickupPlaceId,
+    dropoffPlaceId,
+    pickupAt: new Date(),
+    transportType: "SITZEND" as const,
+    status: "ERFASST" as const,
+    source: "MANUELL" as const,
+  });
+
+  beforeAll(async () => {
+    a = (await prisma.tenant.create({ data: { name: `PRUEF_fk-A ${kennung}` } })).id;
+    b = (await prisma.tenant.create({ data: { name: `PRUEF_fk-B ${kennung}` } })).id;
+    const ort = (tenantId: string) =>
+      prisma.place.create({
+        data: { tenantId, label: "PRUEF Ort", street: "Teststraße 1", zip: "52062", city: "Aachen", lat: 50.77, lng: 6.08, type: "SONSTIGES" },
+      });
+    placeA = (await ort(a)).id;
+    placeB = (await ort(b)).id;
+    passengerA = (await prisma.passenger.create({ data: { tenantId: a, firstName: "PRUEF", lastName: "A", phones: [] } })).id;
+    passengerB = (await prisma.passenger.create({ data: { tenantId: b, firstName: "PRUEF", lastName: "B", phones: [] } })).id;
+    vehicleA = (await prisma.vehicle.create({ data: { tenantId: a, plate: `PRUEF-A-${kennung}` } })).id;
+    vehicleB = (await prisma.vehicle.create({ data: { tenantId: b, plate: `PRUEF-B-${kennung}` } })).id;
+    const fahrer = async (tenantId: string) => {
+      const user = await prisma.user.create({
+        data: { id: randomUUID(), tenantId, email: `pruef-${randomUUID()}@test.invalid`, name: "PRUEF Fahrer", role: "FAHRER" },
+      });
+      return (await prisma.driver.create({ data: { tenantId, userId: user.id } })).id;
+    };
+    driverA = await fahrer(a);
+    driverB = await fahrer(b);
+    rideA = (await prisma.ride.create({ data: { tenantId: a, ...fahrtDaten(passengerA, placeA, placeA) } })).id;
+  });
+
+  afterAll(async () => {
+    const { mandantKomplettLoeschen } = await import("@/lib/seedSchutz");
+    await mandantKomplettLoeschen(a);
+    await mandantKomplettLoeschen(b);
+  });
+
+  it("M-11: ride.create mit Fahrgast und Orten eines anderen Mandanten wird abgelehnt, nichts angelegt", async () => {
+    const db = withTenant(a);
+    await expect(db.ride.create({ data: { tenantId: a, ...fahrtDaten(passengerB, placeA, placeA) } })).rejects.toBeInstanceOf(
+      FremdeReferenzError,
+    );
+    await expect(db.ride.create({ data: { tenantId: a, ...fahrtDaten(passengerA, placeB, placeA) } })).rejects.toBeInstanceOf(
+      FremdeReferenzError,
+    );
+    expect(await prisma.ride.count({ where: { tenantId: a } })).toBe(1);
+  });
+
+  it("M-11: ride.update auf Fahrzeug bzw. Fahrer eines anderen Mandanten wird abgelehnt, Fahrt unverändert", async () => {
+    const db = withTenant(a);
+    await expect(db.ride.update({ where: { id: rideA }, data: { vehicleId: vehicleB } })).rejects.toBeInstanceOf(FremdeReferenzError);
+    await expect(db.ride.updateMany({ where: { id: rideA }, data: { driverId: driverB } })).rejects.toBeInstanceOf(FremdeReferenzError);
+    const fahrt = await prisma.ride.findUniqueOrThrow({ where: { id: rideA } });
+    expect(fahrt.vehicleId).toBeNull();
+    expect(fahrt.driverId).toBeNull();
+  });
+
+  it("M-11: Schicht, Genehmigung, Push-Abo und Wohnort mit fremden IDs werden abgelehnt", async () => {
+    const db = withTenant(a);
+    const jetzt = new Date();
+    await expect(
+      db.shift.create({ data: { tenantId: a, driverId: driverB, vehicleId: vehicleA, start: jetzt, end: new Date(jetzt.getTime() + 3600_000) } }),
+    ).rejects.toBeInstanceOf(FremdeReferenzError);
+    await expect(
+      db.approval.create({ data: { tenantId: a, passengerId: passengerB, validFrom: jetzt, validUntil: jetzt } }),
+    ).rejects.toBeInstanceOf(FremdeReferenzError);
+    await expect(
+      db.pushSubscription.create({ data: { tenantId: a, driverId: driverB, endpoint: `https://push.test/${kennung}`, keys: { p256dh: "x", auth: "y" } } }),
+    ).rejects.toBeInstanceOf(FremdeReferenzError);
+    await expect(db.passenger.update({ where: { id: passengerA }, data: { homePlaceId: placeB } })).rejects.toBeInstanceOf(
+      FremdeReferenzError,
+    );
+  });
+
+  it("M-11: auch der rohe Client (ohne withTenant) kann keine Fahrt an einen fremden Fahrgast hängen", async () => {
+    await expect(prisma.ride.create({ data: { tenantId: a, ...fahrtDaten(passengerB, placeA, placeA) } })).rejects.toThrow();
+    expect(await prisma.ride.count({ where: { tenantId: a } })).toBe(1);
+  });
+
+  it("M-11: eigene, in derselben Transaktion angelegte Zeilen gehen durch; include zeigt nur eigene Daten", async () => {
+    const db = withTenant(a);
+    const fahrt = await db.$transaction(async (tx) => {
+      const fahrgast = await tx.passenger.create({ data: { tenantId: a, firstName: "PRUEF", lastName: "Tx", phones: [] } });
+      return tx.ride.create({ data: { tenantId: a, ...fahrtDaten(fahrgast.id, placeA, placeA), vehicleId: vehicleA, driverId: driverA } });
+    });
+    const mitFahrgast = await db.ride.findMany({ where: { tenantId: a }, include: { passenger: true, pickupPlace: true } });
+    expect(mitFahrgast.map((r) => r.passenger.tenantId)).toEqual(mitFahrgast.map(() => a));
+    expect(mitFahrgast.map((r) => r.pickupPlace.tenantId)).toEqual(mitFahrgast.map(() => a));
+    await prisma.ride.delete({ where: { id: fahrt.id } });
   });
 });

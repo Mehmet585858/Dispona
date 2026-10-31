@@ -102,3 +102,11 @@ describe("demoZuruecksetzen", () => {
     expect(await prisma.call.findUnique({ where: { id: neuerAnruf.id } })).not.toBeNull();
   });
 });
+
+describe("M-01: demoZuruecksetzen verlangt den Mandanten ausdrücklich", () => {
+  it("M-01: hat keinen Standardwert für tenantId (Function.length zählt nur Pflichtparameter)", () => {
+    // Mit einem Standardwert (`tenantId = DEMO_TENANT_ID`) wäre length 0 – dann könnte ein
+    // Aufruf ohne Argument stillschweigend den Demo-Mandanten löschen.
+    expect(demoZuruecksetzen.length).toBe(1);
+  });
+});

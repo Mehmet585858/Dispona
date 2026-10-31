@@ -1,5 +1,6 @@
 import webpush from "web-push";
 import { withTenant } from "@/lib/db";
+import { entwicklungsLog } from "@/lib/logging";
 
 export type PushNachricht = { title: string; body: string; tag?: string; url?: string };
 
@@ -35,7 +36,13 @@ export async function pushAnFahrer(
   nachricht: PushNachricht,
 ): Promise<{ versucht: number; zugestellt: number }> {
   if (!sicherstellenVapid()) {
-    console.log(`[Entwicklung] Kein VAPID-Schlüssel gesetzt – Push an Fahrer ${driverId}: ${nachricht.body}`);
+    // Prüfbericht S2-009: nie den Text loggen (enthält Uhrzeit + Abholadresse) – nur IDs. In
+    // Produktion ist ein fehlender VAPID-Schlüssel ein Konfigurationsfehler und soll auffallen.
+    if (process.env.NODE_ENV === "production") {
+      console.warn(`Push nicht möglich: VAPID-Schlüssel fehlen (Fahrer ${driverId}).`);
+    } else {
+      entwicklungsLog(`Kein VAPID-Schlüssel gesetzt – Push "${nachricht.title}" an Fahrer ${driverId} nicht gesendet.`);
+    }
     return { versucht: 0, zugestellt: 0 };
   }
 
