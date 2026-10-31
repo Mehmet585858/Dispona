@@ -1,25 +1,12 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { testSitzung as sitzung } from "../hilfen/sitzungsMock";
 
 // Nur die Quelle der Sitzung wird gemockt (Request-Header + better-auth-Lookup); die eigentliche
 // Rollenprüfung in src/lib/session.ts und der Route läuft echt. Prisma-Zugriffe der Route kommen
 // erst NACH der Rollenprüfung dran und werden hier nie erreicht.
-const sitzung = vi.hoisted(() => ({ wert: null as null | { tenantId: string; userId: string; role: string } }));
 vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
-vi.mock("@/lib/auth", () => ({
-  auth: {
-    api: {
-      getSession: vi.fn(async () =>
-        sitzung.wert
-          ? {
-              user: { id: sitzung.wert.userId, tenantId: sitzung.wert.tenantId, role: sitzung.wert.role, name: "Test", email: "t@t.de" },
-              session: { createdAt: new Date() },
-            }
-          : null,
-      ),
-    },
-  },
-}));
+vi.mock("@/lib/auth", async () => (await import("../hilfen/sitzungsMock")).authMock);
 
 import { GET } from "@/app/api/export/abrechnung/route";
 

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { testSitzung as sitzung } from "../hilfen/sitzungsMock";
 import { prisma } from "@/lib/prisma";
 import { mandantKomplettLoeschen } from "@/lib/seedSchutz";
 import type { RideStatus } from "@/generated/prisma/enums";
@@ -9,23 +10,9 @@ import type { RideStatus } from "@/generated/prisma/enums";
  * Fahrer-Status an und prüfen GPS-Werte. Nur die Sitzungsquelle wird gemockt, der Rest läuft
  * gegen Postgres.
  */
-const sitzung = vi.hoisted(() => ({ wert: null as null | { tenantId: string; userId: string; role: string } }));
 vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
-vi.mock("@/lib/auth", () => ({
-  auth: {
-    api: {
-      getSession: vi.fn(async () =>
-        sitzung.wert
-          ? {
-              user: { id: sitzung.wert.userId, tenantId: sitzung.wert.tenantId, role: sitzung.wert.role, name: "PRUEF", email: "p@t.de" },
-              session: { createdAt: new Date() },
-            }
-          : null,
-      ),
-    },
-  },
-}));
+vi.mock("@/lib/auth", async () => (await import("../hilfen/sitzungsMock")).authMock);
 
 import { fahrtStatusSetzenFahrer, gpsPositionMelden, gesehenBestaetigen } from "@/app/fahrer/actions";
 

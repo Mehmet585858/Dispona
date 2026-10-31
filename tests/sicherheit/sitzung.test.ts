@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { testSitzung as sitzung } from "../hilfen/sitzungsMock";
 
 /**
  * Maßnahme M-02: Sitzung, Rolle UND Sitzungsalter werden zentral geprüft (src/lib/session.ts).
@@ -7,24 +8,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * nicht für API-Routen und Server Actions. Hier wird nur die Quelle der Sitzung gemockt, die
  * Prüfung selbst läuft echt.
  */
-const sitzung = vi.hoisted(() => ({
-  wert: null as null | { tenantId: string; userId: string; role: string; createdAt: Date },
-}));
 vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
-vi.mock("@/lib/auth", () => ({
-  auth: {
-    api: {
-      getSession: vi.fn(async () =>
-        sitzung.wert
-          ? {
-              user: { id: sitzung.wert.userId, tenantId: sitzung.wert.tenantId, role: sitzung.wert.role, name: "Test", email: "t@t.de" },
-              session: { createdAt: sitzung.wert.createdAt },
-            }
-          : null,
-      ),
-    },
-  },
-}));
+vi.mock("@/lib/auth", async () => (await import("../hilfen/sitzungsMock")).authMock);
 
 import { GET } from "@/app/api/export/abrechnung/route";
 import {
