@@ -35,12 +35,21 @@ export type CallReport = {
   endedReason?: string;
 };
 
+export type AssistantOptionen = {
+  /**
+   * Entscheidung B1 zu M-47: Notbetrieb, wenn die KI ausgeschaltet (oder außerhalb ihres Zeitplans)
+   * ist und keine gültige Weiterleitungsnummer hinterlegt ist. Der Assistent nimmt den Anruf an,
+   * verweist bei Notfällen auf die 112 und nimmt nur einen Rückrufwunsch auf – keine Fahrt.
+   */
+  nurRueckruf?: boolean;
+};
+
 export interface VoiceProvider {
   name: string;
   /** Prüft, ob eine Webhook-Anfrage wirklich vom Anbieter kommt. */
   verifyWebhook(req: Request): Promise<boolean>;
   /** Baut die anbieter-spezifische Assistant-Konfiguration für genau diesen Anruf. */
-  buildAssistantConfig(settings: TenantVoiceSettings): unknown;
+  buildAssistantConfig(settings: TenantVoiceSettings, optionen?: AssistantOptionen): unknown;
   /** Liest Werkzeugaufrufe aus dem Anfrage-Körper. Leeres Array, wenn der Body keine enthält. */
   parseToolCall(body: unknown): ToolCall[];
   /** Formt unsere Werkzeug-Ergebnisse ins anbieter-spezifische Antwortformat. */

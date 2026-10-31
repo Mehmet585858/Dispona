@@ -6,11 +6,11 @@
 // Vapi-Anruf getestet (siehe docs/04a-vapi-notizen.md, Punkt 9 und 10/offene Punkte). Vor dem
 // ersten Testanruf mit einem echten Webhook-Payload abgleichen.
 import { geheimnisGleich } from "@/lib/geheimnis";
-import { voiceSystemPrompt } from "@/core/notify/voicePrompt";
+import { voiceNotbetriebPrompt, voiceSystemPrompt } from "@/core/notify/voicePrompt";
 import { weiterleitungsnummerE164 } from "@/core/einrichtung/rufnummer";
 import { DOC_STATUS, TRANSPORT_TYPES } from "@/core/rides/validation";
 import { WOCHENTAGE } from "@/core/shifts/rrule";
-import type { CallReport, TenantVoiceSettings, ToolCall, ToolResult, VoiceProvider } from "./types";
+import type { AssistantOptionen, CallReport, TenantVoiceSettings, ToolCall, ToolResult, VoiceProvider } from "./types";
 
 type VapiNachricht = {
   type: string;
@@ -227,6 +227,9 @@ const WERKZEUGE = [
  */
 export const VAPI_WEITERLEITEN_WERKZEUG = "transferCall";
 
+/** Entscheidung B1 zu M-47: im Notbetrieb das einzige Werkzeug (Rückrufwunsch). */
+export const NOTBETRIEB_WERKZEUG = "rueckruf_anlegen";
+
 export const vapiProvider: VoiceProvider = {
   name: "vapi",
 
@@ -238,7 +241,7 @@ export const vapiProvider: VoiceProvider = {
     return geheimnisGleich(token, process.env.VAPI_WEBHOOK_SECRET);
   },
 
-  buildAssistantConfig(eingabe: TenantVoiceSettings) {
+  buildAssistantConfig(eingabe: TenantVoiceSettings, optionen: AssistantOptionen = {}) {
     // Maßnahme M-47: Weiterleitungsziel nur als gültige E.164-Nummer – Prompt und Werkzeugliste
     // entscheiden auf derselben Grundlage, ob ein Mensch erreichbar ist.
     const settings = { ...eingabe, escalationNumber: weiterleitungsnummerE164(eingabe.escalationNumber) ?? "" };
@@ -247,18 +250,26 @@ export const vapiProvider: VoiceProvider = {
     // diesem Zeitpunkt noch kein Assistent existiert), aber alle Nachrichten danach an die
     // server.url, die wir hier mitgeben (docs/04a-vapi-notizen.md Punkt 2 und 6).
     const serverUrl = process.env.APP_URL ? `${process.env.APP_URL}/api/voice/webhook` : undefined;
+    const jetzt = new Date();
+    // Entscheidung B1 zu M-47: Notbetrieb – nur der Rückrufwunsch als Werkzeug, keine Weiterleitung
+    // (es gibt ja keine gültige Nummer), eigener Prompt. Das Sprachmodell kann nur Werkzeuge
+    // aufrufen, die hier stehen; zusätzlich weist der Webhook alles außer rueckruf_anlegen ab.
+    const notbetrieb = optionen.nurRueckruf === true;
     // Weiterleitung an einen Menschen: Vapi-eigenes transferCall mit fest hinterlegtem Ziel, kein
     // eigener Werkzeugaufruf bei uns nötig (docs/04a-vapi-notizen.md Punkt 4). Ohne gültige
     // escalationNumber (z. B. Live-Demo auf der Marketing-Seite, die an niemanden weiterleiten soll)
     // gibt es das Werkzeug gar nicht erst – voiceSystemPrompt() weist die KI dann an, stattdessen
     // freundlich abzusagen bzw. im Notfall nur auf die 112 zu verweisen.
-    const tools: unknown[] = [...WERKZEUGE];
-    if (settings.escalationNumber) {
+    const tools: unknown[] = notbetrieb ? WERKZEUGE.filter((w) => w.function.name === NOTBETRIEB_WERKZEUG) : [...WERKZEUGE];
+    if (!notbetrieb && settings.escalationNumber) {
       tools.push({
         type: VAPI_WEITERLEITEN_WERKZEUG,
         destinations: [{ type: "number", number: settings.escalationNumber, message: "Einen Moment, ich verbinde." }],
       });
     }
+    const prompt = notbetrieb
+      ? voiceNotbetriebPrompt(settings, { jetzt })
+      : voiceSystemPrompt(settings, { jetzt, weiterleitenWerkzeug: VAPI_WEITERLEITEN_WERKZEUG });
     return {
       assistant: {
         firstMessage: settings.greeting,
@@ -266,9 +277,7 @@ export const vapiProvider: VoiceProvider = {
           provider: "openai",
           model: "gpt-4o",
           // Maßnahme M-46 (S1-007): Datum/Uhrzeit des Anrufs – die Konfiguration entsteht je Anruf neu.
-          messages: [
-            { role: "system", content: voiceSystemPrompt(settings, { jetzt: new Date(), weiterleitenWerkzeug: VAPI_WEITERLEITEN_WERKZEUG }) },
-          ],
+          messages: [{ role: "system", content: prompt }],
         },
         // "vapi" (Vapis eigener Sprachanbieter, "Vapi Voices"), nicht "11labs" - wir haben keinen
         // eigenen ElevenLabs-Account/Stimm-IDs, settings.voiceId sind echte Vapi-Stimmnamen (z. B.

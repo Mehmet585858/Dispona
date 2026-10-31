@@ -583,7 +583,16 @@ export type WerkzeugOptionen = {
    * Angabe (Skripte, Tests) läuft sie sofort mit und wird abgewartet.
    */
   hintergrund?: Hintergrund;
+  /**
+   * Entscheidung B1 zu M-47: Notbetrieb (KI aus oder außerhalb des Zeitplans, keine gültige
+   * Weiterleitungsnummer) – nur rueckruf_anlegen wird ausgeführt, alles andere bekommt einen
+   * Fehler, ohne dass etwas gespeichert wird.
+   */
+  nurRueckruf?: boolean;
 };
+
+const NOTBETRIEB_NUR_RUECKRUF =
+  "Das Büro ist im Moment nicht erreichbar. In diesem Gespräch ist nur ein Rückrufwunsch möglich (rueckruf_anlegen); keine Fahrt anlegen, ändern oder stornieren und keine Auskunft geben.";
 
 /**
  * Führt einen Werkzeugaufruf aus und fängt dabei jeden Fehler ab – Vapi erwartet immer HTTP 200
@@ -600,6 +609,9 @@ export async function werkzeugAusfuehren(
   // die ganze Serie doppelt an. Der Merker (VoiceToolCall, eindeutig je Anruf + toolCallId) wird
   // VOR der Ausführung angelegt – die Eindeutigkeit entscheidet die Datenbank, auch bei zwei
   // gleichzeitig eintreffenden Wiederholungen.
+  if (optionen.nurRueckruf && toolCall.name !== "rueckruf_anlegen") {
+    return { id: toolCall.id, error: NOTBETRIEB_NUR_RUECKRUF };
+  }
   const db = withTenant(tenantId);
   let merker: { id: string };
   try {

@@ -182,12 +182,19 @@ describe("Weiterleitung an einen Menschen (M-47, S2-019)", () => {
       },
     );
 
-    it("M-47: KI aus und keine gültige Weiterleitungsnummer → kein Weiterleitungsziel mit leerer Nummer", async () => {
+    it("M-47: KI aus und keine gültige Weiterleitungsnummer → kein Weiterleitungsziel mit leerer Nummer (B1: Notbetrieb statt Absage)", async () => {
       await prisma.tenantSettings.update({ where: { tenantId: tenantAus }, data: { escalationNumber: "" } });
-      const antwort = await assistantRequest(NUMMER_AUS);
-      const body = (await antwort.json()) as { destination?: { number?: string }; error?: string };
-      expect(body.destination).toBeUndefined();
-      expect(body.error).toBeTruthy();
+      const fehlerLog = vi.spyOn(console, "error").mockImplementation(() => {});
+      try {
+        const antwort = await assistantRequest(NUMMER_AUS);
+        const body = (await antwort.json()) as { destination?: { number?: string }; error?: string } & Partial<Konfig>;
+        expect(body.destination).toBeUndefined();
+        // Entscheidung B1 des Auftraggebers: Anruf annehmen, nur Rückruf – Details in notbetrieb.test.ts.
+        expect(body.error).toBeUndefined();
+        expect(body.assistant && werkzeugNamen(body as Konfig)).toEqual(["rueckruf_anlegen"]);
+      } finally {
+        fehlerLog.mockRestore();
+      }
     });
 
     it("M-47: KI aus und Bestandsnummer \"0241 12345\" → Weiterleitung an +4924112345", async () => {

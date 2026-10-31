@@ -2,7 +2,7 @@ import { after, NextResponse, type NextRequest } from "next/server";
 import { voiceProvider } from "@/providers/voice";
 import { withTenant } from "@/lib/db";
 import { prisma } from "@/lib/prisma";
-import { mandantFuerNummerLaden } from "@/core/voice/mandant";
+import { mandantFuerNummerLaden, type MandantFuerAnruf } from "@/core/voice/mandant";
 import { anrufSicherstellen, anrufAbschliessen } from "@/core/voice/anruf";
 import { werkzeugAusfuehren } from "@/core/voice/werkzeuge";
 import { anrufZusammenfassen } from "@/core/notify/anrufZusammenfassung";
@@ -77,19 +77,26 @@ async function assistantRequestBehandeln(body: unknown) {
   }
 
   if (!mandant.aiErreichbarJetzt) {
-    // Maßnahme M-47 (S2-019): ohne gültige Weiterleitungsnummer kein Ziel "" an Vapi, sondern eine
-    // klare Absage – und ein Eintrag im Log (nur IDs), damit der Betrieb die Lücke bemerkt.
-    if (!mandant.settings.escalationNumber) {
-      console.error("KI aus, aber keine gültige Weiterleitungsnummer – Anruf kann nicht weitergeleitet werden", {
+    // Maßnahme M-47 (S2-019): ohne gültige Weiterleitungsnummer kein Ziel "" an Vapi.
+    // Entscheidung B1 des Auftraggebers: statt den Anruf abzulehnen (was der Anrufer dann hört,
+    // war unbekannt) nimmt die KI ihn im Notbetrieb an – 112-Hinweis bei Notfällen, Rückrufwunsch,
+    // keine Fahrt. Der Eintrag im Log (nur IDs) bleibt, damit der Betrieb die Lücke bemerkt.
+    if (imNotbetrieb(mandant)) {
+      console.error("KI nicht erreichbar und keine gültige Weiterleitungsnummer – Anruf läuft im Notbetrieb (nur 112-Hinweis und Rückruf)", {
         tenantId: mandant.tenantId,
         anrufId,
       });
-      return NextResponse.json({ error: "Weiterleitung nicht eingerichtet." });
+      return NextResponse.json(voiceProvider.buildAssistantConfig(mandant.settings, { nurRueckruf: true }));
     }
     return NextResponse.json({ destination: { type: "number", number: mandant.settings.escalationNumber } });
   }
 
   return NextResponse.json(voiceProvider.buildAssistantConfig(mandant.settings));
+}
+
+/** Entscheidung B1 zu M-47: KI gerade nicht erreichbar UND keine gültige Weiterleitungsnummer. */
+function imNotbetrieb(mandant: MandantFuerAnruf): boolean {
+  return !mandant.aiErreichbarJetzt && !mandant.settings.escalationNumber;
 }
 
 async function toolCallsBehandeln(body: unknown, aufrufe: ReturnType<typeof voiceProvider.parseToolCall>) {
@@ -128,8 +135,11 @@ async function toolCallsBehandeln(body: unknown, aufrufe: ReturnType<typeof voic
         });
       }
     });
+  // Entscheidung B1 zu M-47: im Notbetrieb nur der Rückrufwunsch – auch wenn ein anderes Werkzeug
+  // doch hier ankäme (die Werkzeugliste des Assistenten ist die erste, das hier die zweite Linie).
+  const nurRueckruf = imNotbetrieb(mandant);
   const ergebnisse = await Promise.all(
-    aufrufe.map((aufruf) => werkzeugAusfuehren(mandant.tenantId, anruf.id, aufruf, { hintergrund })),
+    aufrufe.map((aufruf) => werkzeugAusfuehren(mandant.tenantId, anruf.id, aufruf, { hintergrund, nurRueckruf })),
   );
 
   return NextResponse.json(voiceProvider.formatToolResult(ergebnisse));
