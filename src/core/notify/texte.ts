@@ -26,6 +26,11 @@ export function stornierteFahrtText(uhrzeit: string): string {
   return `Fahrt ${uhrzeit} entfällt. Bitte App öffnen.`;
 }
 
+/** Maßnahme M-19: laufende Fahrt vom Büro abgebrochen – anders als ein Storno vor der Abholung. */
+export function abgebrocheneFahrtText(uhrzeit: string): string {
+  return `Fahrt ${uhrzeit} wurde vom Büro abgebrochen. Bitte Büro anrufen.`;
+}
+
 export function keineBestaetigungAlarmText(uhrzeit: string): string {
   return `Fahrer hat Fahrt ${uhrzeit} nicht bestätigt. Bitte prüfen.`;
 }

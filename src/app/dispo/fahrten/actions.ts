@@ -8,7 +8,7 @@ import { fahrtStatusAendern } from "@/core/rides/status";
 import { fahrtAendern } from "@/core/rides/aendern";
 import { fahrtErfassen } from "@/core/rides/erfassen";
 import { serieAnlegen as serieAnlegenKern } from "@/core/rides/serie";
-import { fahrtStornieren as fahrtStornierenKern } from "@/core/rides/stornieren";
+import { fahrtAbbrechen as fahrtAbbrechenKern, fahrtStornieren as fahrtStornierenKern } from "@/core/rides/stornieren";
 import { fahrzeugZuweisen, fahrzeugZuweisungAufheben, FahrzeugKonfliktError } from "@/core/disposition/zuweisen";
 import { fahrgaesteAehnlicheNamen, NACHNAME_KANDIDATEN_MAX, nachnameKandidatenWhere, telefonNormalisieren } from "@/core/passengers/suche";
 import { einsatzgebietMitteLaden } from "@/core/einrichtung/einsatzgebiet";
@@ -172,5 +172,12 @@ export async function fahrtStatusSetzen(rideId: string, status: RideStatus) {
 export async function fahrtStornieren(rideId: string) {
   const { tenantId, userId } = await requireBueroSession();
   await fahrtStornierenKern(tenantId, rideId, { userId });
+  revalidatePath("/dispo");
+}
+
+/** Maßnahme M-19: laufende Fahrt abbrechen (statt stornieren) – nur Büro. */
+export async function fahrtAbbrechen(rideId: string) {
+  const { tenantId, userId } = await requireBueroSession();
+  await fahrtAbbrechenKern(tenantId, rideId, { userId });
   revalidatePath("/dispo");
 }

@@ -9,7 +9,9 @@ import { TransportBadge } from "@/components/ui/TransportBadge";
 import { VorschlagAktion, type VorschlagOption } from "@/components/VorschlagAktion";
 import { DOC_STATUS_LABEL } from "@/core/rides/validation";
 import { datumIso } from "@/core/shifts/week";
-import { fahrtStornieren } from "./actions";
+import { istLaufend, istStornierbar } from "@/core/rides/stornierbar";
+import { fahrtAbbrechen, fahrtStornieren } from "./actions";
+import { FAHRT_TEXTE } from "./texte";
 import type { FahrtMini } from "./Zeitstrahl";
 
 const STATUS_TON: Record<string, "neutral" | "warn" | "info" | "danger" | "accent"> = {
@@ -82,11 +84,21 @@ export function TripModal({
     onClose();
   }
 
+  const [aktionFehler, setAktionFehler] = useState(false);
+
+  // Maßnahme M-19: vor der Abholung "Stornieren", bei laufender Fahrt "Fahrt abbrechen" (eigener
+  // Vorgang mit eigener Meldung an den Fahrer), bei abgeschlossener Fahrt keins von beidem.
+  const laufend = istLaufend(fahrt.status);
+  const stornierbar = istStornierbar(fahrt.status);
+
   async function stornieren() {
     setStorniert(true);
+    setAktionFehler(false);
     try {
-      await fahrtStornieren(fahrt.id);
+      await (laufend ? fahrtAbbrechen(fahrt.id) : fahrtStornieren(fahrt.id));
       aktualisieren();
+    } catch {
+      setAktionFehler(true);
     } finally {
       setStorniert(false);
     }
@@ -198,17 +210,20 @@ export function TripModal({
         {fahrzeugAendernOffen ? (
           <VorschlagAktion rideId={fahrt.id} beste={null} fahrzeuge={fahrzeuge} onErledigt={aktualisieren} />
         ) : null}
-        <div className="ml-auto">
-          {storniertBestaetigen ? (
-            <Button type="button" variant="danger" onClick={stornieren} disabled={storniert}>
-              {storniert ? "…" : "Wirklich stornieren?"}
-            </Button>
-          ) : (
-            <Button type="button" variant="danger" onClick={() => setStorniertBestaetigen(true)}>
-              Stornieren
-            </Button>
-          )}
-        </div>
+        {laufend || stornierbar ? (
+          <div className="ml-auto flex flex-col items-end gap-1">
+            {storniertBestaetigen ? (
+              <Button type="button" variant="danger" onClick={stornieren} disabled={storniert}>
+                {storniert ? FAHRT_TEXTE.laeuft : laufend ? FAHRT_TEXTE.abbrechenBestaetigen : FAHRT_TEXTE.stornierenBestaetigen}
+              </Button>
+            ) : (
+              <Button type="button" variant="danger" onClick={() => setStorniertBestaetigen(true)}>
+                {laufend ? FAHRT_TEXTE.abbrechen : FAHRT_TEXTE.stornieren}
+              </Button>
+            )}
+            {aktionFehler ? <p className="text-sm text-danger-ink">{FAHRT_TEXTE.aktionFehler}</p> : null}
+          </div>
+        ) : null}
       </div>
     </Modal>
   );

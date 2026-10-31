@@ -6,7 +6,9 @@ import { gefahreneKmBerechnen } from "./distanz";
 /**
  * Erlaubte Status-Übergänge (docs/03-datenmodell.md):
  * ENTWURF -> ERFASST -> VORGESCHLAGEN -> DISPONIERT -> UNTERWEGS -> AN_BORD -> ERLEDIGT
- * Jederzeit möglich: PROBLEM, STORNIERT (außer aus Endzuständen). NICHT_ANGETROFFEN nach UNTERWEGS.
+ * Jederzeit möglich: PROBLEM (außer aus Endzuständen). NICHT_ANGETROFFEN nach UNTERWEGS.
+ * STORNIERT nur vor der Abholung (Maßnahme M-19, docs/13 R3-3): aus UNTERWEGS und AN_BORD nicht –
+ * eine laufende Fahrt bricht das Büro mit fahrtAbbrechen() ab (-> PROBLEM, eigene Meldung).
  * Aus PROBLEM kann der Disponent zu ERFASST zurück, um die Fahrt zu korrigieren.
  */
 export const ERLAUBTE_UEBERGAENGE: Record<RideStatus, RideStatus[]> = {
@@ -14,8 +16,8 @@ export const ERLAUBTE_UEBERGAENGE: Record<RideStatus, RideStatus[]> = {
   ERFASST: ["VORGESCHLAGEN", "DISPONIERT", "PROBLEM", "STORNIERT"],
   VORGESCHLAGEN: ["DISPONIERT", "ERFASST", "PROBLEM", "STORNIERT"],
   DISPONIERT: ["UNTERWEGS", "ERFASST", "PROBLEM", "STORNIERT"],
-  UNTERWEGS: ["AN_BORD", "NICHT_ANGETROFFEN", "PROBLEM", "STORNIERT"],
-  AN_BORD: ["ERLEDIGT", "PROBLEM", "STORNIERT"],
+  UNTERWEGS: ["AN_BORD", "NICHT_ANGETROFFEN", "PROBLEM"],
+  AN_BORD: ["ERLEDIGT", "PROBLEM"],
   ERLEDIGT: [],
   NICHT_ANGETROFFEN: ["ERFASST", "STORNIERT"],
   STORNIERT: [],

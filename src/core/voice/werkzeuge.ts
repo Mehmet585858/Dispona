@@ -386,10 +386,19 @@ async function fahrtAendernWerkzeug(tenantId: string, callId: string, args: unkn
 
 const fahrtStornierenSchema = z.object({ rideId: z.string(), grund: z.string().optional() });
 
+/** Status, in denen die KI am Telefon stornieren darf (Maßnahme M-19). */
+const KI_STORNIERBAR = new Set<string>(["ERFASST", "VORGESCHLAGEN", "DISPONIERT"]);
+
 async function fahrtStornierenWerkzeug(tenantId: string, callId: string, args: unknown): Promise<string> {
   const { rideId } = fahrtStornierenSchema.parse(args);
   const abgelehnt = await fahrtDesAnrufersPruefen(tenantId, callId, rideId);
   if (abgelehnt) return abgelehnt;
+  // Maßnahme M-19: Die KI storniert nur Fahrten, die noch nicht begonnen haben. Alles andere –
+  // auch eine Fahrt mit Problem – klärt ein Mensch.
+  const fahrt = await withTenant(tenantId).ride.findUnique({ where: { id: rideId }, select: { status: true } });
+  if (!fahrt || !KI_STORNIERBAR.has(fahrt.status)) {
+    return "Diese Fahrt kann ich nicht stornieren, sie läuft bereits oder ist abgeschlossen. Bitte an einen Mitarbeiter weiterleiten (an_mensch_weiterleiten) oder rueckruf_anlegen.";
+  }
   await fahrtStornierenKern(tenantId, rideId);
   return "Fahrt storniert.";
 }
