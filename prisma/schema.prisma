@@ -195,6 +195,10 @@ model Driver {
   shifts            Shift[]
   pushSubscriptions PushSubscription[]
   gpsConsentAt      DateTime?
+  // Maßnahme M-12 (Offboarding): deaktivierte Fahrer haben keine Sitzung, kein Push, keine
+  // Schicht und tauchen in keinem Vorschlag auf (src/core/drivers/deaktivieren.ts).
+  active            Boolean            @default(true)
+  deactivatedAt     DateTime?
 }
 
 model PushSubscription {

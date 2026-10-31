@@ -18,7 +18,14 @@ export async function anmeldeLinkZustellen(
   const handynummerSuchen =
     abhaengigkeiten.handynummerSuchen ??
     (async (mail: string) => {
-      const user = await prisma.user.findUnique({ where: { email: mail }, select: { phone: true, role: true } });
+      const user = await prisma.user.findUnique({
+        where: { email: mail },
+        select: { phone: true, role: true, driver: { select: { active: true } } },
+      });
+      // Maßnahme M-12: für ein deaktiviertes Fahrerkonto geht kein Anmelde-Link mehr raus.
+      if (user?.driver && !user.driver.active) {
+        throw new Error("Dieses Fahrerkonto ist deaktiviert. Bitte an das Büro wenden.");
+      }
       return user?.role === "FAHRER" ? (user.phone ?? null) : null;
     });
   const senden = abhaengigkeiten.senden ?? ((an, text) => smsProvider.send(an, text));

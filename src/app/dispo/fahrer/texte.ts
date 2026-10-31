@@ -4,4 +4,8 @@ export const FAHRER_TEXTE = {
   einladungOhneLink: (grund: string) =>
     `Fahrer angelegt, aber der Anmelde-Link konnte nicht gesendet werden: ${grund} Der Link lässt sich auf der Anmeldeseite erneut anfordern.`,
   einladungFehler: "Konnte nicht angelegt werden. Handynummer schon vergeben?",
+  deaktivieren: "Deaktivieren",
+  deaktivierenBestaetigen: "Wirklich deaktivieren? Geräte werden abgemeldet, offene Fahrten neu geplant.",
+  deaktiviert: "Deaktiviert",
+  deaktivierenFehler: "Konnte nicht deaktiviert werden.",
 };

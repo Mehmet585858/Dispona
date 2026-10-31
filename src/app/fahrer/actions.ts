@@ -16,6 +16,11 @@ async function eigenerFahrer(tenantId: string, userId: string) {
   if (!fahrer) {
     throw new Error("Zu diesem Konto gehört kein Fahrer-Profil.");
   }
+  // Maßnahme M-12: deaktivierte Fahrer haben keinen Zugriff mehr – auch wenn noch eine Sitzung
+  // existieren sollte (sie werden beim Deaktivieren gelöscht; das hier ist die zweite Linie).
+  if (!fahrer.active) {
+    throw new Error("Dieses Fahrerkonto ist deaktiviert.");
+  }
   return fahrer;
 }
 

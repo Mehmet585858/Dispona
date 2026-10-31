@@ -126,3 +126,19 @@ describe("Fahrer-App-Actions (M-05)", () => {
     }
   });
 });
+
+describe("Fahrer-App-Actions nach Deaktivierung (M-12)", () => {
+  it("M-12: ein deaktivierter Fahrer wird von jeder Action abgewiesen", async () => {
+    const kennung = randomUUID().slice(0, 8);
+    const tenantId = (await prisma.tenant.create({ data: { name: `PRUEF_Deaktiviert ${kennung}` } })).id;
+    const userId = randomUUID();
+    await prisma.user.create({ data: { id: userId, tenantId, email: `${userId}@pruef.de`, name: "PRUEF Ex", role: "FAHRER" } });
+    await prisma.driver.create({ data: { tenantId, userId, active: false, deactivatedAt: new Date() } });
+    sitzung.wert = { tenantId, userId, role: "FAHRER" };
+    try {
+      await expect(gpsPositionMelden(50.77, 6.08)).rejects.toThrow(/deaktiviert/);
+    } finally {
+      await mandantKomplettLoeschen(tenantId);
+    }
+  });
+});

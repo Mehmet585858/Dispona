@@ -22,6 +22,7 @@ import {
 } from "@/core/shifts/week";
 import { authClient } from "@/lib/auth-client";
 import {
+  fahrerDeaktivieren,
   fahrerEinladen,
   fahrerGeraetAbmelden,
   fahrerGeraeteLaden,
@@ -32,7 +33,7 @@ import {
 } from "./actions";
 import { FAHRER_TEXTE } from "./texte";
 
-type Fahrer = { id: string; user: { id: string; name: string; phone: string | null; email: string } };
+type Fahrer = { id: string; active: boolean; user: { id: string; name: string; phone: string | null; email: string } };
 type Fahrzeug = {
   id: string;
   plate: string;
@@ -54,7 +55,7 @@ function uhrzeit(datum: Date): string {
 }
 
 export function FahrerClient({
-  fahrer,
+  fahrer: anfangsFahrer,
   fahrzeuge,
   anfangsSchichten,
   anfangsMontag,
@@ -65,6 +66,8 @@ export function FahrerClient({
   anfangsMontag: string;
 }) {
   const [montag, setMontag] = useState(anfangsMontag);
+  const [fahrer, setFahrerListe] = useState(anfangsFahrer);
+  const aktiveFahrer = fahrer.filter((f) => f.active);
   const [schichten, setSchichten] = useState(anfangsSchichten);
   const [lädtWoche, setLädtWoche] = useState(false);
 
@@ -82,6 +85,9 @@ export function FahrerClient({
   });
   const [musterFehler, setMusterFehler] = useState<string | null>(null);
   const [musterSpeichert, setMusterSpeichert] = useState(false);
+
+  const [deaktivierenId, setDeaktivierenId] = useState<string | null>(null);
+  const [deaktivierenFehler, setDeaktivierenFehler] = useState<string | null>(null);
 
   const [geraeteFahrerId, setGeraeteFahrerId] = useState(fahrer[0]?.id ?? "");
   const [geraete, setGeraete] = useState<{ id: string; createdAt: Date; updatedAt: Date; userAgent: string | null }[]>([]);
@@ -164,6 +170,19 @@ export function FahrerClient({
     await geraeteLaden(geraeteFahrerId);
   }
 
+  /** Offboarding (Maßnahme M-12): zweistufig, zerstörende Aktion immer mit Rückfrage (Design-Guide 5.1). */
+  async function deaktivieren(fahrerId: string) {
+    setDeaktivierenFehler(null);
+    try {
+      await fahrerDeaktivieren(fahrerId);
+      setFahrerListe((liste) => liste.map((f) => (f.id === fahrerId ? { ...f, active: false } : f)));
+      setDeaktivierenId(null);
+      await wocheLaden(montag);
+    } catch {
+      setDeaktivierenFehler(FAHRER_TEXTE.deaktivierenFehler);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -210,7 +229,7 @@ export function FahrerClient({
               onChange={(event) => setMusterEingabe({ ...musterEingabe, driverId: event.target.value })}
               className="h-11 rounded-xl border border-line-strong bg-surface px-3 text-base text-ink"
             >
-              {fahrer.map((f) => (
+              {aktiveFahrer.map((f) => (
                 <option key={f.id} value={f.id}>
                   {f.user.name}
                 </option>
@@ -342,8 +361,19 @@ export function FahrerClient({
             ))}
             {fahrer.map((f) => (
               <Fragment key={f.id}>
-                <div className="flex items-center bg-surface p-2 text-sm font-medium text-ink">
-                  {f.user.name}
+                <div className="flex flex-col justify-center gap-1 bg-surface p-2 text-sm font-medium text-ink">
+                  <span>{f.user.name}</span>
+                  {!f.active ? (
+                    <Chip>{FAHRER_TEXTE.deaktiviert}</Chip>
+                  ) : deaktivierenId === f.id ? (
+                    <button type="button" onClick={() => deaktivieren(f.id)} className="text-left text-xs font-medium text-danger-ink hover:underline">
+                      {FAHRER_TEXTE.deaktivierenBestaetigen}
+                    </button>
+                  ) : (
+                    <button type="button" onClick={() => setDeaktivierenId(f.id)} className="text-left text-xs font-medium text-muted hover:underline">
+                      {FAHRER_TEXTE.deaktivieren}
+                    </button>
+                  )}
                 </div>
                 {tage.map((tag) => {
                   const tagesSchichten = schichten.filter(
@@ -373,6 +403,7 @@ export function FahrerClient({
         {fahrer.length === 0 ? (
           <p className="mt-4 text-sm text-muted">Noch keine Fahrer eingeladen.</p>
         ) : null}
+        {deaktivierenFehler ? <p className="mt-3 text-sm text-danger-ink">{deaktivierenFehler}</p> : null}
       </Card>
     </div>
   );

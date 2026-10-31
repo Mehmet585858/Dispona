@@ -3,7 +3,7 @@
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { referenzenPruefen, withTenant } from "@/lib/db";
-import { requireBueroSession } from "@/lib/session";
+import { requireAdminSession, requireBueroSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import {
   fahrerEinladenSchema,
@@ -13,6 +13,7 @@ import {
   type SchichtMusterEingabe,
 } from "@/core/drivers/validation";
 import { berlinerMitternacht, mitUhrzeit, wochenTage } from "@/core/shifts/week";
+import { fahrerDeaktivieren as fahrerDeaktivierenKern } from "@/core/drivers/deaktivieren";
 
 export async function fahrerLaden() {
   const { tenantId } = await requireBueroSession();
@@ -74,6 +75,9 @@ export async function schichtMusterAnlegen(eingabe: SchichtMusterEingabe, montag
   const db = withTenant(tenantId);
   // Prüfbericht S2-008: Fahrer und Fahrzeug müssen zu diesem Mandanten gehören.
   await referenzenPruefen(tenantId, { driver: [daten.driverId], vehicle: [daten.vehicleId] });
+  // Maßnahme M-12: für deaktivierte Fahrer keine neuen Schichten (sonst wären sie wieder Kandidat).
+  const fahrer = await db.driver.findUnique({ where: { id: daten.driverId }, select: { active: true } });
+  if (!fahrer?.active) throw new Error("Dieser Fahrer ist deaktiviert.");
 
   for (const wochentagIndex of daten.wochentage) {
     const tag = tage[wochentagIndex];
@@ -169,4 +173,17 @@ export async function fahrerGeraetAbmelden(driverId: string, sessionId: string) 
     data: { tenantId, userId, action: "driver.geraet_abgemeldet", entity: "Driver", entityId: driverId },
   });
   revalidatePath("/dispo/fahrer");
+}
+
+/**
+ * Fahrer deaktivieren (Offboarding, Maßnahme M-12): nur ADMIN. Löscht Sitzungen und Push-Abos,
+ * beendet die laufende Schicht, markiert kommende Schichten als ausgefallen und lässt offene
+ * Fahrten neu vorschlagen – siehe src/core/drivers/deaktivieren.ts.
+ */
+export async function fahrerDeaktivieren(driverId: string) {
+  const { tenantId, userId } = await requireAdminSession();
+  const ergebnis = await fahrerDeaktivierenKern(tenantId, driverId, userId);
+  revalidatePath("/dispo/fahrer");
+  revalidatePath("/dispo");
+  return ergebnis;
 }
