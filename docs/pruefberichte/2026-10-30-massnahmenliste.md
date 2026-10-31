@@ -1,6 +1,6 @@
-# Maßnahmenliste Dispona – Stand 30.10.2026 (zuletzt aktualisiert 31.10.2026, zweite Aktualisierung, durch M. Reiter, Projektleitung)
+# Maßnahmenliste Dispona – Stand 30.10.2026 (zuletzt aktualisiert 31.10.2026, dritte Aktualisierung, durch M. Reiter, Projektleitung)
 
-Diese Liste führt vier Prüfberichte und die Beobachtungen am Rande aus dem Behebungsprotokoll Durchgang 3 zu einer einzigen Reparaturliste ohne Dubletten zusammen.
+Diese Liste führt fünf Prüfberichte, die Beobachtungen am Rande aus dem Behebungsprotokoll Durchgang 3 und das Behebungsprotokoll zu M-46/M-47 zu einer einzigen Reparaturliste ohne Dubletten zusammen.
 
 **Quellen**
 
@@ -11,15 +11,18 @@ Diese Liste führt vier Prüfberichte und die Beobachtungen am Rande aus dem Beh
 | `docs/pruefberichte/2026-10-30-berger-durchgang-2.md` | Externer Prüfbericht K. Berger, Durchgang 2 (gegen echte Datenbank und laufenden Server). Enthält zusätzlich eine Nachprüfung von 12 Befunden aus Durchgang 1. | 22 (S1-006, S2-012 bis S2-017, S3-015 bis S3-025, S4-011 bis S4-014) | 4 (V-010 bis V-013) |
 | `docs/pruefberichte/2026-10-31-berger-durchgang-3.md` | Externer Prüfbericht K. Berger, Durchgang 3 (Schwerpunkt: KI am Telefon, Serien, Import, Oberfläche). | 21 (S1-007, S2-018 bis S2-024, S3-026 bis S3-033, S4-015 bis S4-019) | 3 (V-014 bis V-016) |
 | `docs/pruefberichte/2026-10-31-behebung-3-massnahmen.md` (nur auf Branch `claude/behebung-durchgang-2`) | Behebungsprotokoll L. Hartmann, Durchgang 3, Abschnitt „Auf dem Weg aufgefallen“. Keine Prüfbefunde, sondern Beobachtungen am Rande; hier B3-A1 bis B3-A7 genannt. Aufnahme freigegeben vom Auftraggeber am 31.10.2026 (Entscheidung D1). | 7 Beobachtungen (B3-A1 bis B3-A7) | – |
-| **Summe** | | **112 Befunde + 7 Beobachtungen** | **16 Verdachte** |
+| `docs/pruefberichte/2026-10-31-berger-durchgang-4.md` | Externer Prüfbericht K. Berger, Durchgang 4 (gegen `claude/behebung-durchgang-2`, Stand `aa4e6e7`; Schwerpunkt: Nachprüfung M-01 bis M-23, manuelle Zuweisung, Serien-Rückbau, Fahrgastnamen). Kurzfassung (Urteil, Zahlen, Top-3) im Volltext übernommen; Einzelheiten zu S2-027 bis S2-029, S3-035 bis S3-038, S4-020 bis S4-023 sowie die Nachprüfungstabelle M-01 bis M-23 und Zusatzprüfung 1 liegen nur im Chat-Verlauf der auftraggebenden Sitzung vor, noch nicht in Dateiform. | 20 (S1-008, S1-009, S2-025 bis S2-029, S3-034 bis S3-038, S4-020 bis S4-023) | 4 (V-017 bis V-020) |
+| `docs/pruefberichte/2026-10-31-behebung-3-m46-m47.md` (nur auf Branch `claude/behebung-pilot-blocker`) | Behebungsprotokoll L. Hartmann zu den Maßnahmen M-46 und M-47 (Pilot-Blocker aus Durchgang 3). Keine neuen Prüfbefunde; Status- und Entscheidungsgrundlage für M-46/M-47. | – | – |
+| **Summe** | | **132 Befunde + 7 Beobachtungen** | **20 Verdachte** |
 
 **So wurde gezählt**
 
-- Jeder der 112 Befunde ist genau einer Maßnahme zugeordnet (Anhang). Befunde mit derselben Ursache bilden zusammen eine Maßnahme. Wo ein Befund zu zwei Maßnahmen passt, steht er bei der Maßnahme, die die Ursache behebt; die zweite ist als „siehe auch“ vermerkt.
-- Nach der Zusammenführung bleiben **71 Maßnahmen**: 9 × P1, 23 × P2, 26 × P3, 13 × P4 (davon 20 neu aus Durchgang 3: M-46 bis M-65; 6 neu aus den Beobachtungen des Behebungsprotokolls: M-66 bis M-71).
+- Jeder der 132 Befunde ist genau einer Maßnahme zugeordnet (Anhang), soweit die Einzelheiten dafür vorliegen. Befunde mit derselben Ursache bilden zusammen eine Maßnahme. Wo ein Befund zu zwei Maßnahmen passt, steht er bei der Maßnahme, die die Ursache behebt; die zweite ist als „siehe auch“ vermerkt.
+- Nach der Zusammenführung bleiben **85 Maßnahmen**: 12 × P1, 26 × P2, 30 × P3, 17 × P4 (davon 20 neu aus Durchgang 3: M-46 bis M-65; 6 neu aus den Beobachtungen des Behebungsprotokolls: M-66 bis M-71; 14 neu aus Durchgang 4: M-72 bis M-85). Dazu M-67, der durch Durchgang 4 (S3-034) von P2 auf P1 hochgestuft und in den Abschnitt „P1 – Pilot-Blocker“ verschoben wurde.
 - Die 7 Beobachtungen B3-A1 bis B3-A7 sind ebenfalls genau einer Maßnahme zugeordnet (Anhang). B3-A4 (Zeitrechnung mit Server-Zeitzone) deckt sich mit der bestehenden Maßnahme M-26 und ist dort als Ergänzung eingetragen statt als Dublette; deshalb 7 Beobachtungen, aber 6 neue Maßnahmen.
-- Zwei Verdachte wurden in Durchgang 2 bestätigt (V-005, V-006) und zählen deshalb als Befund in einer Maßnahme. Die übrigen 14 Verdachte (V-001 bis V-004, V-007 bis V-016) stehen im Abschnitt „Vor dem Pilot extern klären“.
-- M-01 bis M-23 (alle ursprünglichen P1/P2) sind seit dem Behebungsdurchgang 3 bearbeitet (Branch `claude/behebung-durchgang-2`, gepusht, **noch nicht nach `master` gemergt**); Status je Maßnahme steht jetzt direkt bei der Maßnahme. M-24 bis M-71 sind noch nicht bearbeitet (OFFEN); M-46 und M-47 sind seit 31.10.2026 in Behebung beauftragt (siehe „Auftragsstand“).
+- Zwei Verdachte wurden in Durchgang 2 bestätigt (V-005, V-006) und zählen deshalb als Befund in einer Maßnahme. Die übrigen 18 Verdachte (V-001 bis V-004, V-007 bis V-020) stehen im Abschnitt „Vor dem Pilot extern klären“.
+- Von den 20 neuen Durchgang-4-Befunden liegen 9 im Volltext vor (S1-008, S1-009, S2-025, S2-026, S3-034 → Maßnahmen M-72 bis M-74 sowie Ergänzungen zu M-66/M-67) und 11 nur als Kennung ohne Kurztitel/Einzelheiten (S2-027 bis S2-029, S3-035 bis S3-038, S4-020 bis S4-023 → Maßnahmen M-75 bis M-85). Diese 11 Maßnahmen sind absichtlich nur als Platzhalter angelegt („Kurztitel nicht übergeben“) statt mit erfundenen Angaben gefüllt; sie werden nachgetragen, sobald der vollständige Bericht vorliegt.
+- M-01 bis M-23 (alle ursprünglichen P1/P2) sind seit dem Behebungsdurchgang 3 bearbeitet (Branch `claude/behebung-durchgang-2`, gepusht, **noch nicht nach `master` gemergt**) und wurden in Prüfdurchgang 4 nachgeprüft (siehe „Auftragsstand“ und „Nachprüfung Durchgang 4“); M-46 und M-47 sind seit 31.10.2026 BEHOBEN (Branch `claude/behebung-pilot-blocker`, noch nicht von Berger gegengeprüft). M-24 bis M-45 und M-48 bis M-85 sind noch nicht bearbeitet (OFFEN).
 - „live bestätigt“ heißt: Durchgang 2 hat den Fehler gegen eine echte Datenbank oder einen laufenden Server nachgestellt, nicht nur im Code gelesen.
 
 **So sind die Prioritäten zu lesen**
@@ -44,23 +47,25 @@ Innerhalb einer Priorität stehen zuerst Maßnahmen, die Datenverlust oder einen
 | Schritt 2 – Behebung der neuen P1-Maßnahmen | **Freigegeben, nur M-46 und M-47.** M-48 bis M-51 sind ausdrücklich **nicht** beauftragt. L. Hartmann behebt parallel auf einem neuen Branch. |
 | D1 – Beobachtungen am Rande aus dem Behebungsprotokoll | **Freigegeben.** Die 7 Beobachtungen werden als Maßnahmen aufgenommen (jetzt M-66 bis M-71, B3-A4 als Ergänzung zu M-26). |
 
-**Laufende Aufträge (beauftragt am 31.10.2026, jeweils in eigener Sitzung):**
+**Abgeschlossene Aufträge (beauftragt am 31.10.2026, beide abgeschlossen und eingearbeitet durch M. Reiter, Projektleitung):**
 
-| Auftrag | Wer | Gegen / auf | Stand laut Repository bei Eintrag |
+| Auftrag | Wer | Gegen / auf | Ergebnis |
 |---|---|---|---|
-| Prüfdurchgang 4 (Nachprüfung M-01 bis M-23 laut Nachprüfungsauftrag im Behebungsprotokoll Durchgang 3) | K. Berger (`dispona-pruefer`) | `claude/behebung-durchgang-2`, Stand `aa4e6e7` | Läuft. Noch kein Prüfbericht Durchgang 4 im Repository. |
-| Behebung M-46 und M-47 | L. Hartmann (`dispona-behebung`) | neuer Branch, abgezweigt von `claude/behebung-durchgang-2` (lokal beobachtet als `claude/behebung-pilot-blocker`, noch nicht gepusht) | Läuft. Noch keine eigenen Commits auf dem neuen Branch. |
+| Prüfdurchgang 4 (Nachprüfung M-01 bis M-23 laut Nachprüfungsauftrag im Behebungsprotokoll Durchgang 3) | K. Berger (`dispona-pruefer`) | `claude/behebung-durchgang-2`, Stand `aa4e6e7` | Abgeschlossen. Bericht: `docs/pruefberichte/2026-10-31-berger-durchgang-4.md`. Urteil: Pilotstart weiterhin **nein**. 20 neue Befunde (2 × S1, 5 × S2, 5 × S3, 4 × S4) und 4 neue Verdachte (V-017 bis V-020), siehe Maßnahmen M-72 bis M-85 und Eskalation M-67. Nachprüfung M-01 bis M-23: laut Kurzfassung „überwiegend so umgesetzt wie beschrieben“, alle 398 Tests grün; die Einzelbewertung je Maßnahme sowie die Zusatzprüfung 1 (Status der alten Befunde M-46 bis M-65 auf dem Branch) liegen nur im Chat-Verlauf der auftraggebenden Sitzung vor, noch nicht itemisiert in Dateiform – deshalb hier **nicht** einzeln als Status je M-Nummer übernommen, um nichts zu erfinden; bei nächster Gelegenheit nachtragen. |
+| Behebung M-46 und M-47 | L. Hartmann (`dispona-behebung`) | neuer Branch `claude/behebung-pilot-blocker`, abgezweigt von `claude/behebung-durchgang-2` (`aa4e6e7`), Commits `e7a274f`, `8745d1e`, `5757d00`, `92339b6`, gepusht | Abgeschlossen. Protokoll: `docs/pruefberichte/2026-10-31-behebung-3-m46-m47.md`. Beide Maßnahmen **BEHOBEN** (72 neue Regressionstests, 470/470 grün, Lint/Typecheck grün; Code-Gegenlesen durch Projektleitung an `pruefungen.ts`, `rufnummer.ts`, `webhook/route.ts` bestätigt die Beschreibung). **Von K. Berger noch nicht gegengeprüft** – Hartmann selbst schlägt einen gezielten Nachprüfdurchgang nur für M-46/M-47 vor (siehe Entscheidungsbündel). Fünf eigene Entscheidungspunkte offen, siehe Entscheidungsbündel. |
 
-Hinweis: Prüfdurchgang 4 prüft den Stand `aa4e6e7`. Die Reparaturen an M-46/M-47 auf dem neuen Branch sind darin **nicht** enthalten und brauchen nach Abschluss eine eigene Nachprüfung, bevor sie zusammengeführt werden.
+Hinweis: Prüfdurchgang 4 prüfte den Stand `aa4e6e7` und damit **nicht** die Reparaturen an M-46/M-47 auf `claude/behebung-pilot-blocker` – diese brauchen eine eigene Nachprüfung, bevor irgendetwas zusammengeführt wird.
+
+**Offene Entscheidungen, Entscheidungsbündel 2 (vorgelegt 31.10.2026 durch M. Reiter, Projektleitung):** Bergers 5 „Vor dem Pilot“-Punkte aus Durchgang 4 (einsatzfähiger Fahrer vor Zuweisung, Serien-Pausen umkehrbar, keine Namen mehr in Fahrer-Texten/Telefon, Panne/Abbruch zuweisbar, Hintertür `fahrtStatusSetzen` entfernen), Hartmanns 5 Entscheidungspunkte zu M-46/M-47 (u. a. Verhalten bei KI aus ohne gültige Weiterleitungsnummer, Toleranzwert 15 Minuten, `docs/04` nachziehen, echter kostenpflichtiger Testanruf gegen Vapi) sowie die Merge- und Nachprüf-Frage sind dem Auftraggeber gebündelt vorgelegt, noch **nicht entschieden**. Einzelheiten siehe Übergabe der Projektleitung vom 31.10.2026 (nicht in dieser Datei wiederholt, um sie nicht noch umfangreicher zu machen).
 
 ## Auf einen Blick
 
 | Priorität | Anzahl Maßnahmen | Was dahinter steckt |
 |---|---|---|
-| P1 – Pilot-Blocker | 9 (7 behoben/teilweise + 2 neu) | Ein Entwickler-Befehl löscht alle Kundendaten, jeder Fahrer kann alle Fahrgastdaten herunterladen, Alarm-SMS und Fahrer-Login existieren nicht, Fahrzeuge werden doppelt vergeben, Fahrer können am Büro vorbei stornieren, die KI schickt Fahrer zur falschen Adresse und verliert Rückfahrten. **Neu (Durchgang 3, hochgestuft):** Die KI kennt kein aktuelles Datum/Uhrzeit und nimmt Fahrten mit falscher Zeit ohne Hinweis an (M-46); die Weiterleitung an einen Menschen im Notfall ist technisch nicht angebunden (M-47). |
-| P2 – vor dem Pilot | 23 (16 behoben/teilweise + 5 neu + 2 aus Beobachtungen) | Fahrgastdaten im Handy-Cache und im Server-Protokoll, unvollständige Löschung, Mandantengrenze bei Fremdschlüsseln, kein Fahrer-Offboarding, Identität am Telefon nicht geprüft, doppelte Fahrten durch Webhook-Wiederholung, stummer Alarmweg, Nachtautomatik ohne Fehlererkennung und ohne erfüllbare Bedingungen, Nachtschichten, Umplanen, Stammkundenerkennung, Serien, Registrierung. **Neu (Durchgang 3):** Serien ohne Startdatum, stornierte Fahrten bleiben im Zeitstrahl wie geplant, Geburtsdatum beim Import vertauscht, Fahrer-App ohne Datum je Fahrt, Serverregion nicht auf EU festgelegt. **Neu (Beobachtungen Behebung 3):** Fahrgastname kann über den Ortsnamen in SMS/Push an Fahrer gelangen (M-66); eine Büro-Funktion kann Status ohne die Umplan-Regeln setzen (M-67). |
-| P3 – erste Pilotwochen | 26 (16 behoben/offen + 8 neu + 2 aus Beobachtungen) | Öffentliche Demo-Seite mit Transkripten, Exportlücken, Zeitzonenfehler, doppelte Schreibzugriffe bei Verbindungsabbruch, unvollständige Endprüfung der Zuweisung, Hin-/Rückfahrt-Kopplung, Vorschlagsqualität, Fahrer-App-Robustheit, Tests und Datenbankschema. **Neu (Durchgang 3):** Hydrationsfehler durch fehlende Zeitzone, verschluckte Fehler in 20 Oberflächen-Komponenten, Einrichtungsassistent ohne fachliche Prüfung, falsche Vorschlagsrechnung bei Terminfahrten, Routing ohne Zeitlimit, Push-Fehler werden verworfen, „Ich falle aus“ ohne Rückfrage, verzerrte Pilot-Kennzahlen. **Neu (Beobachtungen Behebung 3):** technische Problemcodes in „Braucht Sie“ (M-68); ungeprüfter Verdacht doppelter/fehlender Fahrer-Meldung bei „Fahrzeug ändern“ (M-69). |
-| P4 – später | 13 (6 behoben/offen + 5 neu + 2 aus Beobachtungen) | Einmal-Codes im Klartext, fehlende Sicherheits-Header, Platzhalter-Adressen, technische Codes in KI-Antworten, Feiertage/Kleinigkeiten, veralteter Sicherheitsbericht. **Neu (Durchgang 3):** Gesprächsbericht-Reihenfolge, offene Design-/Projektregeln, Benutzer-Enumeration bei der Anmeldung, unvollständige Vapi-Konfiguration, fehlerhafte neue Adressen. **Neu (Beobachtungen Behebung 3):** Testpflege – liegengebliebene Testdaten (M-70, M-71). |
+| P1 – Pilot-Blocker | 12 (7 behoben/teilweise + 2 behoben, ungeprüft + 3 neu) | Ein Entwickler-Befehl löscht alle Kundendaten, jeder Fahrer kann alle Fahrgastdaten herunterladen, Alarm-SMS und Fahrer-Login existieren nicht, Fahrzeuge werden doppelt vergeben, Fahrer können am Büro vorbei stornieren, die KI schickt Fahrer zur falschen Adresse und verliert Rückfahrten. **Durchgang 3, behoben (noch nicht von Berger gegengeprüft):** Die KI kennt jetzt Datum/Uhrzeit und lehnt Fahrten mit falscher Zeit ab (M-46); die Weiterleitung an einen Menschen im Notfall ist jetzt real angebunden (M-47). **Neu (Durchgang 4):** Manuelle Zuweisung ohne Schichtprüfung, Fahrt kann ohne Fahrer als „disponiert“ enden, ausgefallene/deaktivierte Fahrer bekommen Fahrten zurück (M-72); verkürzte Serienpause oder zurückgenommene Serienänderung löscht Dialysetermine dauerhaft (M-73). **Hochgestuft (Durchgang 4, S3-034):** Die Büro-Funktion `fahrtStatusSetzen` ist eine real nutzbare Hintertür um alle Dispositionsregeln, bisher nur durch eine geheime Action-ID begrenzt (M-67, vorher P2). |
+| P2 – vor dem Pilot | 26 (16 behoben/teilweise + 1 aus Beobachtungen + 5 neu + 4 neu, Details ausstehend) | Fahrgastdaten im Handy-Cache und im Server-Protokoll, unvollständige Löschung, Mandantengrenze bei Fremdschlüsseln, kein Fahrer-Offboarding, Identität am Telefon nicht geprüft, doppelte Fahrten durch Webhook-Wiederholung, stummer Alarmweg, Nachtautomatik ohne Fehlererkennung und ohne erfüllbare Bedingungen, Nachtschichten, Umplanen, Stammkundenerkennung, Serien, Registrierung. **Neu (Durchgang 3):** Serien ohne Startdatum, stornierte Fahrten bleiben im Zeitstrahl wie geplant, Geburtsdatum beim Import vertauscht, Fahrer-App ohne Datum je Fahrt, Serverregion nicht auf EU festgelegt. **Neu (Beobachtungen Behebung 3):** Fahrgastname kann über den Ortsnamen in SMS/Push an Fahrer gelangen (M-66; durch Durchgang 4, S2-025, bestätigt). M-67 (Büro-Funktion ohne Umplan-Regeln) ist nach Durchgang 4 nach P1 verschoben, siehe oben. **Neu (Durchgang 4):** Unbekannte Anrufer bekommen am Telefon volle Adresse und Ortsbezeichnung (ggf. Fahrgastname) vorgelesen, ohne Identitätsprüfung (M-74); drei weitere Befunde ohne vorliegenden Kurztitel (M-75 bis M-77). |
+| P3 – erste Pilotwochen | 30 (16 behoben/offen + 8 neu + 2 aus Beobachtungen + 4 neu, Details ausstehend) | Öffentliche Demo-Seite mit Transkripten, Exportlücken, Zeitzonenfehler, doppelte Schreibzugriffe bei Verbindungsabbruch, unvollständige Endprüfung der Zuweisung, Hin-/Rückfahrt-Kopplung, Vorschlagsqualität, Fahrer-App-Robustheit, Tests und Datenbankschema. **Neu (Durchgang 3):** Hydrationsfehler durch fehlende Zeitzone, verschluckte Fehler in 20 Oberflächen-Komponenten, Einrichtungsassistent ohne fachliche Prüfung, falsche Vorschlagsrechnung bei Terminfahrten, Routing ohne Zeitlimit, Push-Fehler werden verworfen, „Ich falle aus“ ohne Rückfrage, verzerrte Pilot-Kennzahlen. **Neu (Beobachtungen Behebung 3):** technische Problemcodes in „Braucht Sie“ (M-68); ungeprüfter Verdacht doppelter/fehlender Fahrer-Meldung bei „Fahrzeug ändern“ (M-69). **Neu (Durchgang 4):** vier weitere Befunde ohne vorliegenden Kurztitel (M-78 bis M-81). |
+| P4 – später | 17 (6 behoben/offen + 5 neu + 2 aus Beobachtungen + 4 neu, Details ausstehend) | Einmal-Codes im Klartext, fehlende Sicherheits-Header, Platzhalter-Adressen, technische Codes in KI-Antworten, Feiertage/Kleinigkeiten, veralteter Sicherheitsbericht. **Neu (Durchgang 3):** Gesprächsbericht-Reihenfolge, offene Design-/Projektregeln, Benutzer-Enumeration bei der Anmeldung, unvollständige Vapi-Konfiguration, fehlerhafte neue Adressen. **Neu (Beobachtungen Behebung 3):** Testpflege – liegengebliebene Testdaten (M-70, M-71). **Neu (Durchgang 4):** vier weitere Befunde ohne vorliegenden Kurztitel (M-82 bis M-85). |
 
 ## Empfohlene Reihenfolge
 
@@ -78,6 +83,8 @@ Die ersten zehn Maßnahmen in der Reihenfolge, in der sie angegangen werden soll
 10. **M-21 Zentrale Telefonnormalisierung** – Muss vor dem Import der ersten Pilot-Fahrgäste fertig sein, sonst werden alle Bestandsdaten im falschen Format gespeichert und die Stammkundenerkennung versagt vom ersten Tag an.
 
 Danach folgen die übrigen P1-/P2-Maßnahmen in der Reihenfolge der Abschnitte unten.
+
+**Nachtrag Durchgang 4 (31.10.2026):** Drei weitere P1-Maßnahmen sind seither hinzugekommen und noch nicht beauftragt: M-72 (Zuweisung ohne Schichtprüfung), M-73 (Serienänderung löscht Termine) und M-67 (hochgestuft – `fahrtStatusSetzen`-Hintertür). Reihenfolge unter den übrigen offenen P1-Punkten mit dem Auftraggeber abzustimmen, siehe Entscheidungsbündel.
 
 ## Maßnahmen
 
@@ -176,8 +183,7 @@ Danach folgen die übrigen P1-/P2-Maßnahmen in der Reihenfolge der Abschnitte u
 - **Betroffene Dateien:** `src/core/notify/voicePrompt.ts`, `src/providers/voice/vapi.ts`, `src/core/rides/pruefungen.ts`, `src/core/rides/validation.ts`, `src/core/shifts/week.ts`, `src/core/voice/werkzeuge.ts`.
 - **Erledigt damit:** S1-007, S2-020.
 - **Nachweis:** Test, der den ausgelieferten Prompt auf „heute ist“ + Datum prüft; Tests für „halb acht“, „0630“, „25:00“, „2026-02-30“ → Fehler statt stille Umdeutung; Test „Abholzeit gestern“ wird abgelehnt.
-- **Status:** OFFEN. **Einschätzung Projektleitung:** als P1 eingestuft (ursprünglich S1/S2 bei Berger), weil das zentrale Verkaufsversprechen „die KI nimmt die Fahrt richtig auf“ sonst nicht zutrifft – siehe Entscheidungsbündel.
-- **Auftrag:** Behebung am 31.10.2026 freigegeben und an L. Hartmann beauftragt (neuer Branch, abgezweigt von `claude/behebung-durchgang-2`). Noch kein Behebungsprotokoll.
+- **Status:** BEHOBEN (Behebung M-46/M-47, Branch `claude/behebung-pilot-blocker`, Commits `e7a274f`, `5757d00`). Prompt nennt jetzt Wochentag/Datum/Uhrzeit/Zeitzone, `fahrtPruefen` lehnt Vergangenheit (Toleranz 15 Min., Annahme – Entscheidung ausstehend) und Termin-vor-Abholung ab, Zeitfelder sind streng geprüft (`DATUM`/`UHRZEIT`-Schemata), `week.ts` wirft bei ungültigen Werten. 55 neue Regressionstests grün, live gegen `next start` unter `TZ=UTC` nachgestellt (siehe Behebungsprotokoll). Code-Gegenlesen durch Projektleitung an `src/core/rides/pruefungen.ts` bestätigt die Beschreibung. **Von K. Berger noch nicht gegengeprüft** – Prüfdurchgang 4 lief gegen den Stand davor (`aa4e6e7`). Drei Entscheidungspunkte offen (Toleranzwert, Umgang mit Fahrten in der Vergangenheit im Büro, `docs/04` nachziehen), siehe Entscheidungsbündel.
 
 #### M-47 Weiterleitung an einen Menschen real anbinden: Werkzeugname mit Vapi abgleichen, Rückfall als Fehler, Nummer validiert
 - **Problem:** Der Prompt befiehlt das Werkzeug `an_mensch_weiterleiten`; dieses existiert in der an Vapi gesendeten Konfiguration nicht (dort `transferCall`). Kommt der Aufruf trotzdem an, antwortet das System „Wird weitergeleitet.“, ohne etwas zu tun. Eine leere oder national formatierte `escalationNumber` wird ungeprüft an Vapi durchgereicht (S2-019).
@@ -189,8 +195,35 @@ Danach folgen die übrigen P1-/P2-Maßnahmen in der Reihenfolge der Abschnitte u
 - **Betroffene Dateien:** `src/core/notify/voicePrompt.ts`, `src/providers/voice/vapi.ts`, `src/core/voice/werkzeuge.ts`, `src/app/api/voice/webhook/route.ts`, `src/app/einrichtung/[schritt]/actions.ts`, `src/app/(auth)/registrieren/actions.ts`.
 - **Erledigt damit:** S2-019 (berührt auch V-015).
 - **Nachweis:** Live-Testanruf „ich will einen Menschen“ und der Notfall-Satz lösen einen tatsächlichen Transfer-Versuch bei Vapi aus (nicht nur eine „ok“-Antwort); Test, der eine leere/nationale `escalationNumber` beim Speichern abweist.
-- **Status:** OFFEN. **Einschätzung Projektleitung:** als P1 eingestuft (Berger: S2), weil CLAUDE.md für Notfälle zwingend die sofortige Weiterleitung an einen Menschen verlangt – diese Pflicht ist technisch derzeit nicht erfüllt, unabhängig vom Schweregrad-Schema. Siehe Entscheidungsbündel.
-- **Auftrag:** Behebung am 31.10.2026 freigegeben und an L. Hartmann beauftragt (zusammen mit M-46, derselbe neue Branch). Noch kein Behebungsprotokoll.
+- **Status:** BEHOBEN (Behebung M-46/M-47, Branch `claude/behebung-pilot-blocker`, Commit `8745d1e`); echter Testanruf gegen Vapi steht noch aus. Prompt und Werkzeugliste nennen jetzt beide `transferCall`; ein fehlgeschlagener Versuch liefert einen Fehler mit 112-Hinweis statt Scheinerfolg; `escalationNumber` wird beim Speichern über `weiterleitungsnummerE164()` normalisiert und geprüft (E.164), leere/ungültige Nummern werden abgelehnt; Notfall-Stichwortliste um Sturz, Schlaganfall-Zeichen und Suizidäußerung ergänzt. 20 neue Regressionstests grün, live nachgestellt (siehe Behebungsprotokoll). Code-Gegenlesen durch Projektleitung an `src/core/einrichtung/rufnummer.ts` und `src/app/api/voice/webhook/route.ts` bestätigt die Beschreibung. **Von K. Berger noch nicht gegengeprüft.** Zwei Entscheidungspunkte offen (Verhalten bei KI aus ohne gültige Nummer, `docs/04` nachziehen) und der echte Testanruf gegen Vapi (kostet eine Testnummer, Geld – braucht ausdrückliche Zustimmung), siehe Entscheidungsbündel.
+
+#### M-72 Manuelle Zuweisung nur an ein Fahrzeug mit laufender Schicht und einsatzfähigem Fahrer (Durchgang 4, neu)
+- **Problem:** Weist der Disponent im Fahrt-Fenster ein Fahrzeug zu, für das gerade keine Schicht läuft, steht die Fahrt auf „disponiert“, hat aber keinen Fahrer – ohne Push, ohne Bestätigungs-SMS, ohne Kein-Fahrzeug-Alarm, und ohne dass sie in „Braucht Sie“ erscheint. Wählt er das Fahrzeug eines Fahrers, der „Ich falle aus“ gedrückt hat oder deaktiviert wurde (M-12), geht die Fahrt genau an diesen Fahrer zurück.
+- **Zu tun:** Die manuelle Zuweisung muss dieselbe Kandidatenprüfung durchlaufen wie der Automodus (laufende Schicht, nicht ausgefallen, nicht deaktiviert) oder zumindest eine Warnung mit Bestätigung zeigen; eine Fahrt ohne einsatzfähigen Fahrer darf nicht als „disponiert ohne Alarm“ enden – entweder ablehnen oder sofort in den Kein-Fahrzeug-Alarm/„Braucht Sie“ einsortieren. Genaue Lösung mit dem Auftraggeber abstimmen (siehe Entscheidungsbündel).
+- **Betroffene Dateien:** vermutlich `src/core/disposition/zuweisen.ts`, `src/app/dispo/fahrten/actions.ts`, Fahrt-Fenster-Komponente (genaue Dateien erst beim Beheben zu bestätigen).
+- **Erledigt damit:** S1-008 (Berger Durchgang 4, Top-3-Befund 1).
+- **Priorität:** P1 – Pilot-Blocker (Berger: S1; Fahrt kann ohne jeden Alarm ohne Fahrer bleiben, zusätzlich Fahrten können an ausgefallene/deaktivierte Fahrer zurückgehen).
+- **Status:** OFFEN. Noch nicht beauftragt.
+
+#### M-73 Serienpause/Serienänderung darf storniert angelegte Termine nicht unwiederbringlich löschen (Durchgang 4, neu)
+- **Problem:** Verkürzt das Büro eine Serienpause nachträglich (z. B. weil der Patient früher aus dem Krankenhaus kommt), werden die schon stornierten Tage nie wieder angelegt. Dasselbe bei „Wochentage ändern und zurück“ und bei „versehentlich beendet, Enddatum wieder verlängert“. Die KI kann eine Serie am Telefon beenden (`serie_beenden`); rückgängig machen geht nicht – außer eine komplett neue Serie anzulegen.
+- **Zu tun:** Serienänderungen (Pause, Wochentage, Enddatum, Beenden) dürfen bereits stornierte Termine nicht endgültig vernichten; entweder eine Wiederherstellungsfunktion schaffen oder (Mindestlösung) vor jeder destruktiven Serienänderung eine Bestätigung mit Vorschau zeigen, welche Termine endgültig verloren gehen. Genaue Lösung mit dem Auftraggeber abstimmen (siehe Entscheidungsbündel).
+- **Betroffene Dateien:** vermutlich `src/core/rides/serie.ts`, `src/core/voice/werkzeuge.ts` (`serie_beenden`), Serien-Bearbeitungskomponenten im Büro (genaue Dateien erst beim Beheben zu bestätigen).
+- **Erledigt damit:** S1-009 (Berger Durchgang 4, Top-3-Befund 2). Siehe auch M-22 (Serien bearbeiten/stoppen).
+- **Priorität:** P1 – Pilot-Blocker (Berger: S1; dauerhafter, stiller Verlust von Dialyseterminen – lebenswichtige Fahrten).
+- **Status:** OFFEN. Noch nicht beauftragt.
+
+#### M-67 Büro-Funktion `fahrtStatusSetzen` entfernen oder auf die Fachfunktionen umleiten (keine Hintertür um Umplan- und Sicherheitsregeln) — **hochgestuft von P2 auf P1 (Durchgang 4, S3-034)**
+- **Problem:** Die Server Action `fahrtStatusSetzen` setzt jeden laut Übergangstabelle erlaubten Status direkt, ohne Fahrzeug/Fahrer zu lösen, ohne Neuprüfung und ohne die Fahrer-Meldungen aus M-20 – z. B. DISPONIERT → ERFASST mit stehen gebliebener Zuweisung, oder ERFASST → DISPONIERT ohne Fahrzeug. Die Oberfläche ruft sie nicht auf; erreichbar ist sie trotzdem für jede angemeldete Büro-Sitzung (Server Actions sind von außen aufrufbar). Die Rollenprüfung ist vorhanden. **Durchgang 4 (S3-034):** Berger stuft dies als echte, nutzbare Hintertür um alle Dispositionsregeln ein, die aktuell nur durch die geheime Action-ID begrenzt ist (dieselbe Action-ID-Frage wie Verdacht V-001/V-013) – nicht nur ein theoretisches Risiko.
+- **Zu tun:**
+  1. Funktion entfernen, wenn sie nirgends gebraucht wird; sonst auf `fahrtAendern`/`fahrzeugZuweisungAufheben`/`fahrzeugZuweisen` umleiten, so dass dieselben Regeln gelten wie im normalen Ablauf.
+  2. Test bzw. Quelltext-Prüfung, dass keine Büro-Action Status ohne diese Fachfunktionen setzt.
+- **Betroffene Dateien:** `src/app/dispo/fahrten/actions.ts` (`fahrtStatusSetzen`), ggf. `src/core/rides/status.ts`.
+- **Erledigt damit:** B3-A1 (Behebungsprotokoll Durchgang 3, „Auf dem Weg aufgefallen“ Nr. 1; dort Vorschlag 6, Empfehlung „jetzt“, Aufwand ca. 1 Stunde), S3-034 (Berger Durchgang 4, bestätigt und verschärft). Siehe auch M-20, V-001/V-013 (Action-ID).
+- **Gegengelesen (Projektleitung, 31.10.2026, Stand `aa4e6e7`):** `fahrtStatusSetzen` ruft nach `requireBueroSession()` direkt `fahrtStatusAendern` auf; im Quelltext unter `src/` und `tests/` gibt es außer der Definition keinen Aufruf. Beobachtung bestätigt.
+- **Priorität:** P1 – Pilot-Blocker (hochgestuft von P2 durch Berger Durchgang 4: reale, nutzbare Hintertür um die Umplan- und Sicherheitsregeln, nicht nur ein theoretisches Risiko).
+- **Nachweis:** Funktion existiert nicht mehr bzw. Test: Aufruf mit DISPONIERT → ERFASST löst Fahrzeug und Fahrer und benachrichtigt den Fahrer genau einmal.
+- **Status:** OFFEN.
 
 ### P2 – vor dem Pilot
 
@@ -425,23 +458,42 @@ Danach folgen die übrigen P1-/P2-Maßnahmen in der Reihenfolge der Abschnitte u
   1. Fahrer-Texte nicht mehr aus dem frei vergebenen Ortsnamen bilden; bei Wohnorten (Typ `WOHNUNG`) höchstens Ortstyp oder Straße/Ort aus den strukturierten Feldern verwenden (Vorschlag Behebung: Ortstyp statt Label). Welche Angabe der Fahrer sieht, ist sichtbares Produktverhalten – Variante beim Beauftragen mit dem Auftraggeber festlegen.
   2. Test, dass ein Ort „Wohnung <Name>“ in keinem Fahrer-Text erscheint, für alle Aufrufstellen von `neueFahrtText`.
 - **Betroffene Dateien:** `src/core/notify/texte.ts` (`neueFahrtText`, `kurzOrt`), `src/core/notify/eskalation.ts`, `src/core/rides/fahrerBenachrichtigen.ts`.
-- **Erledigt damit:** B3-A2 (Behebungsprotokoll Durchgang 3, „Auf dem Weg aufgefallen“ Nr. 2; dort Vorschlag 8). Siehe auch M-10 (Löschung), M-09 (Logs).
+- **Erledigt damit:** B3-A2 (Behebungsprotokoll Durchgang 3, „Auf dem Weg aufgefallen“ Nr. 2; dort Vorschlag 8), S2-025 (Berger Durchgang 4, Top-3-Befund 3, erster Teil – bestätigt mit den Beispielen „Wohnung Müller“/„Müller, Hans“). Siehe auch M-10 (Löschung), M-09 (Logs).
 - **Gegengelesen (Projektleitung, 31.10.2026, Stand `aa4e6e7`):** `neueFahrtText` setzt `kurzOrt(label)` ein; Aufrufe in `eskalation.ts` und `fahrerBenachrichtigen.ts` übergeben `pickupPlace.label`/`dropoffPlace.label`. Die Löschfunktion vermerkt selbst, dass Wohnort-Namen den Fahrgastnamen tragen können. Beobachtung bestätigt.
-- **Priorität:** P2 – vor dem Pilot (Datenschutz, Verstoß gegen eine feste Projektregel). Vom Auftraggeber so vorgeschlagen und akzeptiert; Einstufung nach Gegenlesen beibehalten.
+- **Priorität:** P2 – vor dem Pilot (Datenschutz, Verstoß gegen eine feste Projektregel). Vom Auftraggeber so vorgeschlagen und akzeptiert; Einstufung nach Gegenlesen beibehalten; durch Berger Durchgang 4 (S2-025) unabhängig bestätigt.
 - **Nachweis:** Test mit Wohnort-Label „Wohnung Testname“ → Text an den Fahrer enthält „Testname“ nicht.
 - **Status:** OFFEN.
 
-#### M-67 Büro-Funktion `fahrtStatusSetzen` entfernen oder auf die Fachfunktionen umleiten (keine Hintertür um Umplan- und Sicherheitsregeln)
-- **Problem:** Die Server Action `fahrtStatusSetzen` setzt jeden laut Übergangstabelle erlaubten Status direkt, ohne Fahrzeug/Fahrer zu lösen, ohne Neuprüfung und ohne die Fahrer-Meldungen aus M-20 – z. B. DISPONIERT → ERFASST mit stehen gebliebener Zuweisung, oder ERFASST → DISPONIERT ohne Fahrzeug. Die Oberfläche ruft sie nicht auf; erreichbar ist sie trotzdem für jede angemeldete Büro-Sitzung (Server Actions sind von außen aufrufbar). Die Rollenprüfung ist vorhanden.
-- **Zu tun:**
-  1. Funktion entfernen, wenn sie nirgends gebraucht wird; sonst auf `fahrtAendern`/`fahrzeugZuweisungAufheben`/`fahrzeugZuweisen` umleiten, so dass dieselben Regeln gelten wie im normalen Ablauf.
-  2. Test bzw. Quelltext-Prüfung, dass keine Büro-Action Status ohne diese Fachfunktionen setzt.
-- **Betroffene Dateien:** `src/app/dispo/fahrten/actions.ts` (`fahrtStatusSetzen`), ggf. `src/core/rides/status.ts`.
-- **Erledigt damit:** B3-A1 (Behebungsprotokoll Durchgang 3, „Auf dem Weg aufgefallen“ Nr. 1; dort Vorschlag 6, Empfehlung „jetzt“, Aufwand ca. 1 Stunde). Siehe auch M-20.
-- **Gegengelesen (Projektleitung, 31.10.2026, Stand `aa4e6e7`):** `fahrtStatusSetzen` ruft nach `requireBueroSession()` direkt `fahrtStatusAendern` auf; im Quelltext unter `src/` und `tests/` gibt es außer der Definition keinen Aufruf. Beobachtung bestätigt.
-- **Priorität:** P2 – vor dem Pilot (umgeht reparierte Regeln aus M-20; Folge wären Fahrten, die am falschen Wagen kleben oder ohne Fahrzeug als disponiert gelten). Vom Auftraggeber so vorgeschlagen und akzeptiert; Einstufung nach Gegenlesen beibehalten.
-- **Nachweis:** Funktion existiert nicht mehr bzw. Test: Aufruf mit DISPONIERT → ERFASST löst Fahrzeug und Fahrer und benachrichtigt den Fahrer genau einmal.
-- **Status:** OFFEN.
+*(M-67 ist nach Durchgang 4 (S3-034) nach P1 – Pilot-Blocker hochgestuft und dorthin verschoben; siehe oben, direkt vor diesem Abschnitt.)*
+
+#### M-74 KI liest unbekannten Anrufern volle Adresse und Ortsbezeichnung ungeprüft vor (Durchgang 4, neu)
+- **Problem:** Nennt ein Anrufer am Telefon eine Adresse oder eine Ortsbezeichnung wie „Hauptstraße 5“ oder „Wohnung Müller“, liest die KI Bezeichnung und volle Adresse vor – ohne vorher zu prüfen, ob der Anrufer überhaupt zu diesem Fahrgast/Ort gehört. Damit kann ein unbekannter Anrufer, der nur eine Adresse rät oder von woanders kennt, Ortsbezeichnungen (die laut M-66/S2-025 Fahrgastnamen tragen können) und volle Adressen weiterer Fahrgäste abfragen.
+- **Zu tun:** Die Adress-/Ortsauskunft am Telefon muss an eine bestätigte Identität gebunden werden (ähnliches Muster wie M-13 – Identitätsbindung über die echte Anrufernummer), bevor eine volle Adresse oder ein Ortsname vorgelesen wird; genaue Lösung mit dem Auftraggeber abstimmen.
+- **Betroffene Dateien:** vermutlich `src/core/voice/werkzeuge.ts` (`ort_suchen`/Adressauskunft), `src/core/notify/voicePrompt.ts` (genaue Dateien erst beim Beheben zu bestätigen).
+- **Erledigt damit:** S2-026 (Berger Durchgang 4, Top-3-Befund 3, zweiter Teil). Siehe auch M-13 (Identitätsbindung), M-66 (Ortsnamen als Fahrgastname).
+- **Priorität:** P2 – vor dem Pilot (Berger: S2; Datenschutzlücke am Telefon ohne Identitätsprüfung).
+- **Status:** OFFEN. Noch nicht beauftragt.
+
+#### M-75 Durchgang 4, Befund S2-027 – Kurztitel nicht übergeben
+- **Problem:** Nicht im Detail vorliegend. Berger nennt diese Kennung im Prüfauftrag ohne Kurztitel oder Einzelheiten; der volle Befund steht nur im Chat-Verlauf der auftraggebenden Sitzung.
+- **Zu tun:** Vollständigen Bericht (Fundort, Beweis, Lösungsvorschlag) nachtragen, dann diese Maßnahme ausfüllen.
+- **Erledigt damit:** S2-027 (Berger Durchgang 4).
+- **Priorität:** P2 – vor dem Pilot (Standardzuordnung nach Schweregrad-Code S2, vorläufig – kann sich nach Vorliegen der Einzelheiten ändern).
+- **Status:** OFFEN (Details ausstehend).
+
+#### M-76 Durchgang 4, Befund S2-028 – Kurztitel nicht übergeben
+- **Problem:** Nicht im Detail vorliegend. Berger nennt diese Kennung im Prüfauftrag ohne Kurztitel oder Einzelheiten; der volle Befund steht nur im Chat-Verlauf der auftraggebenden Sitzung.
+- **Zu tun:** Vollständigen Bericht (Fundort, Beweis, Lösungsvorschlag) nachtragen, dann diese Maßnahme ausfüllen.
+- **Erledigt damit:** S2-028 (Berger Durchgang 4).
+- **Priorität:** P2 – vor dem Pilot (Standardzuordnung nach Schweregrad-Code S2, vorläufig).
+- **Status:** OFFEN (Details ausstehend).
+
+#### M-77 Durchgang 4, Befund S2-029 – Kurztitel nicht übergeben
+- **Problem:** Nicht im Detail vorliegend. Berger nennt diese Kennung im Prüfauftrag ohne Kurztitel oder Einzelheiten; der volle Befund steht nur im Chat-Verlauf der auftraggebenden Sitzung.
+- **Zu tun:** Vollständigen Bericht (Fundort, Beweis, Lösungsvorschlag) nachtragen, dann diese Maßnahme ausfüllen.
+- **Erledigt damit:** S2-029 (Berger Durchgang 4).
+- **Priorität:** P2 – vor dem Pilot (Standardzuordnung nach Schweregrad-Code S2, vorläufig).
+- **Status:** OFFEN (Details ausstehend).
 
 ### P3 – in den ersten Pilotwochen
 
@@ -701,6 +753,34 @@ Danach folgen die übrigen P1-/P2-Maßnahmen in der Reihenfolge der Abschnitte u
 - **Nachweis:** Ergebnis des Prüfdurchgangs; bei Bestätigung Test wie in Zu tun 1.
 - **Status:** OFFEN (Verdacht, unbestätigt).
 
+#### M-78 Durchgang 4, Befund S3-035 – Kurztitel nicht übergeben
+- **Problem:** Nicht im Detail vorliegend. Berger nennt diese Kennung im Prüfauftrag ohne Kurztitel oder Einzelheiten; der volle Befund steht nur im Chat-Verlauf der auftraggebenden Sitzung.
+- **Zu tun:** Vollständigen Bericht (Fundort, Beweis, Lösungsvorschlag) nachtragen, dann diese Maßnahme ausfüllen.
+- **Erledigt damit:** S3-035 (Berger Durchgang 4).
+- **Priorität:** P3 – erste Pilotwochen (Standardzuordnung nach Schweregrad-Code S3, vorläufig).
+- **Status:** OFFEN (Details ausstehend).
+
+#### M-79 Durchgang 4, Befund S3-036 – Kurztitel nicht übergeben
+- **Problem:** Nicht im Detail vorliegend. Berger nennt diese Kennung im Prüfauftrag ohne Kurztitel oder Einzelheiten; der volle Befund steht nur im Chat-Verlauf der auftraggebenden Sitzung.
+- **Zu tun:** Vollständigen Bericht (Fundort, Beweis, Lösungsvorschlag) nachtragen, dann diese Maßnahme ausfüllen.
+- **Erledigt damit:** S3-036 (Berger Durchgang 4).
+- **Priorität:** P3 – erste Pilotwochen (Standardzuordnung nach Schweregrad-Code S3, vorläufig).
+- **Status:** OFFEN (Details ausstehend).
+
+#### M-80 Durchgang 4, Befund S3-037 – Kurztitel nicht übergeben
+- **Problem:** Nicht im Detail vorliegend. Berger nennt diese Kennung im Prüfauftrag ohne Kurztitel oder Einzelheiten; der volle Befund steht nur im Chat-Verlauf der auftraggebenden Sitzung.
+- **Zu tun:** Vollständigen Bericht (Fundort, Beweis, Lösungsvorschlag) nachtragen, dann diese Maßnahme ausfüllen.
+- **Erledigt damit:** S3-037 (Berger Durchgang 4).
+- **Priorität:** P3 – erste Pilotwochen (Standardzuordnung nach Schweregrad-Code S3, vorläufig).
+- **Status:** OFFEN (Details ausstehend).
+
+#### M-81 Durchgang 4, Befund S3-038 – Kurztitel nicht übergeben
+- **Problem:** Nicht im Detail vorliegend. Berger nennt diese Kennung im Prüfauftrag ohne Kurztitel oder Einzelheiten; der volle Befund steht nur im Chat-Verlauf der auftraggebenden Sitzung.
+- **Zu tun:** Vollständigen Bericht (Fundort, Beweis, Lösungsvorschlag) nachtragen, dann diese Maßnahme ausfüllen.
+- **Erledigt damit:** S3-038 (Berger Durchgang 4).
+- **Priorität:** P3 – erste Pilotwochen (Standardzuordnung nach Schweregrad-Code S3, vorläufig).
+- **Status:** OFFEN (Details ausstehend).
+
 ### P4 – später
 
 #### M-40 Einmal-Codes und Magic-Link-Token gehasht speichern
@@ -812,9 +892,37 @@ Danach folgen die übrigen P1-/P2-Maßnahmen in der Reihenfolge der Abschnitte u
 - **Nachweis:** Nach `npm test` ist der Beispiel-Mandant in der Testdatenbank unverändert vorhanden.
 - **Status:** OFFEN (nicht bestätigt).
 
+#### M-82 Durchgang 4, Befund S4-020 – Kurztitel nicht übergeben
+- **Problem:** Nicht im Detail vorliegend. Berger nennt diese Kennung im Prüfauftrag ohne Kurztitel oder Einzelheiten; der volle Befund steht nur im Chat-Verlauf der auftraggebenden Sitzung.
+- **Zu tun:** Vollständigen Bericht (Fundort, Beweis, Lösungsvorschlag) nachtragen, dann diese Maßnahme ausfüllen.
+- **Erledigt damit:** S4-020 (Berger Durchgang 4).
+- **Priorität:** P4 – später (Standardzuordnung nach Schweregrad-Code S4, vorläufig).
+- **Status:** OFFEN (Details ausstehend).
+
+#### M-83 Durchgang 4, Befund S4-021 – Kurztitel nicht übergeben
+- **Problem:** Nicht im Detail vorliegend. Berger nennt diese Kennung im Prüfauftrag ohne Kurztitel oder Einzelheiten; der volle Befund steht nur im Chat-Verlauf der auftraggebenden Sitzung.
+- **Zu tun:** Vollständigen Bericht (Fundort, Beweis, Lösungsvorschlag) nachtragen, dann diese Maßnahme ausfüllen.
+- **Erledigt damit:** S4-021 (Berger Durchgang 4).
+- **Priorität:** P4 – später (Standardzuordnung nach Schweregrad-Code S4, vorläufig).
+- **Status:** OFFEN (Details ausstehend).
+
+#### M-84 Durchgang 4, Befund S4-022 – Kurztitel nicht übergeben
+- **Problem:** Nicht im Detail vorliegend. Berger nennt diese Kennung im Prüfauftrag ohne Kurztitel oder Einzelheiten; der volle Befund steht nur im Chat-Verlauf der auftraggebenden Sitzung.
+- **Zu tun:** Vollständigen Bericht (Fundort, Beweis, Lösungsvorschlag) nachtragen, dann diese Maßnahme ausfüllen.
+- **Erledigt damit:** S4-022 (Berger Durchgang 4).
+- **Priorität:** P4 – später (Standardzuordnung nach Schweregrad-Code S4, vorläufig).
+- **Status:** OFFEN (Details ausstehend).
+
+#### M-85 Durchgang 4, Befund S4-023 – Kurztitel nicht übergeben
+- **Problem:** Nicht im Detail vorliegend. Berger nennt diese Kennung im Prüfauftrag ohne Kurztitel oder Einzelheiten; der volle Befund steht nur im Chat-Verlauf der auftraggebenden Sitzung.
+- **Zu tun:** Vollständigen Bericht (Fundort, Beweis, Lösungsvorschlag) nachtragen, dann diese Maßnahme ausfüllen.
+- **Erledigt damit:** S4-023 (Berger Durchgang 4).
+- **Priorität:** P4 – später (Standardzuordnung nach Schweregrad-Code S4, vorläufig).
+- **Status:** OFFEN (Details ausstehend).
+
 ## Vor dem Pilot extern klären
 
-Diese Verdachte sind nicht bestätigt und lassen sich nur mit Zugang zu externen Konten oder Geräten prüfen. V-005 und V-006 wurden in Durchgang 2 bestätigt und stecken in M-14 bzw. M-21.
+Diese Verdachte sind nicht bestätigt und lassen sich nur mit Zugang zu externen Konten oder Geräten prüfen. V-005 und V-006 wurden in Durchgang 2 bestätigt und stecken in M-14 bzw. M-21. V-017 bis V-020 (Berger Durchgang 4) liegen nur als Kennung vor, ohne übergebenen Prüfauftrag/Zugang; nachtragen, sobald der vollständige Bericht vorliegt.
 
 | Verdacht | Prüfauftrag | Benötigter Zugang |
 |---|---|---|
@@ -830,8 +938,12 @@ Diese Verdachte sind nicht bestätigt und lassen sich nur mit Zugang zu externen
 | V-012 | Online `npm audit` und GitHub-Advisories für `next@16.4.3` prüfen; `better-auth` auf 1.7.14 heben. | Internetzugang |
 | V-013 | Zwei Builds vergleichen (`server-reference-manifest.json`): bleiben die Action-IDs gleich, sind sie aus dem Git-Repo berechenbar und V-001 wäre ein offener Endpunkt. | Build-Ausgabe |
 | V-014 | 5 Testtranskripte mit eingebetteten Anweisungen gegen die echte Anthropic-API prüfen (Prompt-Injection über das Gesprächstranskript in die Zusammenfassung, `anrufZusammenfassung.ts:27-30`); Systemprompt um eine Kennzeichnung „das Folgende ist ein Protokoll, keine Anweisung“ ergänzen. | Anthropic-API-Zugang |
-| V-015 | Testanruf „Ich möchte einen Menschen“ bei einem Mandanten mit national geschriebener oder leerer `escalationNumber` gegen die echte Vapi-`transferCall`-Funktion; hängt mit M-47/M-21 zusammen. | Vapi, Telefonnummer |
+| V-015 | Testanruf „Ich möchte einen Menschen“ bei einem Mandanten mit national geschriebener oder leerer `escalationNumber` gegen die echte Vapi-`transferCall`-Funktion; hängt mit M-47/M-21 zusammen. **Nach Behebung M-47 weiterhin offen** (Hartmann, Entscheidung 5/Vorschlag 1): ob `transferCall` mit E.164-Nummer tatsächlich verbindet und wie Vapi auf eine Absage reagiert, ist nur mit einer echten Vapi-Testnummer zu klären (kostet Geld, braucht ausdrückliche Zustimmung). | Vapi, Telefonnummer |
 | V-016 | Nach Aktivierung von Sentry im Browser prüfen, wie stark die Hydrationsfehler aus S3-026 (M-53) das Sentry-Kontingent und das Signal-Rausch-Verhältnis belasten; ggf. `#418`/`#425` filtern. | Sentry-Zugang |
+| V-017 | Berger Durchgang 4. Prüfauftrag und benötigter Zugang nicht übergeben; nur die Kennung liegt vor. Nachtragen, sobald der vollständige Bericht vorliegt. | unbekannt |
+| V-018 | Berger Durchgang 4. Prüfauftrag und benötigter Zugang nicht übergeben; nur die Kennung liegt vor. Nachtragen, sobald der vollständige Bericht vorliegt. | unbekannt |
+| V-019 | Berger Durchgang 4. Prüfauftrag und benötigter Zugang nicht übergeben; nur die Kennung liegt vor. Nachtragen, sobald der vollständige Bericht vorliegt. | unbekannt |
+| V-020 | Berger Durchgang 4. Prüfauftrag und benötigter Zugang nicht übergeben; nur die Kennung liegt vor. Nachtragen, sobald der vollständige Bericht vorliegt. | unbekannt |
 
 ## Was gut ist und bleiben soll
 
@@ -969,5 +1081,21 @@ Diese Verdachte sind nicht bestätigt und lassen sich nur mit Zugang zu externen
 | B3-A5 | Behebung 3, Aufgefallen Nr. 5 | „Fahrzeug ändern“ im Fahrt-Fenster: Meldung je Fahrer ungeprüft | M-69 |
 | B3-A6 | Behebung 3, Aufgefallen Nr. 6 | Testreste „ohne Betriebshof“ bei rotem Lauf | M-70 |
 | B3-A7 | Behebung 3, Aufgefallen Nr. 7 | Seed-Schutz-Test entfernt Beispiel-Mandanten der Test-DB | M-71 |
+| S1-008 | Berger 4 | Manuelle Zuweisung ohne Schichtprüfung, ausgefallene/deaktivierte Fahrer bekommen Fahrten zurück | M-72 |
+| S1-009 | Berger 4 | Verkürzte Serienpause/zurückgenommene Serienänderung löscht Termine dauerhaft | M-73 |
+| S2-025 | Berger 4 | Fahrgastname über Ortsnamen in Fahrer-SMS/-Push (bestätigt M-66) | M-66 |
+| S2-026 | Berger 4 | KI liest unbekannten Anrufern volle Adresse/Ortsbezeichnung ungeprüft vor | M-74 |
+| S2-027 | Berger 4 | Kurztitel nicht übergeben | M-75 |
+| S2-028 | Berger 4 | Kurztitel nicht übergeben | M-76 |
+| S2-029 | Berger 4 | Kurztitel nicht übergeben | M-77 |
+| S3-034 | Berger 4 | `fahrtStatusSetzen` ist eine echte, nutzbare Hintertür um alle Dispositionsregeln (bestätigt und verschärft M-67, hochgestuft auf P1) | M-67 |
+| S3-035 | Berger 4 | Kurztitel nicht übergeben | M-78 |
+| S3-036 | Berger 4 | Kurztitel nicht übergeben | M-79 |
+| S3-037 | Berger 4 | Kurztitel nicht übergeben | M-80 |
+| S3-038 | Berger 4 | Kurztitel nicht übergeben | M-81 |
+| S4-020 | Berger 4 | Kurztitel nicht übergeben | M-82 |
+| S4-021 | Berger 4 | Kurztitel nicht übergeben | M-83 |
+| S4-022 | Berger 4 | Kurztitel nicht übergeben | M-84 |
+| S4-023 | Berger 4 | Kurztitel nicht übergeben | M-85 |
 
-**Zählung:** docs/13: 29 Kennungen (R1-1…R1-7, R2-1…R2-11, R3-1…R3-11) → 29 zugeordnet. Berger 1: 40 Kennungen (S1-001…S1-005, S2-001…S2-011, S3-001…S3-014, S4-001…S4-010) → 40 zugeordnet. Berger 2: 22 Kennungen (S1-006, S2-012…S2-017, S3-015…S3-025, S4-011…S4-014) → 22 zugeordnet. Berger 3: 21 Kennungen (S1-007, S2-018…S2-024, S3-026…S3-033, S4-015…S4-019) → 21 zugeordnet. Dazu 2 bestätigte Verdachte (V-005, V-006) in Maßnahmen, 14 offene Verdachte (V-001…V-004, V-007…V-016) im Abschnitt „Vor dem Pilot extern klären“. **Alle 112 Befunde und 16 Verdachte sind genau einmal zugeordnet.** Zusätzlich Behebungsprotokoll Durchgang 3: 7 Beobachtungen (B3-A1…B3-A7) → 7 zugeordnet (6 neue Maßnahmen M-66…M-71, B3-A4 als Ergänzung zu M-26).
+**Zählung:** docs/13: 29 Kennungen (R1-1…R1-7, R2-1…R2-11, R3-1…R3-11) → 29 zugeordnet. Berger 1: 40 Kennungen (S1-001…S1-005, S2-001…S2-011, S3-001…S3-014, S4-001…S4-010) → 40 zugeordnet. Berger 2: 22 Kennungen (S1-006, S2-012…S2-017, S3-015…S3-025, S4-011…S4-014) → 22 zugeordnet. Berger 3: 21 Kennungen (S1-007, S2-018…S2-024, S3-026…S3-033, S4-015…S4-019) → 21 zugeordnet. Berger 4: 20 Kennungen (S1-008, S1-009, S2-025…S2-029, S3-034…S3-038, S4-020…S4-023) → 20 zugeordnet (9 mit vollem Befund, 11 als Platzhalter „Kurztitel nicht übergeben“). Dazu 2 bestätigte Verdachte (V-005, V-006) in Maßnahmen, 18 offene Verdachte (V-001…V-004, V-007…V-020) im Abschnitt „Vor dem Pilot extern klären“ (davon V-017…V-020 ebenfalls nur als Kennung, ohne übergebenen Prüfauftrag). **Alle 132 Befunde und 20 Verdachte sind genau einmal zugeordnet.** Zusätzlich Behebungsprotokoll Durchgang 3: 7 Beobachtungen (B3-A1…B3-A7) → 7 zugeordnet (6 neue Maßnahmen M-66…M-71, B3-A4 als Ergänzung zu M-26).
