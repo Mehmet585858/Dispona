@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type { RideStatus } from "@/generated/prisma/enums";
 import { withTenant, type TenantTx } from "@/lib/db";
 import { gefahreneKmBerechnen } from "./distanz";
@@ -20,6 +21,16 @@ export const ERLAUBTE_UEBERGAENGE: Record<RideStatus, RideStatus[]> = {
   STORNIERT: [],
   PROBLEM: ["ERFASST", "STORNIERT"],
 };
+
+/**
+ * Status, die ein Fahrer selbst setzen darf (docs/06-oberflaeche.md: unterwegs, an Bord, erledigt,
+ * nicht angetroffen). Alles andere – insbesondere STORNIERT und ERFASST (zurück in die
+ * Warteschlange) – bleibt dem Büro vorbehalten (Maßnahme M-05, docs/13 R3-1, Prüfbericht S4-014).
+ * Die Server Action prüft zur Laufzeit gegen dieses Schema, nicht nur per TypeScript-Typ.
+ */
+export const FAHRER_ERLAUBTE_STATUS = ["UNTERWEGS", "AN_BORD", "ERLEDIGT", "NICHT_ANGETROFFEN"] as const;
+export const fahrerStatusSchema = z.enum(FAHRER_ERLAUBTE_STATUS);
+export type FahrerStatus = z.infer<typeof fahrerStatusSchema>;
 
 export function istUebergangErlaubt(von: RideStatus, nach: RideStatus): boolean {
   if (von === nach) return false;

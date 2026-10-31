@@ -3,9 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { withTenant, type TenantDb } from "@/lib/db";
 import { requireFahrerSession } from "@/lib/session";
-import { fahrtStatusAendern } from "@/core/rides/status";
+import { fahrerStatusSchema, fahrtStatusAendern } from "@/core/rides/status";
 import { fahrerFaelltAusKern } from "@/core/rides/fahrerAusfall";
 import { berlinerMitternacht, datumIso, tagVerschieben } from "@/core/shifts/week";
+import { gpsPositionSchema } from "@/core/drivers/validation";
 import { pushAboSpeichern } from "@/core/notify/push";
 import type { RideStatus } from "@/generated/prisma/enums";
 
@@ -75,14 +76,25 @@ export async function fahrtStatusSetzenFahrer(
   position?: { lat: number; lng: number },
 ) {
   const { tenantId, userId } = await requireFahrerSession();
+  // Maßnahme M-05 (R3-1, S4-014): nur die vier Fahrer-Status zur Laufzeit zulassen – vorher nahm
+  // die Action jeden Wert an, ein Fahrer konnte seine Fahrt stornieren oder zurück in die
+  // Warteschlange werfen, ohne dass das Büro es merkt. Position ebenfalls geprüft.
+  const zielStatus = fahrerStatusSchema.safeParse(status);
+  if (!zielStatus.success) {
+    throw new Error("Diesen Status kann nur das Büro setzen.");
+  }
+  const geprueftePosition = position ? gpsPositionSchema.safeParse(position) : undefined;
+  if (geprueftePosition && !geprueftePosition.success) {
+    throw new Error("Ungültige GPS-Position.");
+  }
   const fahrer = await eigenerFahrer(tenantId, userId);
 
   // Maßnahme M-04 (R3-2): keine getrennte Eigentumsprüfung mehr – der Statuswechsel schreibt nur,
   // wenn die Fahrt in diesem Moment noch diesem Fahrer gehört (Bedingung im UPDATE).
-  await fahrtStatusAendern(tenantId, rideId, status, {
+  await fahrtStatusAendern(tenantId, rideId, zielStatus.data, {
     userId,
-    lat: position?.lat,
-    lng: position?.lng,
+    lat: geprueftePosition?.data.lat,
+    lng: geprueftePosition?.data.lng,
     erwarteterDriverId: fahrer.id,
   });
 
@@ -192,19 +204,30 @@ export async function gpsEinwilligen() {
 /** Speichert eine GPS-Position für das Fahrzeug der laufenden Schicht – nur mit Einwilligung, nur während der Schicht. */
 export async function gpsPositionMelden(lat: number, lng: number) {
   const { tenantId, userId } = await requireFahrerSession();
+  // Maßnahme M-05: Wertebereich prüfen (−90…90 / −180…180, keine NaN) – vorher landete jeder Wert
+  // ungeprüft in VehicleLocation.
+  const position = gpsPositionSchema.safeParse({ lat, lng });
+  if (!position.success) {
+    throw new Error("Ungültige GPS-Position.");
+  }
   const db = withTenant(tenantId);
   const fahrer = await eigenerFahrer(tenantId, userId);
   if (!fahrer.gpsConsentAt) return;
 
+  // "Laufende Schicht" nur, wenn sie heute (Berliner Zeit) noch andauert: eine nie beendete
+  // Schicht von letzter Woche sendet sonst tagelang Positionen (Maßnahme M-05, Punkt 3).
+  const heuteIso = datumIso(new Date());
+  const heute = berlinerMitternacht(heuteIso);
+  const uebermorgen = berlinerMitternacht(tagVerschieben(heuteIso, 2));
   const laufendeSchicht = await db.shift.findFirst({
-    where: { driverId: fahrer.id, startedAt: { not: null }, endedAt: null },
+    where: { driverId: fahrer.id, startedAt: { not: null }, endedAt: null, start: { lt: uebermorgen }, end: { gte: heute } },
     orderBy: { start: "desc" },
     select: { vehicleId: true },
   });
   if (!laufendeSchicht) return;
 
   await db.vehicleLocation.create({
-    data: { tenantId, vehicleId: laufendeSchicht.vehicleId, lat, lng },
+    data: { tenantId, vehicleId: laufendeSchicht.vehicleId, lat: position.data.lat, lng: position.data.lng },
   });
 }
 

@@ -31,3 +31,9 @@ export const schichtMusterSchema = z.object({
 });
 
 export type SchichtMusterEingabe = z.infer<typeof schichtMusterSchema>;
+
+/** GPS-Position aus der Fahrer-App (Maßnahme M-05): gültige Breiten-/Längengrade, keine NaN/Infinity. */
+export const gpsPositionSchema = z.object({
+  lat: z.number().min(-90, "Breitengrad ungültig").max(90, "Breitengrad ungültig"),
+  lng: z.number().min(-180, "Längengrad ungültig").max(180, "Längengrad ungültig"),
+});
