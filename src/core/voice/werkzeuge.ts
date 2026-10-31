@@ -7,9 +7,11 @@ import { z } from "zod";
 import { istEindeutigkeitsFehler, withTenant } from "@/lib/db";
 import {
   fahrgaesteAehnlicheNamen,
-  istAehnlicherName,
+  NACHNAME_KANDIDATEN_MAX,
+  nachnameKandidatenWhere,
   telefonNormalisieren,
 } from "@/core/passengers/suche";
+import { ortAbgleichen, ortKandidatenWhere } from "@/core/places/suche";
 import { berlinerMitternacht, datumIso } from "@/core/shifts/week";
 import { DOC_STATUS, TRANSPORT_TYPES } from "@/core/rides/validation";
 import { fahrtErfassen } from "@/core/rides/erfassen";
@@ -74,8 +76,9 @@ async function fahrgastSuchen(tenantId: string, callId: string, args: unknown): 
     treffer = await db.passenger.findMany({ where: { phones: { has: telefonNormalisieren(telefon) } }, take: 3 });
   }
   if (treffer.length === 0 && nachname) {
-    const alle = await db.passenger.findMany({ take: 300 });
-    const gefunden = fahrgaesteAehnlicheNamen(alle, nachname);
+    // Maßnahme M-06 (S2-006): Kandidaten per Datenbankabfrage statt der ersten 300 Zeilen.
+    const kandidaten = await db.passenger.findMany({ where: nachnameKandidatenWhere(nachname), take: NACHNAME_KANDIDATEN_MAX });
+    const gefunden = fahrgaesteAehnlicheNamen(kandidaten, nachname);
 
     // Ohne Treffer über die genannte Telefonnummer darf der Nachname allein keine fremden
     // Personendaten herausgeben (Vapi prüft die Anrufer-ID nicht) - zuerst auf die tatsächliche
@@ -102,20 +105,34 @@ async function fahrgastSuchen(tenantId: string, callId: string, args: unknown): 
 
 const ortSuchenSchema = z.object({ text: z.string().min(1) });
 
+function einsatzgebietMitte(wert: unknown): { lat: number; lng: number } | undefined {
+  const mitte = wert as { lat?: unknown; lng?: unknown } | null;
+  return mitte && typeof mitte.lat === "number" && typeof mitte.lng === "number" ? { lat: mitte.lat, lng: mitte.lng } : undefined;
+}
+
 async function ortSuchen(tenantId: string, args: unknown): Promise<string> {
   const { text } = ortSuchenSchema.parse(args);
   const db = withTenant(tenantId);
 
-  const bekannt = await db.place.findMany({ take: 300 });
-  const niedrig = text.toLowerCase();
-  const treffer = bekannt.find(
-    (p) => istAehnlicherName(p.label, text) || p.street.toLowerCase().includes(niedrig) || p.city.toLowerCase().includes(niedrig),
-  );
-  if (treffer) {
-    return `Bekannter Ort: ${treffer.label}, ${treffer.street}, ${treffer.zip} ${treffer.city} (placeId ${treffer.id}, sicher).`;
+  // Maßnahme M-06 (S1-003, S2-006): Kandidaten aus der Datenbank, Abgleich nur dann "sicher", wenn
+  // Straße, Hausnummer und PLZ/Ort stimmen (oder der Ortsname exakt). Teiltreffer werden vorgelesen.
+  const kandidaten = await db.place.findMany({ where: ortKandidatenWhere(text), take: 50 });
+  const abgleich = ortAbgleichen(kandidaten, text);
+  if (abgleich.art === "sicher") {
+    const t = abgleich.ort;
+    return `Bekannter Ort: ${t.label}, ${t.street}, ${t.zip} ${t.city} (placeId ${t.id}, sicher).`;
+  }
+  if (abgleich.art === "unsicher") {
+    return (
+      "Möglicherweise gemeint (unsicher – bitte vorlesen und bestätigen lassen): " +
+      abgleich.orte.map((o) => `${o.label}, ${o.street}, ${o.zip} ${o.city} (placeId ${o.id})`).join("; ")
+    );
   }
 
-  const ergebnisse = await routingProvider.geocode(text);
+  // Maßnahme M-06 (S2-007): Geocoding mit Bezug zum Einsatzgebiet, sonst landet "Kirchstraße 5"
+  // in der Nachbarstadt.
+  const settings = await db.tenantSettings.findUnique({ where: { tenantId }, select: { serviceAreaCenter: true } });
+  const ergebnisse = await routingProvider.geocode(text, einsatzgebietMitte(settings?.serviceAreaCenter));
   if (ergebnisse.length === 0) return "Problem: Keine Adresse gefunden. Bitte Adresse genauer nennen.";
 
   const beste = ergebnisse[0];

@@ -9,6 +9,7 @@ import { requireAdminSession, requireBueroSession } from "@/lib/session";
 import { LETZTER_SCHRITT } from "@/core/einrichtung/schritte";
 import { routingProvider, GEOCODE_SICHER_SCHWELLE } from "@/providers/routing";
 import { parseDeutscheAdresse } from "@/core/places/adresse";
+import { einsatzgebietMitteLaden } from "@/core/einrichtung/einsatzgebiet";
 
 async function adminSession() {
   return requireAdminSession();
@@ -42,8 +43,10 @@ export async function schrittAbschliessen(schritt: number) {
 /** Adresssuche fürs Firmen-/Betriebshof-Formular (gleicher Geocoder wie OrtAuswahl, aber ohne Place anzulegen). */
 export async function adresseSuchen(text: string) {
   // Maßnahme M-02 / Prüfbericht S3-003: vorher ohne Anmeldung aufrufbar (offener Geocoding-Proxy).
-  await requireBueroSession();
-  const ergebnisse = await routingProvider.geocode(text);
+  const { tenantId } = await requireBueroSession();
+  // Maßnahme M-06 (S2-007): Geocoding mit Bezug zum Einsatzgebiet (bei Neuanlage noch die
+  // Voreinstellung Deutschland-Mitte, dann praktisch ohne Wirkung).
+  const ergebnisse = await routingProvider.geocode(text, await einsatzgebietMitteLaden(tenantId));
   return ergebnisse.map((r) => ({
     ...parseDeutscheAdresse(r.label),
     label: r.label,

@@ -10,7 +10,8 @@ import { fahrtErfassen } from "@/core/rides/erfassen";
 import { serieAnlegen as serieAnlegenKern } from "@/core/rides/serie";
 import { fahrtStornieren as fahrtStornierenKern } from "@/core/rides/stornieren";
 import { fahrzeugZuweisen, fahrzeugZuweisungAufheben, FahrzeugKonfliktError } from "@/core/disposition/zuweisen";
-import { fahrgaesteAehnlicheNamen, telefonNormalisieren } from "@/core/passengers/suche";
+import { fahrgaesteAehnlicheNamen, NACHNAME_KANDIDATEN_MAX, nachnameKandidatenWhere, telefonNormalisieren } from "@/core/passengers/suche";
+import { einsatzgebietMitteLaden } from "@/core/einrichtung/einsatzgebiet";
 import { routingProvider, GEOCODE_SICHER_SCHWELLE } from "@/providers/routing";
 import type { RideStatus } from "@/generated/prisma/enums";
 import { fahrplanFuerMandantLaden } from "./fahrplan";
@@ -31,12 +32,13 @@ export async function fahrgaesteSuchen(text: string) {
   const db = withTenant(tenantId);
   const telefon = telefonNormalisieren(text);
 
-  const [perTelefon, alle] = await Promise.all([
+  // Maßnahme M-06 (S2-006): Kandidaten per Datenbankabfrage statt der ersten 200 Zeilen.
+  const [perTelefon, kandidaten] = await Promise.all([
     db.passenger.findMany({ where: { phones: { has: telefon } }, take: 5 }),
-    db.passenger.findMany({ take: 200 }),
+    db.passenger.findMany({ where: nachnameKandidatenWhere(text), take: NACHNAME_KANDIDATEN_MAX }),
   ]);
 
-  const perName = fahrgaesteAehnlicheNamen(alle, text).slice(0, 8);
+  const perName = fahrgaesteAehnlicheNamen(kandidaten, text).slice(0, 8);
   const gefunden = new Map([...perTelefon, ...perName].map((f) => [f.id, f]));
   return [...gefunden.values()];
 }
@@ -51,8 +53,9 @@ export async function orteFuerAuswahl() {
 
 export async function ortSuchen(text: string) {
   // Maßnahme M-02 / Prüfbericht S3-003: vorher ohne Anmeldung aufrufbar (offener Geocoding-Proxy).
-  await requireBueroSession();
-  const ergebnisse = await routingProvider.geocode(text);
+  const { tenantId } = await requireBueroSession();
+  // Maßnahme M-06 (S2-007): Geocoding mit Bezug zum Einsatzgebiet.
+  const ergebnisse = await routingProvider.geocode(text, await einsatzgebietMitteLaden(tenantId));
   return ergebnisse.map((r) => ({ ...r, sicher: r.confidence >= GEOCODE_SICHER_SCHWELLE }));
 }
 

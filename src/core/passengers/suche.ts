@@ -42,6 +42,27 @@ export function istAehnlicherName(a: string, b: string): boolean {
 
 type FahrgastKandidat = { id: string; firstName: string; lastName: string };
 
+/**
+ * Prisma-where für die Kandidaten der unscharfen Namenssuche (Maßnahme M-06, Prüfbericht S2-006):
+ * statt der ersten 200/300 Zeilen ohne Sortierung im Speicher werden nur Nachnamen geladen, die
+ * mit denselben zwei Buchstaben beginnen oder den Suchtext enthalten (Index tenantId+lastName).
+ * Die Levenshtein-Ähnlichkeit (fahrgaesteAehnlicheNamen) läuft danach über diese Kandidaten.
+ */
+export function nachnameKandidatenWhere(nachname: string): {
+  OR: { lastName: { startsWith?: string; contains?: string; mode: "insensitive" } }[];
+} {
+  const text = nachname.trim();
+  return {
+    OR: [
+      { lastName: { startsWith: text.slice(0, 2), mode: "insensitive" } },
+      { lastName: { contains: text, mode: "insensitive" } },
+    ],
+  };
+}
+
+/** Obergrenze der Kandidaten je Suche – mehr als genug für ein Präfix, schützt vor Vollscans. */
+export const NACHNAME_KANDIDATEN_MAX = 500;
+
 /** Unscharfe Namenssuche: "Schmidt" findet auch "Schmitt". */
 export function fahrgaesteAehnlicheNamen<T extends FahrgastKandidat>(
   alle: T[],
