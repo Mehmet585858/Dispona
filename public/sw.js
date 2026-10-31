@@ -17,6 +17,12 @@ async function alteCachesLoeschen() {
   );
 }
 
+// Aufräumen neben einer anderen Aufgabe (Push anzeigen, Fenster öffnen): ein Fehler beim Löschen
+// darf die Benachrichtigung nie verhindern.
+function aufraeumenOhneFehler() {
+  return alteCachesLoeschen().catch(() => undefined);
+}
+
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(heutigerCacheName()).then((cache) => cache.addAll(APP_SHELL)).then(() => self.skipWaiting()),
@@ -70,15 +76,18 @@ self.addEventListener("push", (event) => {
     // Text statt JSON – Vorgabe unverändert lassen.
   }
   event.waitUntil(
-    self.registration.showNotification(daten.title, {
-      body: daten.body,
-      icon: "/icon-192.png",
-      badge: "/icon-192.png",
-      tag: daten.tag || "fahrdienst-ki",
-      requireInteraction: true,
-      vibrate: [200, 100, 200],
-      data: { url: daten.url || "/fahrer" },
-    }),
+    Promise.all([
+      aufraeumenOhneFehler(),
+      self.registration.showNotification(daten.title, {
+        body: daten.body,
+        icon: "/icon-192.png",
+        badge: "/icon-192.png",
+        tag: daten.tag || "fahrdienst-ki",
+        requireInteraction: true,
+        vibrate: [200, 100, 200],
+        data: { url: daten.url || "/fahrer" },
+      }),
+    ]),
   );
 });
 
@@ -86,11 +95,29 @@ self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const ziel = event.notification.data?.url || "/fahrer";
   event.waitUntil(
-    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((fensterListe) => {
-      for (const fenster of fensterListe) {
-        if (fenster.url.includes("/fahrer") && "focus" in fenster) return fenster.focus();
-      }
-      return self.clients.openWindow(ziel);
-    }),
+    Promise.all([
+      aufraeumenOhneFehler(),
+      self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((fensterListe) => {
+        for (const fenster of fensterListe) {
+          if (fenster.url.includes("/fahrer") && "focus" in fenster) return fenster.focus();
+        }
+        return self.clients.openWindow(ziel);
+      }),
+    ]),
   );
+});
+
+// Maßnahme M-08 Punkt 4 (docs/13 R3-10): Der Vortag soll nicht erst verschwinden, wenn die App
+// an einem späteren Tag wieder eine Seite lädt. Ein Service Worker kann keinen eigenen Wecker
+// stellen – er räumt deshalb bei JEDEM Aufwachen auf: Push (oben), Tipp auf die Benachrichtigung
+// (oben), periodischer Hintergrundlauf (wo der Browser ihn anbietet, z. B. installierte App in
+// Chrome/Android) und Nachricht der geöffneten Seite (ServiceWorkerRegistrar, alle 15 Minuten).
+const AUFRAEUM_TAG = "tagescache-aufraeumen";
+
+self.addEventListener("periodicsync", (event) => {
+  if (event.tag === AUFRAEUM_TAG) event.waitUntil(alteCachesLoeschen());
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.typ === AUFRAEUM_TAG) event.waitUntil(alteCachesLoeschen());
 });

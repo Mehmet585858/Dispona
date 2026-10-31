@@ -8,10 +8,11 @@ import { describe, expect, it } from "vitest";
  * auch /api/export/abrechnung (alle Fahrgäste) und /dispo-Seiten. Hier wird public/sw.js in einer
  * Mini-Nachbildung der Service-Worker-Umgebung geladen und mit Fetch-Ereignissen gefüttert.
  */
-function serviceWorkerLaden() {
+function serviceWorkerLaden(vorhandeneCaches: string[] = []) {
   const code = readFileSync(path.resolve(process.cwd(), "public/sw.js"), "utf8");
   const handler: Record<string, (event: unknown) => void> = {};
   const gespeichert: string[] = [];
+  const geloescht: string[] = [];
   const cache = {
     put: async (anfrage: { url: string }) => {
       gespeichert.push(anfrage.url);
@@ -26,17 +27,34 @@ function serviceWorkerLaden() {
         handler[name] = fn;
       },
       skipWaiting: () => undefined,
-      clients: { claim: () => undefined },
+      clients: { claim: () => undefined, matchAll: async () => [], openWindow: async () => undefined },
+      registration: { showNotification: async () => undefined },
     },
-    caches: { open: async () => cache, keys: async () => [], delete: async () => true },
+    caches: {
+      open: async () => cache,
+      keys: async () => vorhandeneCaches,
+      delete: async (name: string) => {
+        geloescht.push(name);
+        return true;
+      },
+    },
     fetch: async () => ({ ok: true, status: 200, type: "basic", clone() { return this; } }),
     URL,
     console,
   };
   vm.createContext(sandbox);
   vm.runInContext(code, sandbox);
-  return { handler, gespeichert };
+  return { handler, gespeichert, geloescht };
 }
+
+/** Ereignis ohne Antwort (push, periodicsync, message): wartet auf alle waitUntil-Versprechen. */
+async function ereignis(handler: Record<string, (event: unknown) => void>, name: string, extra: Record<string, unknown> = {}) {
+  const warten: Promise<unknown>[] = [];
+  handler[name]({ ...extra, waitUntil: (p: Promise<unknown>) => warten.push(p), notification: { close: () => undefined, data: {} } });
+  await Promise.all(warten);
+}
+
+const HEUTE = new Date().toLocaleDateString("sv-SE");
 
 async function fetchEreignis(
   handler: Record<string, (event: unknown) => void>,
@@ -88,5 +106,37 @@ describe("public/sw.js – Zwischenspeicher (S2-012)", () => {
     // fetch liefert hier immer ok:true – deshalb nur der Pfad außerhalb der Erlaubnisliste als Negativprobe:
     await fetchEreignis(handler, "https://app.test/anmeldung", "navigate");
     expect(gespeichert).toEqual([]);
+  });
+});
+
+/**
+ * Maßnahme M-08 Punkt 4 (docs/13 R3-10): Der Tages-Zwischenspeicher wurde nur gelöscht, wenn die
+ * App an einem späteren Tag wieder eine Seite lud. Jetzt räumt jedes Aufwachen des Service
+ * Workers auf – auch eine Push-Nachricht, ein Tipp darauf, ein periodischer Hintergrundlauf
+ * oder eine Nachricht der geöffneten Seite.
+ */
+describe("public/sw.js – Tages-Zwischenspeicher läuft ab (M-08)", () => {
+  const caches = ["fahrer-app-2020-01-01", `fahrer-app-${HEUTE}`, "anderer-cache"];
+
+  it("M-08: eine Push-Nachricht löscht den Zwischenspeicher vom Vortag", async () => {
+    const { handler, geloescht } = serviceWorkerLaden(caches);
+    await ereignis(handler, "push", { data: null });
+    expect(geloescht).toEqual(["fahrer-app-2020-01-01"]);
+  });
+
+  it("M-08: Tipp auf die Benachrichtigung räumt ebenfalls auf", async () => {
+    const { handler, geloescht } = serviceWorkerLaden(caches);
+    await ereignis(handler, "notificationclick");
+    expect(geloescht).toEqual(["fahrer-app-2020-01-01"]);
+  });
+
+  it("M-08: periodischer Hintergrundlauf und Nachricht der Seite räumen auf", async () => {
+    const lauf = serviceWorkerLaden(caches);
+    await ereignis(lauf.handler, "periodicsync", { tag: "tagescache-aufraeumen" });
+    expect(lauf.geloescht).toEqual(["fahrer-app-2020-01-01"]);
+
+    const nachricht = serviceWorkerLaden(caches);
+    await ereignis(nachricht.handler, "message", { data: { typ: "tagescache-aufraeumen" } });
+    expect(nachricht.geloescht).toEqual(["fahrer-app-2020-01-01"]);
   });
 });
