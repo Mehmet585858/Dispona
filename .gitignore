@@ -37,6 +37,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# isolierte Arbeitskopien einzelner Agenten (lokal, nicht Teil des Projekts)
+/.claude/worktrees/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
