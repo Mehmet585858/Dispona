@@ -79,8 +79,13 @@ export async function vorschlagBerechnenUndSpeichern(tenantId: string, rideId: s
         decision: "OFFEN",
       },
     });
+    // Maßnahme M-20 (docs/13 R2-6): ein Vorschlag erledigt ein früheres KEIN_FAHRZEUG.
+    if (fahrt.problems.includes("KEIN_FAHRZEUG")) {
+      await db.ride.update({ where: { id: rideId }, data: { problems: fahrt.problems.filter((p) => p !== "KEIN_FAHRZEUG") } });
+    }
     await fahrtStatusAendern(tenantId, rideId, "VORGESCHLAGEN", { userId });
-  } else if (keinKandidat) {
+  } else if (keinKandidat && !fahrt.problems.includes("KEIN_FAHRZEUG")) {
+    // Nur einmal eintragen – vorher wuchs die Liste bei jeder Neuberechnung um einen Eintrag.
     await db.ride.update({ where: { id: rideId }, data: { problems: { push: "KEIN_FAHRZEUG" } } });
   }
 }

@@ -8,6 +8,7 @@ import { fahrtStatusAendern } from "@/core/rides/status";
 import { fahrtAendern } from "@/core/rides/aendern";
 import { fahrtErfassen } from "@/core/rides/erfassen";
 import { serieAnlegen as serieAnlegenKern } from "@/core/rides/serie";
+import { fahrerNachAenderungBenachrichtigen } from "@/core/rides/fahrerBenachrichtigen";
 import { fahrtAbbrechen as fahrtAbbrechenKern, fahrtStornieren as fahrtStornierenKern } from "@/core/rides/stornieren";
 import { fahrzeugZuweisen, fahrzeugZuweisungAufheben, FahrzeugKonfliktError } from "@/core/disposition/zuweisen";
 import { fahrgaesteAehnlicheNamen, NACHNAME_KANDIDATEN_MAX, nachnameKandidatenWhere, telefonNormalisieren } from "@/core/passengers/suche";
@@ -121,46 +122,77 @@ export async function zuweisungRueckgaengig(rideId: string): Promise<{ ok: true 
 
 const NICHT_VERSCHIEBBARE_STATUS = new Set<string>(["UNTERWEGS", "AN_BORD", "ERLEDIGT", "STORNIERT", "NICHT_ANGETROFFEN"]);
 
-/** Eine Fahrt im Zeitstrahl per Ziehen verschieben: andere Uhrzeit (gleicher Tag), anderes
- * Fahrzeug, oder beides zusammen – z. B. auf eine andere Fahrzeug-Zeile zu einer anderen Zeit
- * gezogen. Zeit zuerst (das setzt eine schon disponierte Fahrt zurück auf "Erfasst" und löst
- * eine neue Vorschlagsberechnung aus, siehe fahrtAendern), danach greift die Fahrzeugwahl immer
- * den am Ende gewünschten Stand. */
+/**
+ * Eine Fahrt im Zeitstrahl per Ziehen verschieben: andere Uhrzeit (gleicher Tag), anderes Fahrzeug
+ * (andere Zeile), oder beides. Maßnahme M-20 (docs/13 R2-4, R2-9):
+ * - Ein noch unbestätigter Vorschlag bleibt Vorschlag, wenn er nur in der Zeit verschoben wird
+ *   (gleiche Zeile): Zeit ändern, Vorschlag neu rechnen – keine Zuweisung, keine Push. Vorher
+ *   wurde er ungefragt zur festen Zuweisung, und der Fahrer bekam "Neue Fahrt".
+ * - Zugewiesen wird nur bei Zeilenwechsel (ausdrückliche Wahl eines Fahrzeugs) oder wenn die
+ *   Fahrt schon disponiert war (dann bleibt sie beim gewählten Fahrzeug).
+ * - Alle Schritte melden nichts selbst; am Ende gibt es genau eine passende Push je Fahrer.
+ */
 export async function fahrtVerschieben(
   rideId: string,
   eingabe: { neueAbholzeit?: string; neuesFahrzeugId?: string },
 ): Promise<{ ok: true } | { ok: false; grund: string }> {
   const { tenantId, userId } = await requireBueroSession();
   const db = withTenant(tenantId);
-  const fahrt = await db.ride.findUnique({ where: { id: rideId }, select: { status: true } });
+  const fahrt = await db.ride.findUnique({
+    where: { id: rideId },
+    select: {
+      status: true,
+      vehicleId: true,
+      driverId: true,
+      pickupAt: true,
+      suggestions: { where: { decision: "OFFEN" }, orderBy: { createdAt: "desc" }, take: 1, select: { options: true } },
+    },
+  });
   if (!fahrt) return { ok: false, grund: "Fahrt nicht gefunden." };
   if (NICHT_VERSCHIEBBARE_STATUS.has(fahrt.status)) {
     return { ok: false, grund: "Diese Fahrt läuft schon oder ist abgeschlossen und kann nicht mehr verschoben werden." };
   }
 
-  if (eingabe.neueAbholzeit) {
-    const ergebnis = await fahrtAendern(tenantId, rideId, { abholzeit: eingabe.neueAbholzeit }, { userId });
-    if (!ergebnis.ok) {
-      revalidatePath("/dispo");
-      return { ok: false, grund: "Diese Fahrt kann nicht mehr verschoben werden." };
+  // In welcher Zeile stand der Chip? Disponiert: beim Fahrzeug; Vorschlag: beim besten Vorschlag.
+  const besterVorschlag = (fahrt.suggestions[0]?.options as { vehicleId: string }[] | undefined)?.[0]?.vehicleId ?? null;
+  const zeileVorher = fahrt.status === "DISPONIERT" ? fahrt.vehicleId : besterVorschlag;
+  const zeilenwechsel = !!eingabe.neuesFahrzeugId && eingabe.neuesFahrzeugId !== zeileVorher;
+  const warDisponiert = fahrt.status === "DISPONIERT";
+  const zielFahrzeug = zeilenwechsel ? eingabe.neuesFahrzeugId : warDisponiert ? fahrt.vehicleId : null;
+
+  let fehler: string | null = null;
+  try {
+    if (eingabe.neueAbholzeit) {
+      const ergebnis = await fahrtAendern(tenantId, rideId, { abholzeit: eingabe.neueAbholzeit }, { userId, benachrichtigen: false });
+      if (!ergebnis.ok) fehler = "Diese Fahrt kann nicht mehr verschoben werden.";
+    } else if (zeilenwechsel && warDisponiert) {
+      // Reine Umbesetzung einer disponierten Fahrt: DISPONIERT -> DISPONIERT ist kein erlaubter
+      // Übergang, deshalb erst zurück auf "Erfasst".
+      await fahrtStatusAendern(tenantId, rideId, "ERFASST", { userId });
     }
-  } else if (eingabe.neuesFahrzeugId && fahrt.status === "DISPONIERT") {
-    // Reine Fahrzeug-Umbesetzung einer schon disponierten Fahrt (keine Zeitänderung, die das schon
-    // erledigen würde): fahrzeugZuweisen setzt den Status fest auf "Disponiert" – von "Disponiert"
-    // aus ist das kein erlaubter Übergang, deshalb hier erst auf "Erfasst" zurücksetzen.
-    await fahrtStatusAendern(tenantId, rideId, "ERFASST", { userId });
-  }
-  if (eingabe.neuesFahrzeugId) {
-    try {
-      await fahrzeugZuweisen(tenantId, rideId, eingabe.neuesFahrzeugId, { dispatchMode: "MANUELL", userId });
-    } catch (fehler) {
-      revalidatePath("/dispo");
-      if (fehler instanceof FahrzeugKonfliktError) return { ok: false, grund: fehler.message };
-      throw fehler;
+    if (!fehler && zielFahrzeug && (zeilenwechsel || eingabe.neueAbholzeit)) {
+      try {
+        await fahrzeugZuweisen(tenantId, rideId, zielFahrzeug, { dispatchMode: "MANUELL", userId, benachrichtigen: false });
+      } catch (ausnahme) {
+        if (!(ausnahme instanceof FahrzeugKonfliktError)) throw ausnahme;
+        fehler = ausnahme.message;
+      }
     }
+  } finally {
+    // Auch nach einem Konflikt: wer die Fahrt verloren hat, muss es erfahren.
+    const nachher = await db.ride.findUnique({ where: { id: rideId }, select: { driverId: true, pickupAt: true, status: true } });
+    if (nachher) {
+      await fahrerNachAenderungBenachrichtigen(
+        tenantId,
+        rideId,
+        { driverId: fahrt.driverId, pickupAt: fahrt.pickupAt, status: fahrt.status },
+        nachher,
+        { geaendert: nachher.pickupAt.getTime() !== fahrt.pickupAt.getTime() },
+      );
+    }
+    revalidatePath("/dispo");
   }
-  revalidatePath("/dispo");
-  return { ok: true };
+  return fehler ? { ok: false, grund: fehler } : { ok: true };
 }
 
 export async function fahrtStatusSetzen(rideId: string, status: RideStatus) {

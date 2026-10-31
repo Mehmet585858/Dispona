@@ -6,7 +6,8 @@
 import { referenzenPruefen, withTenant } from "@/lib/db";
 import { fahrtStatusAendern, istUebergangErlaubt } from "@/core/rides/status";
 import { pushAnFahrer } from "@/core/notify/push";
-import { fahrtEntzogenText, neueFahrtText } from "@/core/notify/texte";
+import { fahrtEntzogenText } from "@/core/notify/texte";
+import { fahrerNachAenderungBenachrichtigen } from "@/core/rides/fahrerBenachrichtigen";
 import { geplantesEnde } from "@/core/shifts/dauer";
 
 /** Wird geworfen, wenn das Zielfahrzeug zur Abholzeit schon anderweitig eingeplant ist - von
@@ -18,17 +19,30 @@ function uhrzeitBerlin(datum: Date): string {
   return datum.toLocaleTimeString("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", minute: "2-digit" });
 }
 
+/**
+ * Probleme, die nur die Fahrzeugsuche betreffen und mit einer erfolgreichen Zuweisung erledigt sind
+ * (Maßnahme M-20, docs/13 R2-6). Probleme der Fahrt selbst (GENEHMIGUNG_FEHLT, DOPPELBUCHUNG …)
+ * bleiben stehen.
+ */
+export const DISPOSITIONS_PROBLEME = ["KEIN_FAHRZEUG", "Fahrer fällt aus", "FAHRT_ABGEBROCHEN"];
+
 export async function fahrzeugZuweisen(
   tenantId: string,
   rideId: string,
   vehicleId: string,
-  optionen: { dispatchMode: "MANUELL" | "AUTO"; userId?: string },
+  optionen: {
+    dispatchMode: "MANUELL" | "AUTO";
+    userId?: string;
+    /** Maßnahme M-20: false, wenn der Aufrufer mehrere Schritte bündelt und selbst einmal meldet. */
+    benachrichtigen?: boolean;
+  },
 ) {
   const db = withTenant(tenantId);
   const fahrt = await db.ride.findUnique({
     where: { id: rideId },
     select: {
       pickupAt: true,
+      status: true,
       driverId: true,
       transportType: true,
       problems: true,
@@ -121,7 +135,8 @@ export async function fahrzeugZuweisen(
         // hängen (alarmFahrten dort prüft NUR problems.length > 0, unabhängig vom Status), auch
         // wenn sie längst erfolgreich disponiert war. Andere Probleme (z. B. GENEHMIGUNG_FEHLT)
         // betreffen die Fahrt selbst, nicht die Fahrzeugverfügbarkeit, und bleiben bewusst stehen.
-        problems: fahrt.problems.filter((p) => p !== "KEIN_FAHRZEUG"),
+        // Maßnahme M-20 (R2-6): ebenso ein überholter "Fahrer fällt aus" bzw. Abbruch-Vermerk.
+        problems: fahrt.problems.filter((p) => !DISPOSITIONS_PROBLEME.includes(p)),
       },
     });
     await fahrtStatusAendern(tenantId, rideId, "DISPONIERT", { userId: optionen.userId, tx });
@@ -129,27 +144,17 @@ export async function fahrzeugZuweisen(
   });
 
   // Nur bei echtem Fahrerwechsel benachrichtigen (nicht bei bloßer Zeitänderung mit gleichem
-  // Fahrer, z. B. per Drag im Zeitstrahl – sonst doppelte Push mit fahrtAendern). Der Wechsel kann
-  // auch indirekt passieren: gleiches Fahrzeug, aber die neue Uhrzeit fällt aus der Schicht des
-  // bisherigen Fahrers. Der bisherige Fahrer bekam diese Fahrt zuvor evtl. schon bestätigt und muss
-  // aktiv erfahren, dass sie ihm entzogen wurde, sonst fährt er sie im Zweifel trotzdem.
-  const fahrerHatSichGeaendert = schicht?.driverId !== vorherigerFahrerId;
-  if (vorherigerFahrerId && fahrerHatSichGeaendert) {
-    await pushAnFahrer(tenantId, vorherigerFahrerId, {
-      title: "Fahrt entzogen",
-      body: fahrtEntzogenText(uhrzeitBerlin(fahrt.pickupAt)),
-      url: "/fahrer",
-    });
-    await db.notification.create({
-      data: { tenantId, channel: "PUSH", toRef: vorherigerFahrerId, rideId, kind: "FAHRT_ENTZOGEN" },
-    });
-  }
-  if (schicht?.driverId && fahrerHatSichGeaendert) {
-    const text = neueFahrtText(uhrzeitBerlin(fahrt.pickupAt), fahrt.pickupPlace.label, fahrt.dropoffPlace.label);
-    await pushAnFahrer(tenantId, schicht.driverId, { title: "Neue Fahrt", body: text, url: "/fahrer" });
-    await db.notification.create({
-      data: { tenantId, channel: "PUSH", toRef: schicht.driverId, rideId, kind: "NEUE_FAHRT" },
-    });
+  // Fahrer). Der Wechsel kann auch indirekt passieren: gleiches Fahrzeug, aber die neue Uhrzeit
+  // fällt aus der Schicht des bisherigen Fahrers – dann muss er aktiv erfahren, dass sie ihm
+  // entzogen wurde. Gemeinsame Regel in fahrerNachAenderungBenachrichtigen (Maßnahme M-20).
+  if (optionen.benachrichtigen !== false) {
+    await fahrerNachAenderungBenachrichtigen(
+      tenantId,
+      rideId,
+      { driverId: vorherigerFahrerId, pickupAt: fahrt.pickupAt, status: fahrt.status },
+      { driverId: schicht?.driverId ?? null, pickupAt: fahrt.pickupAt, status: "DISPONIERT" },
+      { geaendert: false },
+    );
   }
 
   const vorschlag = await db.suggestion.findFirst({
