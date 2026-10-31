@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { berlinerMitternacht, datumIso, mitUhrzeit, tagVerschieben } from "../src/core/shifts/week";
 import { prisma } from "../src/lib/prisma";
 import { fahrtErfassen } from "../src/core/rides/erfassen";
+import { mandantKomplettLoeschen, seedZielPruefen } from "../src/lib/seedSchutz";
 
 const heute = berlinerMitternacht(datumIso(new Date()));
 
@@ -14,32 +15,24 @@ function morgen(): Date {
   return berlinerMitternacht(tagVerschieben(datumIso(heute), 1));
 }
 
+const SEED_FIRMA = "Muster Krankenfahrten";
+
 async function main() {
-  console.log("Lösche alte Beispieldaten …");
-  await prisma.rideStatusEvent.deleteMany();
-  await prisma.suggestion.deleteMany();
-  await prisma.auditLog.deleteMany();
-  await prisma.notification.deleteMany();
-  await prisma.ride.deleteMany();
-  await prisma.call.deleteMany();
-  await prisma.rideSeries.deleteMany();
-  await prisma.shift.deleteMany();
-  await prisma.pushSubscription.deleteMany();
-  await prisma.driver.deleteMany();
-  await prisma.vehicleLocation.deleteMany();
-  await prisma.vehicle.deleteMany();
-  await prisma.place.deleteMany();
-  await prisma.approval.deleteMany();
-  await prisma.passenger.deleteMany();
-  await prisma.user.deleteMany({ where: { tenant: { name: "Muster Krankenfahrten" } } });
-  await prisma.phoneNumber.deleteMany();
-  await prisma.tenantSettings.deleteMany();
-  await prisma.tenant.deleteMany({ where: { name: "Muster Krankenfahrten" } });
+  // Prüfbericht S1-006: Nie gegen eine entfernte Datenbank ohne ausdrückliche Bestätigung, und
+  // nie Daten anderer Mandanten löschen – nur die bisherige Seed-Firma wird ersetzt.
+  const zielHost = seedZielPruefen(process.env);
+  console.log(`Ziel-Datenbank: ${zielHost}`);
+
+  console.log(`Lösche alte Beispieldaten der Firma '${SEED_FIRMA}' …`);
+  const alteSeedFirmen = await prisma.tenant.findMany({ where: { name: SEED_FIRMA }, select: { id: true } });
+  for (const alt of alteSeedFirmen) {
+    await mandantKomplettLoeschen(alt.id);
+  }
 
   console.log("Lege Firma 'Muster Krankenfahrten' an …");
   const tenant = await prisma.tenant.create({
     data: {
-      name: "Muster Krankenfahrten",
+      name: SEED_FIRMA,
       street: "Industriestraße 8",
       zip: "52499",
       city: "Baesweiler",
