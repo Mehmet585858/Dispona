@@ -2,8 +2,8 @@ import { betterAuth } from "better-auth";
 import { APIError } from "better-auth/api";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { emailOTP, magicLink } from "better-auth/plugins";
+import { anmeldeCodeZustellen } from "./anmeldeCode";
 import { anmeldeLinkZustellen } from "./anmeldeLink";
-import { emailSenden } from "./email";
 import { prisma } from "./prisma";
 
 const istEntwicklung = process.env.NODE_ENV !== "production";
@@ -37,16 +37,16 @@ export const auth = betterAuth({
           console.log(`[Entwicklung] Einmal-Code für ${email}: ${otp}`);
           return;
         }
-        await emailSenden({
-          an: email,
-          betreff: `Ihr Anmelde-Code: ${otp}`,
-          html: `
-            <p>Ihr Anmelde-Code für Dispona lautet:</p>
-            <p style="font-size:28px;font-weight:700;letter-spacing:4px">${otp}</p>
-            <p>Der Code ist 10 Minuten gültig. Falls Sie das nicht angefordert haben, können Sie diese
-            E-Mail ignorieren.</p>
-          `,
-        });
+        // Prüfbericht S4-013 / Maßnahme M-03: ohne RESEND_API_KEY (oder bei einem Fehler des
+        // Mail-Dienstes) bekommt die Anmeldeseite eine definierte Antwort (503 + Meldung) statt
+        // "Code gesendet" – der Fehler stand vorher nur im Server-Log.
+        try {
+          await anmeldeCodeZustellen({ email, otp });
+        } catch (fehler) {
+          throw new APIError("SERVICE_UNAVAILABLE", {
+            message: fehler instanceof Error ? fehler.message : "Der Anmelde-Code konnte nicht gesendet werden.",
+          });
+        }
       },
     }),
     // Fahrer: Einmal-Link per SMS (src/lib/anmeldeLink.ts).
