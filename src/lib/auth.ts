@@ -1,4 +1,5 @@
 import { betterAuth } from "better-auth";
+import { APIError } from "better-auth/api";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { emailOTP, magicLink } from "better-auth/plugins";
 import { anmeldeLinkZustellen } from "./anmeldeLink";
@@ -60,7 +61,15 @@ export const auth = betterAuth({
         // Produktion: per SMS an die Handynummer des Fahrerkontos. Wirft, wenn kein
         // SMS-Anbieter eingerichtet ist – better-auth gibt den Fehler an die Anmeldeseite
         // weiter statt "Link gesendet" zu melden (Prüfbericht S1-002).
-        await anmeldeLinkZustellen({ email, url });
+        try {
+          await anmeldeLinkZustellen({ email, url });
+        } catch (fehler) {
+          // Als definierte API-Antwort (503 + Meldung) statt als nackter Serverfehler, damit die
+          // Anmeldeseite dem Fahrer sagen kann, warum kein Link kam.
+          throw new APIError("SERVICE_UNAVAILABLE", {
+            message: fehler instanceof Error ? fehler.message : "Der Anmelde-Link konnte nicht gesendet werden.",
+          });
+        }
       },
     }),
   ],
