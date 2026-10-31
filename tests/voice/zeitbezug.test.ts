@@ -4,7 +4,7 @@ import { voiceSystemPrompt } from "@/core/notify/voicePrompt";
 import { werkzeugAusfuehren } from "@/core/voice/werkzeuge";
 import { vapiProvider } from "@/providers/voice/vapi";
 import type { TenantVoiceSettings } from "@/providers/voice/types";
-import { datumIso, tagVerschieben } from "@/core/shifts/week";
+import { berlinerMitternacht, datumIso, mitUhrzeit, tagVerschieben } from "@/core/shifts/week";
 import { prisma } from "@/lib/prisma";
 import { mandantKomplettLoeschen } from "@/lib/seedSchutz";
 
@@ -184,16 +184,15 @@ describe("KI-Werkzeuge prüfen Datum und Uhrzeit (M-46, S1-007, S2-020)", () => 
     const passengerId = (
       await prisma.passenger.create({ data: { tenantId, firstName: "PRUEF", lastName: `Aendern${kennung}`, phones: ["+4911100000009"] } })
     ).id;
-    // Fahrt heute um 23:59 – eine Änderung auf 00:01 heute liegt in der Vergangenheit (außer der Test läuft um Mitternacht).
-    const pickupAt = new Date(Date.now() + 5 * 60_000);
+    // Noch nicht abgeschlossene Fahrt von gestern 23:00 (z. B. vergessen) – eine neue Uhrzeit 22:00
+    // bezieht sich auf denselben Kalendertag und liegt damit sicher in der Vergangenheit, zu jeder Uhrzeit.
+    const pickupAt = mitUhrzeit(berlinerMitternacht(tagVerschieben(heute, -1)), "23:00");
     const rideId = (
       await prisma.ride.create({
         data: { tenantId, passengerId, pickupPlaceId: ortA, dropoffPlaceId: ortB, pickupAt, transportType: "SITZEND", status: "ERFASST", source: "ANRUF" },
       })
     ).id;
-    const zweiStundenFrueher = new Date(pickupAt.getTime() - 2 * 3600_000);
-    if (datumIso(zweiStundenFrueher) !== datumIso(pickupAt)) return; // kurz nach Mitternacht nicht sinnvoll prüfbar
-    const uhrzeit = zweiStundenFrueher.toLocaleTimeString("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", minute: "2-digit" });
+    const uhrzeit = "22:00";
     const ergebnis = await aufruf("fahrt_aendern", { rideId, abholzeit: uhrzeit });
     expect(ergebnis.result ?? "").toMatch(/^Problem: .*Vergangenheit/);
     expect((await prisma.ride.findUniqueOrThrow({ where: { id: rideId } })).pickupAt.toISOString()).toBe(pickupAt.toISOString());
