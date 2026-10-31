@@ -4,6 +4,7 @@ import { prismaAdapter } from "better-auth/adapters/prisma";
 import { emailOTP, magicLink } from "better-auth/plugins";
 import { anmeldeCodeZustellen } from "./anmeldeCode";
 import { anmeldeLinkZustellen } from "./anmeldeLink";
+import { entwicklungsLog } from "./logging";
 import { prisma } from "./prisma";
 
 const istEntwicklung = process.env.NODE_ENV !== "production";
@@ -34,7 +35,7 @@ export const auth = betterAuth({
       expiresIn: 10 * 60,
       async sendVerificationOTP({ email, otp }) {
         if (istEntwicklung) {
-          console.log(`[Entwicklung] Einmal-Code für ${email}: ${otp}`);
+          entwicklungsLog(`Einmal-Code für ${email}: ${otp}`);
           return;
         }
         // Prüfbericht S4-013 / Maßnahme M-03: ohne RESEND_API_KEY (oder bei einem Fehler des
@@ -55,7 +56,7 @@ export const auth = betterAuth({
       expiresIn: 10 * 60,
       async sendMagicLink({ email, url }) {
         if (istEntwicklung) {
-          console.log(`[Entwicklung] Einmal-Link für ${email}: ${url}`);
+          entwicklungsLog(`Einmal-Link für ${email}: ${url}`);
           return;
         }
         // Produktion: per SMS an die Handynummer des Fahrerkontos. Wirft, wenn kein

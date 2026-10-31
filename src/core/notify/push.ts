@@ -1,5 +1,6 @@
 import webpush from "web-push";
 import { withTenant } from "@/lib/db";
+import { entwicklungsLog } from "@/lib/logging";
 
 export type PushNachricht = { title: string; body: string; tag?: string; url?: string };
 
@@ -39,8 +40,8 @@ export async function pushAnFahrer(
     // Produktion ist ein fehlender VAPID-Schlüssel ein Konfigurationsfehler und soll auffallen.
     if (process.env.NODE_ENV === "production") {
       console.warn(`Push nicht möglich: VAPID-Schlüssel fehlen (Fahrer ${driverId}).`);
-    } else if (process.env.NODE_ENV === "development") {
-      console.log(`[Entwicklung] Kein VAPID-Schlüssel gesetzt – Push "${nachricht.title}" an Fahrer ${driverId} nicht gesendet.`);
+    } else {
+      entwicklungsLog(`Kein VAPID-Schlüssel gesetzt – Push "${nachricht.title}" an Fahrer ${driverId} nicht gesendet.`);
     }
     return { versucht: 0, zugestellt: 0 };
   }

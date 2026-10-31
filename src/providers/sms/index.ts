@@ -1,4 +1,5 @@
 import { telefonMaskiert } from "@/core/notify/telefonMaskierung";
+import { entwicklungsLog } from "@/lib/logging";
 import type { SmsProvider } from "./types";
 
 /**
@@ -25,9 +26,7 @@ function createConsoleSms(): SmsProvider {
   return {
     name: "konsole",
     async send(toE164, text) {
-      if (process.env.NODE_ENV === "development") {
-        console.log(`[Entwicklung] SMS an ${telefonMaskiert(toE164)}: ${text}`);
-      }
+      entwicklungsLog(`SMS an ${telefonMaskiert(toE164)}: ${text}`);
       return { id: `dev-${Date.now()}` };
     },
   };
