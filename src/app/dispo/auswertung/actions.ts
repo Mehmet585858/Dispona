@@ -1,12 +1,12 @@
 "use server";
 
 import { withTenant } from "@/lib/db";
-import { requireSession } from "@/lib/session";
+import { requireBueroSession } from "@/lib/session";
 import { berlinerMitternacht, datumIso, wochenStart } from "@/core/shifts/week";
 import { kennzahlenBerechnen } from "@/core/auswertung/kennzahlen";
 
 export async function kennzahlenLaden(montagIso?: string) {
-  const { tenantId } = await requireSession();
+  const { tenantId } = await requireBueroSession();
   const db = withTenant(tenantId);
 
   const montag = montagIso ? berlinerMitternacht(montagIso) : wochenStart(new Date());

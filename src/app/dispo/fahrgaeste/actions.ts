@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { withTenant } from "@/lib/db";
-import { requireSession } from "@/lib/session";
+import { requireBueroSession } from "@/lib/session";
 import {
   fahrgastSchema,
   genehmigungSchema,
@@ -13,7 +13,7 @@ import {
 import { fahrgastAnonymisieren, fahrgastExportieren } from "@/core/passengers/loeschung";
 
 export async function fahrgaesteLaden(suche?: string) {
-  const { tenantId } = await requireSession();
+  const { tenantId } = await requireBueroSession();
   const db = withTenant(tenantId);
   const text = suche?.trim();
   return db.passenger.findMany({
@@ -33,7 +33,7 @@ export async function fahrgaesteLaden(suche?: string) {
 }
 
 export async function fahrgastSpeichern(id: string | null, eingabe: FahrgastEingabe) {
-  const { tenantId, userId } = await requireSession();
+  const { tenantId, userId } = await requireBueroSession();
   const geprüft = fahrgastSchema.parse(eingabe);
   const daten = {
     firstName: geprüft.firstName,
@@ -65,14 +65,14 @@ export async function fahrgastSpeichern(id: string | null, eingabe: FahrgastEing
 
 /** Protokolliert das Ansehen eines einzelnen Fahrgastdatensatzes (docs/08-datenschutz-sicherheit.md). */
 export async function fahrgastAngesehen(passengerId: string) {
-  const { tenantId, userId } = await requireSession();
+  const { tenantId, userId } = await requireBueroSession();
   await withTenant(tenantId).auditLog.create({
     data: { tenantId, userId, action: "passenger.angesehen", entity: "Passenger", entityId: passengerId },
   });
 }
 
 export async function genehmigungSpeichern(passengerId: string, eingabe: GenehmigungEingabe) {
-  const { tenantId } = await requireSession();
+  const { tenantId } = await requireBueroSession();
   const geprüft = genehmigungSchema.parse(eingabe);
   await withTenant(tenantId).approval.create({
     data: {
@@ -88,7 +88,7 @@ export async function genehmigungSpeichern(passengerId: string, eingabe: Genehmi
 }
 
 export async function genehmigungLöschen(id: string) {
-  const { tenantId } = await requireSession();
+  const { tenantId } = await requireBueroSession();
   await withTenant(tenantId).approval.delete({ where: { id } });
   revalidatePath("/dispo/fahrgaeste");
 }
@@ -96,7 +96,7 @@ export async function genehmigungLöschen(id: string) {
 export async function fahrgaesteImportieren(
   zeilen: Record<string, string>[],
 ): Promise<{ ok: number; fehler: string[] }> {
-  const { tenantId } = await requireSession();
+  const { tenantId } = await requireBueroSession();
   const db = withTenant(tenantId);
   const fehler: string[] = [];
   let ok = 0;
@@ -127,7 +127,7 @@ export async function fahrgaesteImportieren(
  * Fahrten, verknüpfte Anrufe mit Transkript. Nur ADMIN (docs/08-datenschutz-sicherheit.md).
  */
 export async function fahrgastExportLaden(passengerId: string) {
-  const { tenantId, userId, role } = await requireSession();
+  const { tenantId, userId, role } = await requireBueroSession();
   if (role !== "ADMIN") throw new Error("Nur Admins dürfen Fahrgastdaten exportieren.");
   const daten = await fahrgastExportieren(tenantId, passengerId);
   await withTenant(tenantId).auditLog.create({
@@ -143,7 +143,7 @@ export async function fahrgastExportLaden(passengerId: string) {
  * eine laufende Serie endet sofort. Nur ADMIN.
  */
 export async function fahrgastLoeschen(passengerId: string) {
-  const { tenantId, userId, role } = await requireSession();
+  const { tenantId, userId, role } = await requireBueroSession();
   if (role !== "ADMIN") throw new Error("Nur Admins dürfen einen Fahrgast löschen.");
   await fahrgastAnonymisieren(tenantId, passengerId, userId);
   await withTenant(tenantId).auditLog.create({

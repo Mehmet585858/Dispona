@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { withTenant } from "@/lib/db";
-import { requireSession } from "@/lib/session";
+import { requireBueroSession } from "@/lib/session";
 import type { FahrtEingabe, SerieEingabe } from "@/core/rides/validation";
 import { fahrtStatusAendern } from "@/core/rides/status";
 import { fahrtAendern } from "@/core/rides/aendern";
@@ -39,7 +39,7 @@ function nachname(vollerName: string): string {
  * Trennung zwischen "Fahrten" und "Fahrer & Schichten" (ein Menüpunkt statt zwei).
  */
 export async function fahrplanLaden(datumFilter: string | undefined, ansicht: "tag" | "woche") {
-  const { tenantId } = await requireSession();
+  const { tenantId } = await requireBueroSession();
   return fahrplanFuerMandantLaden(tenantId, datumFilter, ansicht);
 }
 
@@ -369,7 +369,7 @@ export async function fahrplanFuerMandantLaden(
 }
 
 export async function fahrgaesteSuchen(text: string) {
-  const { tenantId } = await requireSession();
+  const { tenantId } = await requireBueroSession();
   if (text.trim().length < 2) return [];
   const db = withTenant(tenantId);
   const telefon = telefonNormalisieren(text);
@@ -385,7 +385,7 @@ export async function fahrgaesteSuchen(text: string) {
 }
 
 export async function orteFuerAuswahl() {
-  const { tenantId } = await requireSession();
+  const { tenantId } = await requireBueroSession();
   return withTenant(tenantId).place.findMany({
     orderBy: { label: "asc" },
     select: { id: true, label: true, street: true, city: true },
@@ -405,7 +405,7 @@ export async function ortAusAdresseAnlegen(eingabe: {
   lat: number;
   lng: number;
 }) {
-  const { tenantId } = await requireSession();
+  const { tenantId } = await requireBueroSession();
   const ort = await withTenant(tenantId).place.create({
     data: { tenantId, type: "SONSTIGES", usageCount: 0, ...eingabe },
   });
@@ -413,14 +413,14 @@ export async function ortAusAdresseAnlegen(eingabe: {
 }
 
 export async function fahrtAnlegen(eingabe: FahrtEingabe) {
-  const { tenantId, userId } = await requireSession();
+  const { tenantId, userId } = await requireBueroSession();
   const ergebnis = await fahrtErfassen(tenantId, eingabe, { userId, source: "MANUELL" });
   revalidatePath("/dispo");
   return ergebnis;
 }
 
 export async function serieAnlegen(eingabe: SerieEingabe) {
-  const { tenantId, userId } = await requireSession();
+  const { tenantId, userId } = await requireBueroSession();
   const ergebnis = await serieAnlegenKern(tenantId, eingabe, { userId, source: "MANUELL" });
   revalidatePath("/dispo");
   return ergebnis;
@@ -432,7 +432,7 @@ export async function serieAnlegen(eingabe: SerieEingabe) {
  * Client erreicht (Next.js-Verhalten bei Server Actions), die konkrete Konflikt-Uhrzeit also nie
  * ankommen. */
 export async function fahrzeugWaehlen(rideId: string, vehicleId: string): Promise<{ ok: true } | { ok: false; grund: string }> {
-  const { tenantId, userId } = await requireSession();
+  const { tenantId, userId } = await requireBueroSession();
   try {
     await fahrzeugZuweisen(tenantId, rideId, vehicleId, { dispatchMode: "MANUELL", userId });
   } catch (fehler) {
@@ -446,7 +446,7 @@ export async function fahrzeugWaehlen(rideId: string, vehicleId: string): Promis
 
 /** "Rückgängig" nach "Auto zuweisen" im Anruf-Panel (docs/DISPO-SPEZ.md 3.4). */
 export async function zuweisungRueckgaengig(rideId: string): Promise<{ ok: true } | { ok: false; grund: string }> {
-  const { tenantId, userId } = await requireSession();
+  const { tenantId, userId } = await requireBueroSession();
   try {
     await fahrzeugZuweisungAufheben(tenantId, rideId, { userId });
   } catch (fehler) {
@@ -468,7 +468,7 @@ export async function fahrtVerschieben(
   rideId: string,
   eingabe: { neueAbholzeit?: string; neuesFahrzeugId?: string },
 ): Promise<{ ok: true } | { ok: false; grund: string }> {
-  const { tenantId, userId } = await requireSession();
+  const { tenantId, userId } = await requireBueroSession();
   const db = withTenant(tenantId);
   const fahrt = await db.ride.findUnique({ where: { id: rideId }, select: { status: true } });
   if (!fahrt) return { ok: false, grund: "Fahrt nicht gefunden." };
@@ -502,13 +502,13 @@ export async function fahrtVerschieben(
 }
 
 export async function fahrtStatusSetzen(rideId: string, status: RideStatus) {
-  const { tenantId, userId } = await requireSession();
+  const { tenantId, userId } = await requireBueroSession();
   await fahrtStatusAendern(tenantId, rideId, status, { userId });
   revalidatePath("/dispo");
 }
 
 export async function fahrtStornieren(rideId: string) {
-  const { tenantId, userId } = await requireSession();
+  const { tenantId, userId } = await requireBueroSession();
   await fahrtStornierenKern(tenantId, rideId, { userId });
   revalidatePath("/dispo");
 }

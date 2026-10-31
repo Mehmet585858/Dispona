@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import Papa from "papaparse";
 import ExcelJS from "exceljs";
 import { withTenant } from "@/lib/db";
-import { requireSession } from "@/lib/session";
+import { KeineBerechtigungError, NichtAngemeldetError, requireBueroSession } from "@/lib/session";
 import { berlinerMitternacht } from "@/core/shifts/week";
 import {
   exportZeilenBauen,
@@ -15,8 +15,23 @@ import {
  * authentifizierter Download (GET statt Server Action, damit der Browser den Dateinamen und
  * die Downloadbox normal anzeigt). Markiert die enthaltenen Fahrten als exportiert.
  */
+const DATUM_ISO = /^\d{4}-\d{2}-\d{2}$/;
+
 export async function GET(request: NextRequest) {
-  const { tenantId, userId } = await requireSession();
+  // Prüfbericht S1-001: nur Büro (ADMIN/DISPONENT); FAHRER → 403, ohne Sitzung → 401 statt 500.
+  let tenantId: string;
+  let userId: string;
+  try {
+    ({ tenantId, userId } = await requireBueroSession());
+  } catch (fehler) {
+    if (fehler instanceof NichtAngemeldetError) {
+      return NextResponse.json({ error: "Nicht angemeldet." }, { status: 401 });
+    }
+    if (fehler instanceof KeineBerechtigungError) {
+      return NextResponse.json({ error: fehler.message }, { status: 403 });
+    }
+    throw fehler;
+  }
   const params = request.nextUrl.searchParams;
   const vonIso = params.get("von");
   const bisIso = params.get("bis");
@@ -25,6 +40,9 @@ export async function GET(request: NextRequest) {
 
   if (!vonIso || !bisIso) {
     return NextResponse.json({ error: "Zeitraum fehlt (von, bis)." }, { status: 400 });
+  }
+  if (!DATUM_ISO.test(vonIso) || !DATUM_ISO.test(bisIso) || Number.isNaN(berlinerMitternacht(vonIso).getTime()) || Number.isNaN(berlinerMitternacht(bisIso).getTime())) {
+    return NextResponse.json({ error: "Zeitraum ungültig (Format JJJJ-MM-TT)." }, { status: 400 });
   }
 
   const db = withTenant(tenantId);

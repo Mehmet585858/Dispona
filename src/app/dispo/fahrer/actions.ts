@@ -3,7 +3,7 @@
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { withTenant } from "@/lib/db";
-import { requireSession } from "@/lib/session";
+import { requireBueroSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import {
   fahrerEinladenSchema,
@@ -15,7 +15,7 @@ import {
 import { berlinerMitternacht, mitUhrzeit, wochenTage } from "@/core/shifts/week";
 
 export async function fahrerLaden() {
-  const { tenantId } = await requireSession();
+  const { tenantId } = await requireBueroSession();
   return withTenant(tenantId).driver.findMany({
     include: { user: true },
     orderBy: { user: { name: "asc" } },
@@ -23,7 +23,7 @@ export async function fahrerLaden() {
 }
 
 export async function fahrzeugeFuerAuswahl() {
-  const { tenantId } = await requireSession();
+  const { tenantId } = await requireBueroSession();
   return withTenant(tenantId).vehicle.findMany({
     where: { active: true },
     orderBy: { plate: "asc" },
@@ -32,7 +32,7 @@ export async function fahrzeugeFuerAuswahl() {
 }
 
 export async function schichtenFuerWoche(montagIso: string) {
-  const { tenantId } = await requireSession();
+  const { tenantId } = await requireBueroSession();
   const montag = berlinerMitternacht(montagIso);
   const sonntagEnde = new Date(montag);
   sonntagEnde.setDate(sonntagEnde.getDate() + 7);
@@ -46,7 +46,7 @@ export async function schichtenFuerWoche(montagIso: string) {
 export async function fahrerEinladen(
   eingabe: FahrerEinladenEingabe,
 ): Promise<{ email: string }> {
-  const { tenantId } = await requireSession();
+  const { tenantId } = await requireBueroSession();
   const daten = fahrerEinladenSchema.parse(eingabe);
   const email = technischeFahrerEmail(daten.phone);
   const db = withTenant(tenantId);
@@ -68,7 +68,7 @@ export async function fahrerEinladen(
 }
 
 export async function schichtMusterAnlegen(eingabe: SchichtMusterEingabe, montagIso: string) {
-  const { tenantId } = await requireSession();
+  const { tenantId } = await requireBueroSession();
   const daten = schichtMusterSchema.parse(eingabe);
   const tage = wochenTage(berlinerMitternacht(montagIso));
   const db = withTenant(tenantId);
@@ -95,7 +95,7 @@ export async function schichtMusterAnlegen(eingabe: SchichtMusterEingabe, montag
 }
 
 export async function schichtLöschen(id: string) {
-  const { tenantId } = await requireSession();
+  const { tenantId } = await requireBueroSession();
   await withTenant(tenantId).shift.delete({ where: { id } });
   revalidatePath("/dispo/fahrer");
 }
@@ -103,7 +103,7 @@ export async function schichtLöschen(id: string) {
 export async function fahrerImportieren(
   zeilen: Record<string, string>[],
 ): Promise<{ ok: number; fehler: string[] }> {
-  const { tenantId } = await requireSession();
+  const { tenantId } = await requireBueroSession();
   const db = withTenant(tenantId);
   const fehler: string[] = [];
   let ok = 0;
@@ -144,7 +144,7 @@ export async function fahrerImportieren(
  * (eigene Tabelle von better-auth, nicht über withTenant), mit eigener Mandantenprüfung.
  */
 export async function fahrerGeraeteLaden(driverId: string) {
-  const { tenantId } = await requireSession();
+  const { tenantId } = await requireBueroSession();
   const fahrer = await withTenant(tenantId).driver.findUnique({ where: { id: driverId }, select: { userId: true } });
   if (!fahrer) throw new Error("Fahrer nicht gefunden.");
   return prisma.session.findMany({
@@ -155,7 +155,7 @@ export async function fahrerGeraeteLaden(driverId: string) {
 }
 
 export async function fahrerGeraetAbmelden(driverId: string, sessionId: string) {
-  const { tenantId, userId, role } = await requireSession();
+  const { tenantId, userId, role } = await requireBueroSession();
   if (role !== "ADMIN") {
     throw new Error("Nur Admins dürfen Geräte abmelden.");
   }
