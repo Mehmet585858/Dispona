@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { withTenant } from "@/lib/db";
-import { requireSession } from "@/lib/session";
+import { requireFahrerSession } from "@/lib/session";
 import { fahrtStatusAendern } from "@/core/rides/status";
 import { fahrerFaelltAusKern } from "@/core/rides/fahrerAusfall";
 import { berlinerMitternacht, datumIso, tagVerschieben } from "@/core/shifts/week";
@@ -20,7 +20,7 @@ async function eigenerFahrer(tenantId: string, userId: string) {
 
 /** Fahrten und Schichten von heute und morgen für den angemeldeten Fahrer (docs/06-oberflaeche.md). */
 export async function fahrerUebersichtLaden() {
-  const { tenantId, userId, name } = await requireSession();
+  const { tenantId, userId, name } = await requireFahrerSession();
   const db = withTenant(tenantId);
   const fahrer = await eigenerFahrer(tenantId, userId);
 
@@ -74,7 +74,7 @@ export async function fahrtStatusSetzenFahrer(
   status: RideStatus,
   position?: { lat: number; lng: number },
 ) {
-  const { tenantId, userId } = await requireSession();
+  const { tenantId, userId } = await requireFahrerSession();
   const db = withTenant(tenantId);
   const fahrer = await eigenerFahrer(tenantId, userId);
 
@@ -95,7 +95,7 @@ export async function fahrtStatusSetzenFahrer(
 
 /** Schicht starten, pausieren, fortsetzen oder beenden. */
 export async function schichtAktion(shiftId: string, aktion: "start" | "pause" | "weiter" | "beenden") {
-  const { tenantId, userId } = await requireSession();
+  const { tenantId, userId } = await requireFahrerSession();
   const db = withTenant(tenantId);
   const fahrer = await eigenerFahrer(tenantId, userId);
 
@@ -129,7 +129,7 @@ const PROBLEM_HINWEIS: Record<ProblemArt, string> = {
 
 /** Problem bei einer einzelnen Fahrt melden (docs/06-oberflaeche.md: Verspätung, Fahrgast nicht da, Fahrzeug defekt). */
 export async function problemMelden(rideId: string, art: ProblemArt) {
-  const { tenantId, userId } = await requireSession();
+  const { tenantId, userId } = await requireFahrerSession();
   const db = withTenant(tenantId);
   const fahrer = await eigenerFahrer(tenantId, userId);
 
@@ -157,7 +157,7 @@ export async function problemMelden(rideId: string, art: ProblemArt) {
  * (UNTERWEGS/AN_BORD) lassen sich nicht automatisch umplanen und bekommen nur das Problem.
  */
 export async function fahrerFaelltAus() {
-  const { tenantId, userId } = await requireSession();
+  const { tenantId, userId } = await requireFahrerSession();
   const fahrer = await eigenerFahrer(tenantId, userId);
 
   const heuteIso = datumIso(new Date());
@@ -172,7 +172,7 @@ export async function fahrerFaelltAus() {
 
 /** "Gesehen" für eine neue oder geänderte Fahrt bestätigen (docs/06-oberflaeche.md). */
 export async function gesehenBestaetigen(rideId: string) {
-  const { tenantId, userId } = await requireSession();
+  const { tenantId, userId } = await requireFahrerSession();
   const db = withTenant(tenantId);
   const fahrer = await eigenerFahrer(tenantId, userId);
 
@@ -187,7 +187,7 @@ export async function gesehenBestaetigen(rideId: string) {
 
 /** Einwilligung zur GPS-Ortung während der Schicht (docs/08-datenschutz-sicherheit.md). */
 export async function gpsEinwilligen() {
-  const { tenantId, userId } = await requireSession();
+  const { tenantId, userId } = await requireFahrerSession();
   const db = withTenant(tenantId);
   const fahrer = await eigenerFahrer(tenantId, userId);
   await db.driver.update({ where: { id: fahrer.id }, data: { gpsConsentAt: new Date() } });
@@ -196,7 +196,7 @@ export async function gpsEinwilligen() {
 
 /** Speichert eine GPS-Position für das Fahrzeug der laufenden Schicht – nur mit Einwilligung, nur während der Schicht. */
 export async function gpsPositionMelden(lat: number, lng: number) {
-  const { tenantId, userId } = await requireSession();
+  const { tenantId, userId } = await requireFahrerSession();
   const db = withTenant(tenantId);
   const fahrer = await eigenerFahrer(tenantId, userId);
   if (!fahrer.gpsConsentAt) return;
@@ -215,7 +215,7 @@ export async function gpsPositionMelden(lat: number, lng: number) {
 
 /** Speichert das Push-Abo des Geräts für den angemeldeten Fahrer. */
 export async function pushAboSpeichernFuerMich(abo: { endpoint: string; keys: { p256dh: string; auth: string } }) {
-  const { tenantId, userId } = await requireSession();
+  const { tenantId, userId } = await requireFahrerSession();
   const fahrer = await eigenerFahrer(tenantId, userId);
   await pushAboSpeichern(tenantId, fahrer.id, abo);
 }
