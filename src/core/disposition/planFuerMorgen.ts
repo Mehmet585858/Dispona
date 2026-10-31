@@ -92,10 +92,13 @@ export async function planFuerMorgenBerechnen(tenantId: string) {
 
       if (vorschlaege.length === 0) {
         if (keiner) {
-          await db.ride.update({
-            where: { id: fahrt.id },
-            data: { problems: { push: "KEIN_FAHRZEUG" } },
-          });
+          // Maßnahme M-20 (R2-6): nur einmal eintragen, nicht bei jedem Lauf anhängen.
+          if (!fahrt.problems.includes("KEIN_FAHRZEUG")) {
+            await db.ride.update({
+              where: { id: fahrt.id },
+              data: { problems: { push: "KEIN_FAHRZEUG" } },
+            });
+          }
           keinKandidat += 1;
         }
         return;

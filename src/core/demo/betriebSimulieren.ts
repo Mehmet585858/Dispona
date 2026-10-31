@@ -489,7 +489,11 @@ async function simulierteFahrtAnlegen(
       // sucht gezielt ERFASST+KEIN_FAHRZEUG, "Braucht Sie" zählt dasselbe) und bliebe für immer
       // unsichtbar liegen, weil fahrtErfassen() zum Erfassungszeitpunkt ja noch ein Fahrzeug
       // kannte und das Flag deshalb von sich aus nicht gesetzt hat.
-      await db.ride.update({ where: { id: rideId }, data: { problems: { push: "KEIN_FAHRZEUG" } } });
+      // Maßnahme M-20 (R2-6): nur einmal eintragen (fahrtErfassen kann es schon gesetzt haben).
+      const aktuell = await db.ride.findUnique({ where: { id: rideId }, select: { problems: true } });
+      if (!aktuell?.problems.includes("KEIN_FAHRZEUG")) {
+        await db.ride.update({ where: { id: rideId }, data: { problems: { push: "KEIN_FAHRZEUG" } } });
+      }
       return { rideId, zugewiesen: false };
     }
   }
