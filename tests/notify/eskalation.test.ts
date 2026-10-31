@@ -99,6 +99,68 @@ describe("bestaetigungenPruefen", () => {
   });
 });
 
+describe("bestaetigungenPruefen – Eskalation je Zuweisung (S2-017)", () => {
+  const kennung = randomUUID().slice(0, 8);
+  let tenantId: string;
+
+  beforeAll(async () => {
+    tenantId = (await prisma.tenant.create({ data: { name: `PRUEF_Eskalation-Wechsel ${kennung}` } })).id;
+  });
+
+  afterAll(async () => {
+    await prisma.notification.deleteMany({ where: { tenantId } });
+    await prisma.rideStatusEvent.deleteMany({ where: { tenantId } });
+    await prisma.ride.deleteMany({ where: { tenantId } });
+    await prisma.driver.deleteMany({ where: { tenantId } });
+    await prisma.user.deleteMany({ where: { tenantId } });
+    await prisma.vehicle.deleteMany({ where: { tenantId } });
+    await prisma.place.deleteMany({ where: { tenantId } });
+    await prisma.passenger.deleteMany({ where: { tenantId } });
+    await prisma.tenant.delete({ where: { id: tenantId } });
+  });
+
+  async function fahrer(nummer: string) {
+    const user = await prisma.user.create({
+      data: { id: randomUUID(), tenantId, email: `${randomUUID()}@test.de`, name: "PRUEF Fahrer", role: "FAHRER", phone: nummer },
+    });
+    return prisma.driver.create({ data: { tenantId, userId: user.id } });
+  }
+
+  it("S2-017: nach einem Fahrerwechsel bekommt auch der neue Fahrer die SMS", async () => {
+    const fahrer1 = await fahrer("+491700000011");
+    const fahrer2 = await fahrer("+491700000012");
+    const passenger = await prisma.passenger.create({ data: { tenantId, firstName: "PRUEF", lastName: "Fahrgast", phones: [] } });
+    const ort = await prisma.place.create({
+      data: { tenantId, label: "Ort", street: "A 1", zip: "52062", city: "Aachen", lat: 50.77, lng: 6.08, type: "SONSTIGES" },
+    });
+    const vehicle = await prisma.vehicle.create({ data: { tenantId, plate: `PRUEF-${kennung}` } });
+    const ride = await prisma.ride.create({
+      data: {
+        tenantId, passengerId: passenger.id, pickupPlaceId: ort.id, dropoffPlaceId: ort.id,
+        pickupAt: new Date(Date.now() + 3 * 60 * 60_000), transportType: "SITZEND", status: "DISPONIERT", source: "MANUELL",
+        vehicleId: vehicle.id, driverId: fahrer1.id,
+      },
+    });
+    await prisma.rideStatusEvent.create({ data: { tenantId, rideId: ride.id, status: "DISPONIERT", at: new Date(Date.now() - 5 * 60_000) } });
+
+    const lauf1 = await bestaetigungenPruefen(tenantId);
+    expect(lauf1.smsAnFahrer).toBe(1);
+
+    // Fahrer 1 fällt aus, Fahrt wird neu disponiert: neuer Fahrer, neues DISPONIERT-Ereignis, keine Bestätigung.
+    await prisma.ride.update({ where: { id: ride.id }, data: { driverId: fahrer2.id, driverAckAt: null } });
+    await prisma.rideStatusEvent.create({ data: { tenantId, rideId: ride.id, status: "DISPONIERT", at: new Date(Date.now() - 4 * 60_000) } });
+
+    const lauf2 = await bestaetigungenPruefen(tenantId);
+    expect(lauf2.smsAnFahrer).toBe(1);
+    const anFahrer2 = await prisma.notification.findMany({ where: { rideId: ride.id, kind: "KEINE_BESTAETIGUNG_FAHRER", toRef: fahrer2.id } });
+    expect(anFahrer2).toHaveLength(1);
+
+    // Dritter Lauf ohne neue Zuweisung: keine weitere SMS.
+    const lauf3 = await bestaetigungenPruefen(tenantId);
+    expect(lauf3.smsAnFahrer).toBe(0);
+  });
+});
+
 describe("keinFahrzeugAlarmPruefen", () => {
   const kennung = randomUUID().slice(0, 8);
   let tenantId: string;

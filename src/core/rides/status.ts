@@ -26,16 +26,22 @@ export function istUebergangErlaubt(von: RideStatus, nach: RideStatus): boolean 
   return ERLAUBTE_UEBERGAENGE[von].includes(nach);
 }
 
-/** Minuten seit die Fahrt zuletzt in den Status DISPONIERT gewechselt ist, oder null ohne passendes Ereignis. */
-export async function minutenSeitDisponiert(tenantId: string, rideId: string): Promise<number | null> {
+/** Zeitpunkt, zu dem die Fahrt zuletzt in den Status DISPONIERT gewechselt ist (= letzte Zuweisung), oder null. */
+export async function letzteDisponierungAm(tenantId: string, rideId: string): Promise<Date | null> {
   const db = withTenant(tenantId);
   const ereignis = await db.rideStatusEvent.findFirst({
     where: { rideId, status: "DISPONIERT" },
     orderBy: { at: "desc" },
     select: { at: true },
   });
-  if (!ereignis) return null;
-  return (Date.now() - ereignis.at.getTime()) / 60_000;
+  return ereignis?.at ?? null;
+}
+
+/** Minuten seit die Fahrt zuletzt in den Status DISPONIERT gewechselt ist, oder null ohne passendes Ereignis. */
+export async function minutenSeitDisponiert(tenantId: string, rideId: string): Promise<number | null> {
+  const zeitpunkt = await letzteDisponierungAm(tenantId, rideId);
+  if (!zeitpunkt) return null;
+  return (Date.now() - zeitpunkt.getTime()) / 60_000;
 }
 
 /**

@@ -1,5 +1,5 @@
 import { withTenant } from "@/lib/db";
-import { minutenSeitDisponiert } from "@/core/rides/status";
+import { letzteDisponierungAm } from "@/core/rides/status";
 import { istNachtsInBerlin } from "@/core/shifts/zeitfenster";
 import { smsProvider } from "@/providers/sms";
 import { keineBestaetigungAlarmText, keinFahrzeugAlarmText, neueFahrtText } from "./texte";
@@ -74,12 +74,17 @@ export async function bestaetigungenPruefen(tenantId: string) {
     const driverId = fahrt.driverId;
     if (!driverId) continue;
 
-    const minutenSeitDispo = await minutenSeitDisponiert(tenantId, fahrt.id);
-    if (minutenSeitDispo === null) continue;
+    const disponiertAm = await letzteDisponierungAm(tenantId, fahrt.id);
+    if (!disponiertAm) continue;
+    const minutenSeitDispo = (jetzt.getTime() - disponiertAm.getTime()) / 60_000;
 
+    // Prüfbericht S2-017: "schon eskaliert" gilt je ZUWEISUNG (diese Fahrt, dieser Fahrer, seit
+    // der letzten Disponierung) – nicht je Fahrt. Nach einem Fahrerwechsel (z. B. "Ich falle
+    // aus" um 04:30, Automodus plant auf B um) bekam B vorher nie eine SMS, weil für die Fahrt
+    // bereits ein Eintrag existierte.
     if (minutenSeitDispo >= SMS_AN_FAHRER_NACH_MIN) {
       const schonGesendet = await db.notification.findFirst({
-        where: { rideId: fahrt.id, kind: "KEINE_BESTAETIGUNG_FAHRER" },
+        where: { rideId: fahrt.id, kind: "KEINE_BESTAETIGUNG_FAHRER", toRef: driverId, sentAt: { gte: disponiertAm } },
       });
       if (!schonGesendet) {
         const fahrer = await db.driver.findUnique({
@@ -105,7 +110,7 @@ export async function bestaetigungenPruefen(tenantId: string) {
     const beginntBald = fahrt.pickupAt.getTime() - jetzt.getTime() < 60 * 60_000;
     if (minutenSeitDispo >= driverAckMinutes && istNachtsInBerlin(jetzt) && beginntBald && settings?.alertPhone) {
       const schonGesendet = await db.notification.findFirst({
-        where: { rideId: fahrt.id, kind: "KEINE_BESTAETIGUNG_INHABER" },
+        where: { rideId: fahrt.id, kind: "KEINE_BESTAETIGUNG_INHABER", sentAt: { gte: disponiertAm } },
       });
       if (!schonGesendet) {
         const text = keineBestaetigungAlarmText(uhrzeitBerlin(fahrt.pickupAt));
