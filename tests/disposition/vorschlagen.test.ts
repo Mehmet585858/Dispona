@@ -223,3 +223,60 @@ describe("vorschlaegeBerechnen", () => {
     expect(scores).toEqual([...scores].sort((a, b) => a - b));
   });
 });
+
+describe("vorschlaegeBerechnen – Besatzung (Schichtplan 02.11.2026)", () => {
+  const ZU_ZWEIT = { beifahrer: true, scalamobil: false, fahrerEinweisung: false };
+
+  it("Liegend-Fahrt: Fahrzeug mit Trage, aber ohne Beifahrer wird nie vorgeschlagen", async () => {
+    const liegend: FahrtFuerVorschlag = { ...SITZEND_FAHRT, transportType: "LIEGEND" };
+    const ohne = await vorschlaegeBerechnen({
+      fahrt: liegend,
+      fahrzeuge: [fahrzeug({ stretcher: true, seats: 1 })],
+      schichten: [schicht()],
+      tagesplan: [],
+      depot: DEPOT,
+      routing: fakeRouting(),
+    });
+    expect(ohne.keinKandidat).toBe(true);
+    const mit = await vorschlaegeBerechnen({
+      fahrt: liegend,
+      fahrzeuge: [fahrzeug({ stretcher: true, seats: 1 })],
+      schichten: [schicht({ besatzung: ZU_ZWEIT })],
+      tagesplan: [],
+      depot: DEPOT,
+      routing: fakeRouting(),
+    });
+    expect(mit.vorschlaege.map((v) => v.vehicleId)).toEqual(["fahrzeug-1"]);
+  });
+
+  it("Tragestuhl mit Treppe: nur Tragestuhl-Fahrzeug zu zweit; ebenerdig auch Rollstuhl-BTW allein", async () => {
+    const fahrzeuge = [
+      fahrzeug({ id: "trage-allein", carryChair: true }),
+      fahrzeug({ id: "trage-zweit", carryChair: true }),
+      fahrzeug({ id: "rolli-allein", wheelchairSpots: 1 }),
+    ];
+    const schichten = [
+      schicht({ vehicleId: "trage-allein", driverId: "a" }),
+      schicht({ vehicleId: "trage-zweit", driverId: "b", besatzung: ZU_ZWEIT }),
+      schicht({ vehicleId: "rolli-allein", driverId: "c" }),
+    ];
+    const treppe = await vorschlaegeBerechnen({
+      fahrt: { ...SITZEND_FAHRT, transportType: "TRAGESTUHL", treppe: true },
+      fahrzeuge,
+      schichten,
+      tagesplan: [],
+      depot: DEPOT,
+      routing: fakeRouting(),
+    });
+    expect(treppe.vorschlaege.map((v) => v.vehicleId)).toEqual(["trage-zweit"]);
+    const eben = await vorschlaegeBerechnen({
+      fahrt: { ...SITZEND_FAHRT, transportType: "TRAGESTUHL", treppe: false },
+      fahrzeuge,
+      schichten,
+      tagesplan: [],
+      depot: DEPOT,
+      routing: fakeRouting(),
+    });
+    expect(eben.vorschlaege.map((v) => v.vehicleId).sort()).toEqual(["rolli-allein", "trage-allein", "trage-zweit"]);
+  });
+});

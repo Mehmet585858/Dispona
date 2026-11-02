@@ -4,6 +4,7 @@ import { berlinerMitternacht, datumIso } from "@/core/shifts/week";
 import { fahrtStatusAendern } from "@/core/rides/status";
 import { routingProvider } from "@/providers/routing";
 import { vorschlaegeBerechnen, type GeplanteFahrt } from "./vorschlagen";
+import { schichtenMitBesatzungLaden } from "./schichtenLaden";
 
 export async function vorschlagBerechnenUndSpeichern(tenantId: string, rideId: string, userId?: string) {
   const db = withTenant(tenantId);
@@ -27,7 +28,7 @@ export async function vorschlagBerechnenUndSpeichern(tenantId: string, rideId: s
   tagEnde.setDate(tagEnde.getDate() + 1);
 
   const fahrzeuge = await db.vehicle.findMany({ where: { active: true } });
-  const schichten = await db.shift.findMany({ where: { start: { lt: tagEnde }, end: { gte: tagStart } } });
+  const schichten = await schichtenMitBesatzungLaden(db, { start: { lt: tagEnde }, end: { gte: tagStart } });
   const tagesplanFahrten = await db.ride.findMany({
     where: {
       pickupAt: { gte: tagStart, lt: tagEnde },
@@ -55,6 +56,7 @@ export async function vorschlagBerechnenUndSpeichern(tenantId: string, rideId: s
       appointmentAt: fahrt.appointmentAt,
       pickupOrt: { lat: fahrt.pickupPlace.lat, lng: fahrt.pickupPlace.lng },
       dropoffOrt: { lat: fahrt.dropoffPlace.lat, lng: fahrt.dropoffPlace.lng },
+      treppe: fahrt.pickupPlace.treppe || fahrt.dropoffPlace.treppe,
     },
     fahrzeuge,
     schichten,

@@ -17,6 +17,7 @@ import {
   FahrzeugKonfliktError,
   KeinFahrerError,
 } from "@/core/disposition/zuweisen";
+import { fahrtAnforderung } from "@/core/shifts/besatzung";
 import { fahrgaesteAehnlicheNamen, NACHNAME_KANDIDATEN_MAX, nachnameKandidatenWhere, telefonNormalisieren } from "@/core/passengers/suche";
 import { einsatzgebietMitteLaden } from "@/core/einrichtung/einsatzgebiet";
 import { routingProvider, GEOCODE_SICHER_SCHWELLE } from "@/providers/routing";
@@ -152,6 +153,9 @@ export async function fahrtVerschieben(
       vehicleId: true,
       driverId: true,
       pickupAt: true,
+      transportType: true,
+      pickupPlace: { select: { treppe: true } },
+      dropoffPlace: { select: { treppe: true } },
       suggestions: { where: { decision: "OFFEN" }, orderBy: { createdAt: "desc" }, take: 1, select: { options: true } },
     },
   });
@@ -177,7 +181,7 @@ export async function fahrtVerschieben(
       // einen einsatzfähigen Fahrer haben – sonst stünde die Fahrt danach auf "Erfasst" mit dem
       // alten Fahrzeug, statt unverändert disponiert zu bleiben.
       try {
-        await einsatzfaehigenFahrerFinden(db, zielFahrzeug, fahrt.pickupAt);
+        await einsatzfaehigenFahrerFinden(db, zielFahrzeug, fahrt.pickupAt, fahrtAnforderung(fahrt));
       } catch (ausnahme) {
         if (!(ausnahme instanceof KeinFahrerError)) throw ausnahme;
         fehler = ausnahme.message;

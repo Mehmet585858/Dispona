@@ -2,7 +2,7 @@ import type { TransportType } from "@/generated/prisma/enums";
 import { entfernungKm, type LatLng } from "@/lib/geo";
 import type { RoutingProvider } from "@/providers/routing/types";
 import { bewerteKandidat, type Bewertung } from "./bewertung";
-import { erfuelltAusstattung, findeAktiveSchicht, type FahrzeugFuerPruefung, type SchichtFuerPruefung } from "./kandidaten";
+import { erfuelltAusstattung, findeEinsatzSchicht, type FahrzeugFuerPruefung, type SchichtFuerPruefung } from "./kandidaten";
 import { EINSTIEGSZEIT_MINUTEN } from "./weights";
 
 export type FahrtFuerVorschlag = {
@@ -12,6 +12,8 @@ export type FahrtFuerVorschlag = {
   appointmentAt?: Date | null;
   pickupOrt: LatLng;
   dropoffOrt: LatLng;
+  /** Schichtplan: Treppe am Abhol- oder Zielort (Place.treppe) – wichtig für Tragestuhl-Fahrten. */
+  treppe?: boolean;
 };
 
 export type GeplanteFahrt = {
@@ -73,10 +75,13 @@ export async function vorschlaegeBerechnen(params: {
 }): Promise<{ vorschlaege: Bewertung[]; keinKandidat: boolean }> {
   const { fahrt, fahrzeuge, schichten, tagesplan, depot, routing } = params;
 
+  // Schichtplan (02.11.2026): nur Fahrzeuge, deren Schicht zur Abholzeit auch die passende
+  // Besatzung hat (Liegend zu zweit, Tragestuhl über Treppe zu zweit oder mit Scalamobil).
+  const anforderung = { transportType: fahrt.transportType, treppe: fahrt.treppe ?? false };
   const kandidaten = fahrzeuge.filter(
     (f) =>
       erfuelltAusstattung(fahrt.transportType, fahrt.companion, f) &&
-      findeAktiveSchicht(schichten, f.id, fahrt.pickupAt),
+      findeEinsatzSchicht(schichten, f, fahrt.pickupAt, anforderung),
   );
 
   if (kandidaten.length === 0) {
@@ -91,7 +96,7 @@ export async function vorschlaegeBerechnen(params: {
   const bewertungen: Bewertung[] = [];
 
   for (const fahrzeug of kandidaten) {
-    const schicht = findeAktiveSchicht(schichten, fahrzeug.id, fahrt.pickupAt)!;
+    const schicht = findeEinsatzSchicht(schichten, fahrzeug, fahrt.pickupAt, anforderung)!;
     const vorherige = vorherigeFahrtFinden(tagesplan, fahrzeug.id, fahrt.pickupAt);
 
     let startOrt: LatLng;

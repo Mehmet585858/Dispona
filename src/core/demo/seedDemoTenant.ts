@@ -178,6 +178,28 @@ export async function seedDemoTenant() {
       });
     }
   }
+  // Schichtplan (02.11.2026): Liegend-Fahrten brauchen 2 Personen. Die beiden Liegend-Fahrzeuge
+  // bekommen je eine Aushilfe als Beifahrer (self-healing: auch bestehende Schichten werden ergänzt),
+  // sonst würde die Demo keine Liegend-Fahrt mehr zuweisen.
+  const DEMO_AUSHILFEN = ["Jonas Peters", "Mira Krüger"];
+  const liegendFahrzeuge = fahrzeuge.filter((f) => f.stretcher);
+  for (const [index, vehicle] of liegendFahrzeuge.entries()) {
+    const name = DEMO_AUSHILFEN[index % DEMO_AUSHILFEN.length];
+    const email = `demo-aushilfe-${index + 1}@dispona-demo.invalid`;
+    const user = await db.user.upsert({
+      where: { email },
+      create: { id: randomUUID(), tenantId: DEMO_TENANT_ID, email, name, role: "FAHRER", emailVerified: true },
+      update: { name },
+    });
+    const aushilfe =
+      (await db.driver.findUnique({ where: { userId: user.id } })) ??
+      (await db.driver.create({ data: { tenantId: DEMO_TENANT_ID, userId: user.id, istAushilfe: true } }));
+    await db.shift.updateMany({
+      where: { tenantId: DEMO_TENANT_ID, vehicleId: vehicle.id, beifahrerId: null, NOT: { driverId: aushilfe.id } },
+      data: { beifahrerId: aushilfe.id },
+    });
+  }
+
   // Räumt Schichten auf einem anderen Fahrzeug auf, die ein Demo-Fahrer aus einer früheren Flotten-
   // größe (z. B. vor der Erweiterung auf 10 Fahrzeuge) noch hat - sonst zeigt eine Fahrzeugzeile
   // mehrere Fahrernamen ("Winter · Keller") statt des einen, der dem Fahrzeug jetzt zugeordnet ist.

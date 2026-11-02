@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   automodusStatusText,
+  pruefeBesatzung,
   pruefeBesterVorschlag,
   pruefeFahrerImDienst,
   pruefeGpsOderBetriebshof,
@@ -27,6 +28,7 @@ function basisEingabe(): SicherheitsbedingungenEingabe {
     autoMode: "NACHTS_WOCHENENDE",
     jetzt: NACHTS,
     maxTageVoraus: 3,
+    besatzung: { passt: true },
   };
 }
 
@@ -123,6 +125,19 @@ describe("sicherheitsbedingungenPruefen", () => {
   it("blockiert außerhalb des Zeitfensters", () => {
     const eingabe: SicherheitsbedingungenEingabe = { ...basisEingabe(), jetzt: TAGSUEBER, pickupAt: TAGSUEBER };
     expect(sicherheitsbedingungenPruefen(eingabe).erlaubt).toBe(false);
+  });
+
+  it("Bedingung 6 (Schichtplan): blockiert, wenn die Besatzung nicht zur Fahrt passt – mit deren Grund", () => {
+    const grund = "Liegend-Fahrt braucht 2 Personen. In dieser Schicht ist kein Beifahrer eingetragen.";
+    const ergebnis = sicherheitsbedingungenPruefen({ ...basisEingabe(), besatzung: { passt: false, grund } });
+    expect(ergebnis).toEqual({ erlaubt: false, grund });
+  });
+});
+
+describe("pruefeBesatzung", () => {
+  it("lässt passende Besatzung zu und reicht den Grund sonst weiter", () => {
+    expect(pruefeBesatzung({ passt: true }).erlaubt).toBe(true);
+    expect(pruefeBesatzung({ passt: false, grund: "x" })).toEqual({ erlaubt: false, grund: "x" });
   });
 });
 

@@ -5,6 +5,7 @@
  */
 import type { AutoMode } from "@/generated/prisma/enums";
 import { istNachtsInBerlin, istWochenendeInBerlin } from "@/core/shifts/zeitfenster";
+import type { BesatzungsPruefung } from "@/core/shifts/besatzung";
 
 export type Sicherheitscheck = { erlaubt: boolean; grund?: string };
 
@@ -89,6 +90,17 @@ export function pruefeZeitfenster(
   return ok;
 }
 
+/**
+ * Bedingung 6 (Schichtplan, 02.11.2026): Die Besatzung der Schicht passt zur Fahrt – Liegend mit
+ * Beifahrer, Tragestuhl über eine Treppe zu zweit oder mit Scalamobil und Einweisung
+ * (besatzungPruefen in src/core/shifts/besatzung.ts). Der Automodus disponiert nie, wenn sie
+ * verletzt ist.
+ */
+export function pruefeBesatzung(besatzung: BesatzungsPruefung): Sicherheitscheck {
+  if (!besatzung.passt) return { erlaubt: false, grund: besatzung.grund };
+  return ok;
+}
+
 /** Kurzer Text für den Kopf der Dispo-Seite, z. B. "Automodus: aktiv bis 6:00 Uhr". */
 export function automodusStatusText(autoMode: AutoMode, jetzt: Date): string {
   if (autoMode === "AUS") return "Automodus: aus";
@@ -110,9 +122,11 @@ export type SicherheitsbedingungenEingabe = {
   autoMode: AutoMode;
   jetzt: Date;
   maxTageVoraus: number;
+  /** Bedingung 6: Ergebnis von besatzungPruefen für die Schicht des Kandidaten. */
+  besatzung: BesatzungsPruefung;
 };
 
-/** Prüft alle 5 Sicherheitsbedingungen der Reihe nach, gibt die erste Verletzung zurück. */
+/** Prüft alle 6 Sicherheitsbedingungen der Reihe nach, gibt die erste Verletzung zurück. */
 export function sicherheitsbedingungenPruefen(eingabe: SicherheitsbedingungenEingabe): Sicherheitscheck {
   const pruefungen = [
     () => pruefeKeineProbleme(eingabe.problems),
@@ -125,6 +139,7 @@ export function sicherheitsbedingungenPruefen(eingabe: SicherheitsbedingungenEin
       ),
     () => pruefeFahrerImDienst(eingabe.schicht, eingabe.pickupAt),
     () => pruefeZeitfenster(eingabe.autoMode, eingabe.jetzt, eingabe.pickupAt, eingabe.maxTageVoraus),
+    () => pruefeBesatzung(eingabe.besatzung),
   ];
   for (const pruefung of pruefungen) {
     const ergebnis = pruefung();

@@ -14,10 +14,42 @@ Ein Fahrzeug ist Kandidat, wenn alles stimmt:
 | --- | --- |
 | SITZEND | `seats ≥ 1 + Begleitperson` |
 | ROLLSTUHL | `wheelchairSpots ≥ 1` und `seats ≥ Begleitperson` |
-| TRAGESTUHL | `carryChair = true` |
-| LIEGEND | `stretcher = true` |
+| TRAGESTUHL | `carryChair = true` **oder** `wheelchairSpots ≥ 1` (BTW; mit Treppe siehe „Besatzung“) |
+| LIEGEND | `stretcher = true` (und 2 Personen, siehe „Besatzung“) |
 
-Zusätzlich: Fahrzeug `active`, es gibt eine `Shift` zur Abholzeit, nicht `onBreak` zur Abholzeit.
+Zusätzlich: Fahrzeug `active`, es gibt eine `Shift` zur Abholzeit, nicht `onBreak` zur Abholzeit, und die **Besatzung** dieser Schicht passt zur Fahrt (nächster Abschnitt).
+
+## Besatzung (Schichtplan, freigegeben am 02.11.2026)
+
+Eine **Schicht** = Fahrzeug + Beginn + Ende (freie Uhrzeiten; Ende vor Beginn = Nachtschicht bis zum Folgetag, M-18) + **Fahrer** (Pflicht) + **Beifahrer** (optional, bei jedem Fahrzeug möglich) + **„Scalamobil an Bord“** (ja/nein). Der Beifahrer ist etwas anderes als `Ride.companion` (Begleitperson des Fahrgasts).
+
+- **Aushilfen** gehören zum Personal (`Driver.istAushilfe`). Sie können Fahrer oder Beifahrer sein und melden sich wie Fahrer per Einmal-Link an.
+- **Scalamobil** = elektrischer Treppensteiger. Damit schafft eine Person einen Fahrgast allein über die Treppe. Es braucht eine **Einweisung** (`Driver.scalamobilEinweisung`). Das Gerät wird zwischen Fahrzeugen getauscht, deshalb ist es eine Angabe **pro Schicht** (`Shift.scalamobil`). Der Betrieb hat N Scalamobile (`TenantSettings.scalamobilAnzahl`); zur selben Zeit haben höchstens N Schichten „Scalamobil an Bord“. Ein Scalamobil passt nur in ein Fahrzeug mit Tragestuhl oder Rollstuhlplatz.
+- **Treppe** ist eine Angabe am Ort (`Place.treppe`). Eine Fahrt „hat eine Treppe“, wenn Abhol- **oder** Zielort sie hat.
+
+| Fahrt | Besatzung |
+| --- | --- |
+| LIEGEND | immer 2 Personen: Fahrer + **aktiver** Beifahrer |
+| TRAGESTUHL mit Treppe | 2 Personen auf einem Fahrzeug mit Tragestuhl (`carryChair`), **oder** 1 Person mit Scalamobil an Bord und Einweisung des **Fahrers**, auf einem Fahrzeug mit Tragestuhl oder Rollstuhlplatz |
+| TRAGESTUHL ebenerdig | 1 Person reicht (Fahrzeug mit `carryChair` oder `wheelchairSpots ≥ 1`) |
+| SITZEND, ROLLSTUHL | keine Anforderung an die Besatzung (Annahme, auch mit Treppe – offene Frage im Bauprotokoll 2026-11-02) |
+
+Ein deaktivierter Beifahrer zählt nicht. Beifahrer bekommen keine Fahrten aufs Handy, die bleiben beim Fahrer; sie sehen nur ihre Schichten („Mein Schichtplan“).
+
+Code: `besatzungPruefen()` und `besatzungsEtiketten()` in `src/core/shifts/besatzung.ts`. Gilt für jede Zuweisung (Vorschlag, Bestätigen, Umbesetzen, Ziehen im Zeitstrahl, Automodus, „Plan für morgen“, Demo): `findeEinsatzSchicht()` in `kandidaten.ts`, `einsatzfaehigenFahrerFinden()` in `zuweisen.ts`. Passt die Besatzung nicht, wird eine manuelle Zuweisung mit `BesatzungError` (Unterklasse von `KeinFahrerError`) und klarer Meldung abgelehnt, z. B. „Liegend-Fahrt braucht 2 Personen. In dieser Schicht ist kein Beifahrer eingetragen.“
+
+## Schichtplan (Seite `/dispo/schichtplan`)
+
+Bearbeitet wird immer „ein Fahrzeug an einem Tag“: Die Schichten, die an diesem Berliner Kalendertag beginnen, werden durch die Eingaben ersetzt. Prüfungen beim Speichern (`src/core/shifts/schichtplan.ts`):
+
+- Fahrer ist gesetzt; Fahrer ≠ Beifahrer (zusätzlich CHECK in der Datenbank).
+- Pro Fahrzeug keine überlappenden Schichten; keine Person überlappend doppelt verplant, weder als Fahrer noch als Beifahrer, über alle Fahrzeuge. Ausgefallene Schichten („Ich falle aus“) blockieren nicht – auf dem Fahrzeug darf eine Ersatzschicht laufen.
+- Deaktivierte Personen sind nicht einplanbar (M-12); Scalamobil-Anzahl wird eingehalten.
+- Personen und Fahrzeuge anderer Mandanten werden abgewiesen (`referenzenPruefen`, dazu der Trigger `Shift_mandant_referenzen` inkl. `beifahrerId`, M-11).
+
+„Gilt für“: nur dieser Tag / Montag bis Freitag dieser Woche / jeden gleichen Wochentag im Monat / alle Werktage (Mo–Fr) im Monat. Dazu „Woche in nächste Woche kopieren“ und „Woche bis Monatsende wiederholen“ (Monat = Monat des Donnerstags der Woche). Das Ziel wird je Fahrzeug und Tag ersetzt. **Nie** werden vergangene Tage oder schon begonnene Schichten (`startedAt`) überschrieben – sie werden übersprungen und gemeldet. Im Seitenfenster bricht ein Prüffehler das Speichern ganz ab; beim Kopieren einer Woche wird ein Fahrzeug-Tag mit Fehler übersprungen und gemeldet.
+
+**Schicht ändern oder löschen, wenn schon Fahrten darin liegen:** Betroffen ist jede zugewiesene, noch nicht begonnene Fahrt (`DISPONIERT`), deren Abholzeit in einer wegfallenden Schicht ihres Fahrzeugs lag und die danach keine Schicht desselben Fahrzeugs mit demselben Fahrer und passender Besatzung mehr hat. Vor dem Speichern zeigt das Seitenfenster einen **Hinweis** („3 Fahrten liegen in dieser Schicht“ mit Uhrzeiten, ohne Fahrgastnamen); erst nach Bestätigung wird gespeichert. Die Fahrten werden dann wie bei „Ich falle aus“ freigegeben (`disponierteFahrtFreigeben()`): zurück auf `ERFASST`, Fahrzeug und Fahrer gelöst, neu vorgeschlagen, Hinweis „Schicht geändert – neues Fahrzeug nötig“ in der Problemliste, Push „Fahrt entzogen“ an den bisherigen Fahrer. Wird ein Beifahrer deaktiviert, wird er aus allen noch nicht beendeten Schichten ausgetragen; Fahrten, die dann nicht mehr passen, bekommen „Beifahrer deaktiviert – neues Fahrzeug nötig“.
 
 ## Schritt 2: Passt die Fahrt in den Plan?
 
@@ -58,7 +90,7 @@ Begründung als Text, z. B. „Anfahrt 9 Min · pünktlich am Ziel“, „als Sa
 - „Anderes Fahrzeug“ → die anderen Vorschläge oder jedes Fahrzeug des Fahrdienstes – aber nur, wenn das Fahrzeug zur Abholzeit einen **einsatzfähigen Fahrer** hat (siehe unten). Fehlt er, wird die Zuweisung abgelehnt, die Fahrt bleibt unverändert, und der Disponent sieht den Grund als Meldung (z. B. „Fahrer ist zur Abholzeit nicht im Dienst. Erst eine Schicht für dieses Fahrzeug eintragen oder ein anderes Fahrzeug wählen.“). Es gibt keine Zuweisung „mit Warnung“.
 - Entscheidung in `Suggestion` speichern (Kennzahl „unverändert übernommen“).
 
-**Einsatzfähiger Fahrer (gilt für jede Zuweisung – Bestätigen, Umbesetzen, Ziehen im Zeitstrahl, Automodus, „Plan für morgen“):** Für das Fahrzeug läuft zur Abholzeit eine `Shift`, deren Fahrer nicht ausgefallen ist (nicht `unavailable`, „Ich falle aus“), keine Pause hat (nicht `onBreak`) und aktiv ist (`Driver.active`). Das ist dieselbe Regel wie Sicherheitsbedingung 4 des Automodus. Laufen mehrere Schichten auf dem Fahrzeug (z. B. Ersatzfahrer nach einem Ausfall), zählt die erste einsatzfähige. Code: `einsatzfaehigenFahrerFinden()` in `src/core/disposition/zuweisen.ts`, Fehler `KeinFahrerError`.
+**Einsatzfähiger Fahrer (gilt für jede Zuweisung – Bestätigen, Umbesetzen, Ziehen im Zeitstrahl, Automodus, „Plan für morgen“):** Für das Fahrzeug läuft zur Abholzeit eine `Shift`, deren Fahrer nicht ausgefallen ist (nicht `unavailable`, „Ich falle aus“), keine Pause hat (nicht `onBreak`) und aktiv ist (`Driver.active`) – und deren **Besatzung zur Fahrt passt** (Abschnitt „Besatzung“). Das ist dieselbe Regel wie Sicherheitsbedingung 4 und 6 des Automodus. Laufen mehrere Schichten auf dem Fahrzeug (z. B. Ersatzfahrer nach einem Ausfall), zählt die erste einsatzfähige. Code: `einsatzfaehigenFahrerFinden()` in `src/core/disposition/zuweisen.ts`, Fehler `KeinFahrerError`.
 
 Zusätzlich sichert die Datenbank das Ergebnis selbst ab: Eine Fahrt im Status `DISPONIERT` hat immer `vehicleId` **und** `driverId`. Der Trigger `Ride_disponiert_mit_fahrer` (Migration `20261031180000_disponiert_nur_mit_fahrer`) lehnt jedes Anlegen oder Ändern ab, das diese Regel verletzt – auch aus Skripten oder künftigen Codepfaden. Verliert eine Fahrt ihren Fahrer (Ausfall, Umplanung), verlässt sie zuerst `DISPONIERT` (zurück auf `ERFASST`), dann werden Fahrzeug und Fahrer gelöst.
 
@@ -73,6 +105,7 @@ Einstellung je Fahrdienst (nur Admin): aus / nur nachts und am Wochenende (Vorei
 3. GPS des gewählten Fahrzeugs ist aktuell (≤ 10 Min) oder das Fahrzeug startet vom Betriebshof.
 4. Fahrer ist im Dienst und hat keine Pause zur Abholzeit.
 5. Fahrt liegt im Zeitfenster des Automodus und höchstens N Tage in der Zukunft (Standard 3).
+6. **Besatzung passt zur Fahrt** (seit 02.11.2026): Liegend mit aktivem Beifahrer, Tragestuhl über eine Treppe zu zweit mit Tragestuhl oder mit Scalamobil und eingewiesenem Fahrer (`pruefeBesatzung()` in `automodus.ts`). Der Automodus disponiert nie, wenn sie verletzt ist; der Grund steht an der Fahrt (`autoSkipReason`).
 
 Dann: Fahrt `DISPONIERT` mit Vermerk „automatisch“, Push an den Fahrer. Bestätigt der Fahrer nicht innerhalb von 5 Minuten (bei Fahrten in < 60 Min) → SMS an Fahrer, danach Alarm an Inhaber/Bereitschaft.
 
@@ -97,4 +130,5 @@ Morgens: Übersicht „Heute Nacht“ – automatisch disponiert (n), liegen geb
 - Einfügen zerstört keine Folgefahrt.
 - Kein Kandidat → Problem `KEIN_FAHRZEUG`.
 - Automodus: je verletzter Sicherheitsbedingung ein Test (keine automatische Disposition), plus Erfolgsfall.
+- Besatzung: Liegend nie ohne Beifahrer, Tragestuhl über Treppe nur zu zweit oder mit Scalamobil und Einweisung (`tests/disposition/zuweisenBesatzung.test.ts`, `tests/shifts/besatzung.test.ts`).
 - Ausfall eines Fahrers → seine Fahrten werden neu vorgeschlagen.

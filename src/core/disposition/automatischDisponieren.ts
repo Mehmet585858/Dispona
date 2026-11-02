@@ -1,13 +1,17 @@
 /**
  * Automatische Disposition (docs/05-disposition.md "Automodus"): prüft alle vorgeschlagenen
- * Fahrten eines Mandanten gegen die 5 Sicherheitsbedingungen und disponiert, wenn alle erfüllt
- * sind – sonst bleibt die Fahrt mit `autoSkipReason` beim Disponenten. Für einen Cron-Job gedacht
+ * Fahrten eines Mandanten gegen die Sicherheitsbedingungen und disponiert, wenn alle erfüllt
+ * sind – sonst bleibt die Fahrt mit `autoSkipReason` beim Disponenten. Seit dem Schichtplan
+ * (02.11.2026) gehört dazu Bedingung 6 "Besatzung passt zur Fahrt". Für einen Cron-Job gedacht
  * (alle 1–2 Minuten, wie die Bestätigungs-Eskalation).
  */
 import { withTenant } from "@/lib/db";
 import { sicherheitsbedingungenPruefen } from "./automodus";
 import { fahrzeugZuweisen, FahrzeugKonfliktError, KeinFahrerError } from "./zuweisen";
 import { fehlerArt, jeEintragIsoliert } from "@/core/betrieb/cronLauf";
+import { besatzungPruefen, fahrtAnforderung } from "@/core/shifts/besatzung";
+import { BESATZUNG_ALLEIN, findeEinsatzSchicht } from "./kandidaten";
+import { schichtenMitBesatzungLaden } from "./schichtenLaden";
 
 /** Vermerk an einer Fahrt, deren Prüfung unerwartet scheiterte (Maßnahme M-16). */
 export const AUTO_TECHNISCHER_FEHLER =
@@ -31,7 +35,15 @@ export async function automatischDisponieren(tenantId: string) {
 
   const fahrten = await db.ride.findMany({
     where: { status: "VORGESCHLAGEN" },
-    select: { id: true, pickupAt: true, problems: true, prescription: true },
+    select: {
+      id: true,
+      pickupAt: true,
+      problems: true,
+      prescription: true,
+      transportType: true,
+      pickupPlace: { select: { treppe: true } },
+      dropoffPlace: { select: { treppe: true } },
+    },
     orderBy: { pickupAt: "asc" },
   });
 
@@ -70,18 +82,19 @@ export async function automatischDisponieren(tenantId: string) {
 
       for (let i = 0; i < optionen.length; i++) {
         const kandidat = optionen[i];
-        const [letztePosition, schicht, fruehereFahrtHeute] = await Promise.all([
+        const [letztePosition, schichten, fahrzeug, fruehereFahrtHeute] = await Promise.all([
           db.vehicleLocation.findFirst({
             where: { vehicleId: kandidat.vehicleId },
             orderBy: { at: "desc" },
           }),
-          db.shift.findFirst({
-            where: {
-              vehicleId: kandidat.vehicleId,
-              start: { lte: fahrt.pickupAt },
-              end: { gte: fahrt.pickupAt },
-            },
-            select: { onBreak: true, unavailable: true, start: true, end: true },
+          schichtenMitBesatzungLaden(db, {
+            vehicleId: kandidat.vehicleId,
+            start: { lte: fahrt.pickupAt },
+            end: { gte: fahrt.pickupAt },
+          }),
+          db.vehicle.findUnique({
+            where: { id: kandidat.vehicleId },
+            select: { id: true, wheelchairSpots: true, carryChair: true, stretcher: true },
           }),
           db.ride.findFirst({
             where: {
@@ -99,6 +112,11 @@ export async function automatischDisponieren(tenantId: string) {
             select: { id: true },
           }),
         ]);
+
+        // Bedingung 6: Schicht mit passender Besatzung bevorzugen; sonst die erste Schicht (dann
+        // scheitert Bedingung 4 oder 6 mit Grund).
+        const anforderung = fahrtAnforderung(fahrt);
+        const schicht = (fahrzeug && findeEinsatzSchicht(schichten, fahrzeug, fahrt.pickupAt, anforderung)) || schichten[0];
 
         const gpsAlterMinuten = letztePosition
           ? (jetzt.getTime() - letztePosition.at.getTime()) / 60_000
@@ -118,6 +136,10 @@ export async function automatischDisponieren(tenantId: string) {
           autoMode: settings.autoMode,
           jetzt,
           maxTageVoraus: settings.autoModeMaxDaysAhead,
+          besatzung:
+            schicht && fahrzeug
+              ? besatzungPruefen(anforderung, fahrzeug, schicht.besatzung ?? BESATZUNG_ALLEIN)
+              : { passt: false, grund: "Keine Schicht mit Besatzung zur Abholzeit" },
         });
 
         if (!ergebnis.erlaubt) {

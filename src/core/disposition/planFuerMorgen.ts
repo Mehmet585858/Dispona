@@ -14,6 +14,9 @@ import { sicherheitsbedingungenPruefen } from "./automodus";
 import { vorschlaegeBerechnen, type GeplanteFahrt } from "./vorschlagen";
 import { fehlerArt, jeEintragIsoliert } from "@/core/betrieb/cronLauf";
 import { AUTO_TECHNISCHER_FEHLER } from "./automatischDisponieren";
+import { BESATZUNG_ALLEIN, findeAktiveSchicht, findeEinsatzSchicht } from "./kandidaten";
+import { schichtenMitBesatzungLaden } from "./schichtenLaden";
+import { besatzungPruefen, fahrtAnforderung } from "@/core/shifts/besatzung";
 
 export async function planFuerMorgenBerechnen(tenantId: string) {
   const db = withTenant(tenantId);
@@ -30,9 +33,7 @@ export async function planFuerMorgenBerechnen(tenantId: string) {
   morgenEnde.setDate(morgenEnde.getDate() + 1);
 
   const fahrzeuge = await db.vehicle.findMany({ where: { active: true } });
-  const schichten = await db.shift.findMany({
-    where: { start: { lt: morgenEnde }, end: { gte: morgenStart } },
-  });
+  const schichten = await schichtenMitBesatzungLaden(db, { start: { lt: morgenEnde }, end: { gte: morgenStart } });
 
   const bereitsGeplantRoh = await db.ride.findMany({
     where: {
@@ -82,6 +83,7 @@ export async function planFuerMorgenBerechnen(tenantId: string) {
           appointmentAt: fahrt.appointmentAt,
           pickupOrt,
           dropoffOrt,
+          treppe: fahrt.pickupPlace.treppe || fahrt.dropoffPlace.treppe,
         },
         fahrzeuge,
         schichten,
@@ -139,20 +141,18 @@ export async function planFuerMorgenBerechnen(tenantId: string) {
         transportType: fahrt.transportType,
       });
 
-      const [letztePosition, schicht] = await Promise.all([
-        db.vehicleLocation.findFirst({
-          where: { vehicleId: bester.vehicleId },
-          orderBy: { at: "desc" },
-        }),
-        db.shift.findFirst({
-          where: {
-            vehicleId: bester.vehicleId,
-            start: { lte: fahrt.pickupAt },
-            end: { gte: fahrt.pickupAt },
-          },
-          select: { onBreak: true, unavailable: true, start: true, end: true },
-        }),
-      ]);
+      const letztePosition = await db.vehicleLocation.findFirst({
+        where: { vehicleId: bester.vehicleId },
+        orderBy: { at: "desc" },
+      });
+      // Bedingung 4 und 6 (Fahrer im Dienst, Besatzung passt) mit den schon geladenen Schichten
+      // samt Besatzung.
+      const bestesFahrzeug = fahrzeuge.find((f) => f.id === bester.vehicleId);
+      const anforderung = fahrtAnforderung(fahrt);
+      const schicht =
+        (bestesFahrzeug && findeEinsatzSchicht(schichten, bestesFahrzeug, fahrt.pickupAt, anforderung)) ||
+        findeAktiveSchicht(schichten, bester.vehicleId, fahrt.pickupAt) ||
+        schichten.find((s) => s.vehicleId === bester.vehicleId && s.start <= fahrt.pickupAt && s.end >= fahrt.pickupAt);
       const gpsAlterMinuten = letztePosition
         ? (jetzt.getTime() - letztePosition.at.getTime()) / 60_000
         : null;
@@ -174,6 +174,10 @@ export async function planFuerMorgenBerechnen(tenantId: string) {
         autoMode: settings.autoMode,
         jetzt,
         maxTageVoraus: settings.autoModeMaxDaysAhead,
+        besatzung:
+          schicht && bestesFahrzeug
+            ? besatzungPruefen(anforderung, bestesFahrzeug, schicht.besatzung ?? BESATZUNG_ALLEIN)
+            : { passt: false, grund: "Keine Schicht mit Besatzung zur Abholzeit" },
       });
 
       if (automodeErgebnis.erlaubt) {

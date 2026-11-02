@@ -10,6 +10,7 @@ import { fahrtEntzogenText } from "@/core/notify/texte";
 import { fahrerNachAenderungBenachrichtigen } from "@/core/rides/fahrerBenachrichtigen";
 import { geplantesEnde } from "@/core/shifts/dauer";
 import { SCHICHTPLAN_TEXTE } from "@/core/shifts/texte";
+import { besatzungAusSchicht, besatzungPruefen, fahrtAnforderung, type FahrtAnforderung } from "@/core/shifts/besatzung";
 import { pruefeFahrerImDienst } from "./automodus";
 
 /** Wird geworfen, wenn das Zielfahrzeug zur Abholzeit schon anderweitig eingeplant ist - von
@@ -26,28 +27,65 @@ export class FahrzeugKonfliktError extends Error {}
 export class KeinFahrerError extends Error {}
 
 /**
+ * Schichtplan (02.11.2026): Wird geworfen, wenn zwar ein einsatzfähiger Fahrer da ist, die Besatzung
+ * aber nicht zur Fahrt passt (z. B. Liegend ohne Beifahrer, Tragestuhl über Treppe allein ohne
+ * Scalamobil). Unterklasse von KeinFahrerError, damit alle bisherigen Aufrufer sie genauso als
+ * Meldung behandeln (Disponent sieht den Grund, Automodus nimmt den nächsten Kandidaten).
+ */
+export class BesatzungError extends KeinFahrerError {}
+
+/**
  * Bestimmt den Fahrer, der ein Fahrzeug zur Abholzeit tatsächlich fährt: Schicht läuft, Fahrer
  * nicht ausgefallen ("Ich falle aus"), nicht in Pause, nicht deaktiviert – dieselbe Regel wie
- * Sicherheitsbedingung 4 des Automodus (pruefeFahrerImDienst). Gibt es mehrere Schichten auf dem
- * Fahrzeug (z. B. Ersatzfahrer nach einem Ausfall), zählt die erste einsatzfähige. Ohne Treffer
- * KeinFahrerError mit dem Grund der zuletzt geprüften Schicht.
+ * Sicherheitsbedingung 4 des Automodus (pruefeFahrerImDienst). Mit `anforderung` muss zusätzlich
+ * die Besatzung der Schicht zur Fahrt passen (Sicherheitsbedingung 6, besatzungPruefen). Gibt es
+ * mehrere Schichten auf dem Fahrzeug (z. B. Ersatzfahrer nach einem Ausfall), zählt die erste
+ * passende. Ohne Treffer KeinFahrerError bzw. BesatzungError mit dem Grund der zuletzt geprüften
+ * Schicht. `anforderung: null` nur, wo bewusst nur der Fahrer gesucht wird.
  */
 export async function einsatzfaehigenFahrerFinden(
   db: TenantTx,
   vehicleId: string,
   pickupAt: Date,
+  anforderung: FahrtAnforderung | null,
 ): Promise<{ driverId: string }> {
   const schichten = await db.shift.findMany({
     where: { vehicleId, start: { lte: pickupAt }, end: { gte: pickupAt } },
-    select: { driverId: true, start: true, end: true, onBreak: true, unavailable: true, driver: { select: { active: true } } },
+    select: {
+      driverId: true,
+      start: true,
+      end: true,
+      onBreak: true,
+      unavailable: true,
+      scalamobil: true,
+      driver: { select: { active: true, scalamobilEinweisung: true } },
+      beifahrer: { select: { active: true } },
+    },
     orderBy: { start: "asc" },
   });
+  const fahrzeug = anforderung
+    ? await db.vehicle.findUnique({ where: { id: vehicleId }, select: { wheelchairSpots: true, carryChair: true, stretcher: true } })
+    : null;
   let grund = "Fahrer ist zur Abholzeit nicht im Dienst";
+  let besatzungFehlt = false;
   for (const schicht of schichten) {
     const ergebnis = schicht.driver.active ? pruefeFahrerImDienst(schicht, pickupAt) : { erlaubt: false, grund: "Fahrer ist deaktiviert" };
-    if (ergebnis.erlaubt) return { driverId: schicht.driverId };
-    grund = ergebnis.grund ?? grund;
+    if (!ergebnis.erlaubt) {
+      grund = ergebnis.grund ?? grund;
+      besatzungFehlt = false;
+      continue;
+    }
+    if (anforderung && fahrzeug) {
+      const besatzung = besatzungPruefen(anforderung, fahrzeug, besatzungAusSchicht(schicht));
+      if (!besatzung.passt) {
+        grund = besatzung.grund;
+        besatzungFehlt = true;
+        continue;
+      }
+    }
+    return { driverId: schicht.driverId };
   }
+  if (besatzungFehlt) throw new BesatzungError(grund);
   throw new KeinFahrerError(`${grund}. Erst eine Schicht für dieses Fahrzeug eintragen oder ein anderes Fahrzeug wählen.`);
 }
 
@@ -101,8 +139,8 @@ export async function fahrzeugZuweisen(
       driverId: true,
       transportType: true,
       problems: true,
-      pickupPlace: { select: { label: true, lat: true, lng: true } },
-      dropoffPlace: { select: { label: true, lat: true, lng: true } },
+      pickupPlace: { select: { label: true, lat: true, lng: true, treppe: true } },
+      dropoffPlace: { select: { label: true, lat: true, lng: true, treppe: true } },
     },
   });
   if (!fahrt) throw new Error("Fahrt nicht gefunden.");
@@ -171,7 +209,9 @@ export async function fahrzeugZuweisen(
     // mit driverId null. Der KeinFahrerError rollt die Transaktion zurück; zusätzlich lehnt die
     // Datenbank selbst jede DISPONIERT-Zeile ohne Fahrzeug und Fahrer ab (Migration
     // 20261031180000_disponiert_nur_mit_fahrer).
-    const schichtInTx = await einsatzfaehigenFahrerFinden(tx, vehicleId, fahrt.pickupAt);
+    // Schichtplan (02.11.2026): die Besatzung muss zur Fahrt passen (Liegend zu zweit, Tragestuhl
+    // über Treppe zu zweit oder mit Scalamobil) – sonst BesatzungError mit klarer Meldung.
+    const schichtInTx = await einsatzfaehigenFahrerFinden(tx, vehicleId, fahrt.pickupAt, fahrtAnforderung(fahrt));
 
     await tx.ride.update({
       where: { id: rideId },
