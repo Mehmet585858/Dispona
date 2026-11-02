@@ -10,37 +10,22 @@ import { SidePanel } from "@/components/ui/SidePanel";
 import { TextField } from "@/components/ui/TextField";
 import { besatzungsEtiketten } from "@/core/shifts/besatzung";
 import { besatzungVonPlanSchicht, tagLabel, zielTage, type GiltFuer, type PlanPerson, type SchichtEntwurf } from "@/core/shifts/schichtplan";
-import { tagKurzIso, uhrzeitBerlin, WOCHENTAG_LABEL, wochentagVonIso } from "@/core/shifts/week";
+import { tagKurzIso, WOCHENTAG_LABEL, wochentagVonIso } from "@/core/shifts/week";
 import { fahrzeugTypKurz } from "@/core/vehicles/validation";
 import type { BetroffeneFahrtAnzeige } from "@/core/shifts/schichtplanSpeichern";
-import { MONATE, schichtenAm, zeitText, type Fahrzeug, type Person, type Schicht } from "./anzeige";
+import {
+  entwuerfeAus,
+  leererEntwurf,
+  MONATE,
+  schichtenAm,
+  zeitText,
+  type EntwurfUi,
+  type Fahrzeug,
+  type Person,
+  type Schicht,
+} from "./anzeige";
 import { Etikett } from "./Wochenplan";
 import { SCHICHTPLAN_UI as T } from "./texte";
-
-export type EntwurfUi = SchichtEntwurf & { key: string; mitBeifahrer: boolean; faelltAus: boolean };
-
-let schluesselZaehler = 0;
-const neuerSchluessel = () => `e${++schluesselZaehler}`;
-
-/** Entwürfe aus den bestehenden, noch nicht begonnenen Schichten eines Fahrzeug-Tages. */
-export function entwuerfeAus(schichten: Schicht[]): EntwurfUi[] {
-  return schichten
-    .filter((s) => !s.startedAt)
-    .map((s) => ({
-      key: neuerSchluessel(),
-      von: uhrzeitBerlin(new Date(s.start)),
-      bis: uhrzeitBerlin(new Date(s.end)),
-      fahrerId: s.driverId,
-      beifahrerId: s.beifahrerId,
-      scalamobil: s.scalamobil,
-      mitBeifahrer: !!s.beifahrerId,
-      faelltAus: s.unavailable,
-    }));
-}
-
-export function leererEntwurf(von = "06:00", bis = "14:00"): EntwurfUi {
-  return { key: neuerSchluessel(), von, bis, fahrerId: "", beifahrerId: null, scalamobil: false, mitBeifahrer: false, faelltAus: false };
-}
 
 export type SpeichernAnfrage = { giltFuer: GiltFuer; entwuerfe: SchichtEntwurf[]; bestaetigteFahrten?: string[]; loeschen: boolean };
 
