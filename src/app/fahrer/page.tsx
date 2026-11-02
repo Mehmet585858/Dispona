@@ -27,6 +27,8 @@ export default async function FahrerPage() {
       fahrten={uebersicht.fahrten}
       laufendeSchichtId={uebersicht.laufendeSchichtId}
       gpsConsentAt={uebersicht.gpsConsentAt}
+      meinSchichtplan={uebersicht.meinSchichtplan}
+      heuteIso={uebersicht.heuteIso}
     />
   );
 }

@@ -13,6 +13,9 @@ import { GpsTracking } from "./GpsTracking";
 import { OfflineSync } from "./OfflineSync";
 import { PushAktivieren } from "./PushAktivieren";
 import { warteschlangeHinzufuegen } from "./warteschlange";
+import { MeinSchichtplan } from "./MeinSchichtplan";
+import { FAHRER_APP_TEXTE } from "./texte";
+import type { MeineSchicht } from "@/core/shifts/meinSchichtplan";
 
 type Ort = { label: string; street: string; zip: string; city: string; lat: number; lng: number };
 
@@ -98,18 +101,24 @@ export function FahrerClient({
   fahrten,
   laufendeSchichtId,
   gpsConsentAt,
+  meinSchichtplan = [],
+  heuteIso = "",
 }: {
   name: string;
   schichten: Schicht[];
   fahrten: FahrerFahrt[];
   laufendeSchichtId: string | null;
   gpsConsentAt: Date | string | null;
+  meinSchichtplan?: MeineSchicht[];
+  heuteIso?: string;
 }) {
   const [istLaufend, startTransition] = useTransition();
   const [aktuelleFahrten, setAktuelleFahrten] = useState(fahrten);
   const [problemOffen, setProblemOffen] = useState(false);
 
   const laufendeSchicht = schichten.find((s) => s.id === laufendeSchichtId) ?? null;
+  // Schichtplan: wer heute nur als Beifahrer eingeteilt ist, bekommt keine Fahrten – aber einen Hinweis.
+  const heuteAlsBeifahrer = meinSchichtplan.find((s) => s.rolle === "BEIFAHRER" && s.tagIso === heuteIso) ?? null;
   const schichtAktiv = Boolean(laufendeSchicht?.startedAt && !laufendeSchicht?.endedAt);
 
   const aktiveFahrten = useMemo(
@@ -245,6 +254,10 @@ export function FahrerClient({
               </>
             )}
           </div>
+        ) : heuteAlsBeifahrer ? (
+          <p className="mt-4 text-sm text-ink-soft">
+            {FAHRER_APP_TEXTE.heuteBeifahrer(heuteAlsBeifahrer.plate, heuteAlsBeifahrer.von, heuteAlsBeifahrer.bis, heuteAlsBeifahrer.kollege)}
+          </p>
         ) : (
           <p className="mt-4 text-sm text-ink-soft">Heute ist keine Schicht für Sie eingetragen.</p>
         )}
@@ -394,6 +407,8 @@ export function FahrerClient({
           </div>
         </section>
       ) : null}
+
+      <MeinSchichtplan schichten={meinSchichtplan} />
     </main>
   );
 }

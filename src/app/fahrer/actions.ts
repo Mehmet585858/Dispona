@@ -8,6 +8,7 @@ import { fahrerFaelltAusKern } from "@/core/rides/fahrerAusfall";
 import { berlinerMitternacht, datumIso, tagVerschieben } from "@/core/shifts/week";
 import { gpsPositionSchema } from "@/core/drivers/validation";
 import { pushAboSpeichern } from "@/core/notify/push";
+import { meineSchichtenLaden } from "@/core/shifts/meinSchichtplan";
 import type { RideStatus } from "@/generated/prisma/enums";
 
 async function eigenerFahrer(tenantId: string, userId: string) {
@@ -34,7 +35,7 @@ export async function fahrerUebersichtLaden() {
   const heute = berlinerMitternacht(heuteIso);
   const uebermorgen = berlinerMitternacht(tagVerschieben(heuteIso, 2));
 
-  const [schichten, fahrten] = await Promise.all([
+  const [schichten, fahrten, meinSchichtplan] = await Promise.all([
     db.shift.findMany({
       where: { driverId: fahrer.id, start: { lt: uebermorgen }, end: { gte: heute } },
       include: { vehicle: { select: { plate: true } } },
@@ -53,6 +54,9 @@ export async function fahrerUebersichtLaden() {
       },
       orderBy: { pickupAt: "asc" },
     }),
+    // Schichtplan (02.11.2026): eigene Schichten der nächsten 4 Wochen, als Fahrer oder Beifahrer.
+    // Fahrten oben bleiben nur beim Fahrer (driverId) – Beifahrer bekommen keine aufs Handy.
+    meineSchichtenLaden(tenantId, fahrer.id),
   ]);
 
   const jetzt = new Date();
@@ -71,6 +75,8 @@ export async function fahrerUebersichtLaden() {
     fahrten: fahrtenOhneAltdaten,
     laufendeSchichtId: laufendeSchicht?.id ?? null,
     gpsConsentAt: fahrer.gpsConsentAt,
+    meinSchichtplan,
+    heuteIso,
   };
 }
 
