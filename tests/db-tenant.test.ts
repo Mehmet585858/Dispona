@@ -314,6 +314,32 @@ describe("withTenant – Fremdschlüssel über die Mandantengrenze (M-11)", () =
     );
   });
 
+  it("Schichtplan: Beifahrer eines anderen Mandanten wird abgelehnt (create, update, roher Client)", async () => {
+    const db = withTenant(a);
+    const jetzt = new Date();
+    const ende = new Date(jetzt.getTime() + 3600_000);
+    await expect(
+      db.shift.create({ data: { tenantId: a, driverId: driverA, beifahrerId: driverB, vehicleId: vehicleA, start: jetzt, end: ende } }),
+    ).rejects.toThrow(/Beifahrer nicht gefunden/);
+    await expect(
+      prisma.shift.create({ data: { tenantId: a, driverId: driverA, beifahrerId: driverB, vehicleId: vehicleA, start: jetzt, end: ende } }),
+    ).rejects.toThrow();
+    const eigene = await db.shift.create({ data: { tenantId: a, driverId: driverA, vehicleId: vehicleA, start: jetzt, end: ende } });
+    await expect(db.shift.update({ where: { id: eigene.id }, data: { beifahrerId: driverB } })).rejects.toBeInstanceOf(FremdeReferenzError);
+    expect((await prisma.shift.findUniqueOrThrow({ where: { id: eigene.id } })).beifahrerId).toBeNull();
+    await prisma.shift.delete({ where: { id: eigene.id } });
+  });
+
+  it("Schichtplan: Fahrer und Beifahrer dürfen in der Datenbank nicht dieselbe Person sein", async () => {
+    const jetzt = new Date();
+    await expect(
+      prisma.shift.create({
+        data: { tenantId: a, driverId: driverA, beifahrerId: driverA, vehicleId: vehicleA, start: jetzt, end: new Date(jetzt.getTime() + 3600_000) },
+      }),
+    ).rejects.toThrow();
+    expect(await prisma.shift.count({ where: { tenantId: a, beifahrerId: driverA } })).toBe(0);
+  });
+
   it("M-11: auch der rohe Client (ohne withTenant) kann keine Fahrt an einen fremden Fahrgast hängen", async () => {
     await expect(prisma.ride.create({ data: { tenantId: a, ...fahrtDaten(passengerB, placeA, placeA) } })).rejects.toThrow();
     expect(await prisma.ride.count({ where: { tenantId: a } })).toBe(1);

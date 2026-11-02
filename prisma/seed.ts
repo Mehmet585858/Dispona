@@ -1,6 +1,14 @@
 import "dotenv/config";
 import { randomUUID } from "node:crypto";
-import { berlinerMitternacht, datumIso, mitUhrzeit, tagVerschieben } from "../src/core/shifts/week";
+import {
+  berlinerMitternacht,
+  datumIso,
+  mitUhrzeit,
+  tagVerschieben,
+  wochenStart,
+  wochenTage,
+  wochentagBerlin,
+} from "../src/core/shifts/week";
 import { prisma } from "../src/lib/prisma";
 import { fahrtErfassen } from "../src/core/rides/erfassen";
 import { mandantKomplettLoeschen, seedZielPruefen } from "../src/lib/seedSchutz";
@@ -46,6 +54,8 @@ async function main() {
           openingHours: { "mo-fr": "07:00-18:00", sa: "08:00-13:00" },
           serviceAreaCenter: { lat: 50.7753, lng: 6.0839 },
           serviceAreaKm: 30,
+          // Schichtplan: ein Scalamobil (Treppensteiger) im Betrieb.
+          scalamobilAnzahl: 1,
           depotAddress: {
             street: "Industriestraße 8",
             zip: "52499",
@@ -117,15 +127,19 @@ async function main() {
     fahrzeuge.push(await prisma.vehicle.create({ data: { tenantId: tenant.id, ...daten } }));
   }
 
-  console.log("Lege 4 Fahrer mit Schichten heute und morgen an …");
-  const fahrerDaten = [
-    { name: "Fatih Fahrer", email: "fatih@muster-krankenfahrten.de", phone: "+491701000001" },
-    { name: "Petra Pilot", email: "petra@muster-krankenfahrten.de", phone: "+491701000002" },
-    { name: "Said Steuer", email: "said@muster-krankenfahrten.de", phone: "+491701000003" },
-    { name: "Nina Navi", email: "nina@muster-krankenfahrten.de", phone: "+491701000004" },
+  console.log("Lege 4 Fahrer und 2 Aushilfen an …");
+  // Schichtplan: Said und Petra haben die Scalamobil-Einweisung; Ben und Lea sind Aushilfen
+  // (melden sich wie Fahrer per Einmal-Link an und fahren meist als Beifahrer mit).
+  const personalDaten = [
+    { name: "Fatih Fahrer", email: "fatih@muster-krankenfahrten.de", phone: "+491701000001", aushilfe: false, einweisung: false },
+    { name: "Petra Pilot", email: "petra@muster-krankenfahrten.de", phone: "+491701000002", aushilfe: false, einweisung: true },
+    { name: "Said Steuer", email: "said@muster-krankenfahrten.de", phone: "+491701000003", aushilfe: false, einweisung: true },
+    { name: "Nina Navi", email: "nina@muster-krankenfahrten.de", phone: "+491701000004", aushilfe: false, einweisung: false },
+    { name: "Ben Bauer", email: "ben@muster-krankenfahrten.de", phone: "+491701000005", aushilfe: true, einweisung: false },
+    { name: "Lea Lange", email: "lea@muster-krankenfahrten.de", phone: "+491701000006", aushilfe: true, einweisung: false },
   ];
   const fahrer = [];
-  for (const [index, daten] of fahrerDaten.entries()) {
+  for (const daten of personalDaten) {
     const user = await prisma.user.create({
       data: {
         id: randomUUID(),
@@ -138,28 +152,43 @@ async function main() {
       },
     });
     const driver = await prisma.driver.create({
-      data: { tenantId: tenant.id, userId: user.id },
+      data: { tenantId: tenant.id, userId: user.id, istAushilfe: daten.aushilfe, scalamobilEinweisung: daten.einweisung },
     });
-    const vehicle = fahrzeuge[index];
-    await prisma.shift.create({
-      data: {
-        tenantId: tenant.id,
-        driverId: driver.id,
-        vehicleId: vehicle.id,
-        start: uhrzeit(heute, 6),
-        end: uhrzeit(heute, 14),
-      },
-    });
-    await prisma.shift.create({
-      data: {
-        tenantId: tenant.id,
-        driverId: driver.id,
-        vehicleId: vehicle.id,
-        start: uhrzeit(morgen(), 6),
-        end: uhrzeit(morgen(), 14),
-      },
-    });
-    fahrer.push({ user, driver, vehicle });
+    fahrer.push({ user, driver });
+  }
+  const [fatih, petra, said, nina, ben, lea] = fahrer.map((f) => f.driver.id);
+
+  console.log("Lege Beispielschichten an (diese und nächste Woche, Montag bis Freitag, dazu heute und morgen) …");
+  // Je Fahrzeug eine feste Besatzung, wie im Schichtplan der Vorschau: AC-MK 201 mit Scalamobil,
+  // AC-MK 301 mit Beifahrer (Tragestuhl über Treppen), AC-MK 401 nachmittags zu zweit (Liegend).
+  const muster = [
+    { fahrzeug: 0, fahrerId: fatih, beifahrerId: null, scalamobil: false, von: 6, bis: 14 },
+    { fahrzeug: 1, fahrerId: petra, beifahrerId: null, scalamobil: false, von: 6, bis: 14 },
+    { fahrzeug: 2, fahrerId: said, beifahrerId: null, scalamobil: true, von: 6, bis: 14 },
+    { fahrzeug: 3, fahrerId: nina, beifahrerId: ben, scalamobil: false, von: 6, bis: 14 },
+    { fahrzeug: 4, fahrerId: petra, beifahrerId: lea, scalamobil: false, von: 14, bis: 20 },
+  ];
+  const montag = wochenStart(heute);
+  const planTage = new Map<string, Date>();
+  for (const tag of [...wochenTage(montag), ...wochenTage(berlinerMitternacht(tagVerschieben(datumIso(montag), 7)))]) {
+    if (wochentagBerlin(tag) <= 4) planTage.set(datumIso(tag), tag);
+  }
+  planTage.set(datumIso(heute), heute);
+  planTage.set(datumIso(morgen()), morgen());
+  for (const tag of planTage.values()) {
+    for (const m of muster) {
+      await prisma.shift.create({
+        data: {
+          tenantId: tenant.id,
+          driverId: m.fahrerId,
+          beifahrerId: m.beifahrerId,
+          scalamobil: m.scalamobil,
+          vehicleId: fahrzeuge[m.fahrzeug].id,
+          start: uhrzeit(tag, m.von),
+          end: uhrzeit(tag, m.bis),
+        },
+      });
+    }
   }
 
   console.log("Lege 10 bekannte Orte in der Region Aachen an …");
@@ -172,6 +201,7 @@ async function main() {
       lat: 50.7765,
       lng: 6.0875,
       type: "PRAXIS" as const,
+      treppe: true,
     },
     {
       label: "Praxis Dr. Keller",
@@ -235,6 +265,7 @@ async function main() {
       lat: 50.9078,
       lng: 6.185,
       type: "PFLEGEHEIM" as const,
+      treppe: true,
     },
     {
       label: "Praxis Dr. Berg",
@@ -244,6 +275,7 @@ async function main() {
       lat: 50.7977,
       lng: 6.0631,
       type: "PRAXIS" as const,
+      treppe: true,
     },
     {
       label: "Klinik am Europaplatz",
@@ -321,6 +353,7 @@ async function main() {
   console.log(`  Admin:      ${admin.email}  (E-Mail-Code)`);
   console.log(`  Disponent:  disponent1@muster-krankenfahrten.de  (E-Mail-Code)`);
   console.log(`  Fahrer:     ${fahrer[0].user.email}  (Einmal-Link)`);
+  console.log(`  Aushilfe:   ${fahrer[4].user.email}  (Einmal-Link)`);
 }
 
 main()

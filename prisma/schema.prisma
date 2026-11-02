@@ -150,6 +150,8 @@ model TenantSettings {
   exportTemplate       Json?
   audioRetentionDays   Int       @default(30)
   dataRetentionDays    Int       @default(3650)
+  // Schichtplan (02.11.2026): wie viele Scalamobile (Treppensteiger) der Betrieb hat.
+  scalamobilAnzahl     Int       @default(0)
 }
 
 model PhoneNumber {
@@ -187,18 +189,26 @@ model Vehicle {
 }
 
 model Driver {
-  id                String             @id @default(cuid())
-  tenantId          String
-  tenant            Tenant             @relation(fields: [tenantId], references: [id])
-  userId            String             @unique
-  user              User               @relation(fields: [userId], references: [id])
-  shifts            Shift[]
-  pushSubscriptions PushSubscription[]
-  gpsConsentAt      DateTime?
+  id                   String             @id @default(cuid())
+  tenantId             String
+  tenant               Tenant             @relation(fields: [tenantId], references: [id])
+  userId               String             @unique
+  user                 User               @relation(fields: [userId], references: [id])
+  shifts               Shift[]            @relation("SchichtFahrer")
+  // Schichtplan (02.11.2026): dieselbe Person kann in anderen Schichten Beifahrer sein.
+  beifahrerSchichten   Shift[]            @relation("SchichtBeifahrer")
+  pushSubscriptions    PushSubscription[]
+  gpsConsentAt         DateTime?
   // Maßnahme M-12 (Offboarding): deaktivierte Fahrer haben keine Sitzung, kein Push, keine
   // Schicht und tauchen in keinem Vorschlag auf (src/core/drivers/deaktivieren.ts).
-  active            Boolean            @default(true)
-  deactivatedAt     DateTime?
+  active               Boolean            @default(true)
+  deactivatedAt        DateTime?
+  // Schichtplan (02.11.2026): Aushilfen nutzen dasselbe Modell (Anmeldung per Einmal-Link wie
+  // Fahrer), sind aber als Aushilfe gekennzeichnet. Sie können Fahrer oder Beifahrer sein.
+  istAushilfe          Boolean            @default(false)
+  // Einweisung für das Scalamobil (elektrischer Treppensteiger). Nur wer eingewiesen ist, darf
+  // einen Fahrgast allein mit dem Scalamobil über eine Treppe bringen (src/core/shifts/besatzung.ts).
+  scalamobilEinweisung Boolean            @default(false)
 }
 
 model PushSubscription {
@@ -218,7 +228,15 @@ model Shift {
   id          String    @id @default(cuid())
   tenantId    String
   driverId    String
-  driver      Driver    @relation(fields: [driverId], references: [id])
+  driver      Driver    @relation("SchichtFahrer", fields: [driverId], references: [id])
+  // Schichtplan (02.11.2026): optionaler Beifahrer (zweite Person, z. B. für Liegend-Fahrten). Nicht
+  // zu verwechseln mit Ride.companion (Begleitperson des Fahrgasts). Beifahrer bekommen keine
+  // Fahrten aufs Handy – die bleiben beim Fahrer.
+  beifahrerId String?
+  beifahrer   Driver?   @relation("SchichtBeifahrer", fields: [beifahrerId], references: [id])
+  // Scalamobil (Treppensteiger) in dieser Schicht an Bord. Das Gerät wird zwischen Fahrzeugen
+  // getauscht – deshalb pro Schicht. Gleichzeitig höchstens TenantSettings.scalamobilAnzahl.
+  scalamobil  Boolean   @default(false)
   vehicleId   String
   vehicle     Vehicle   @relation(fields: [vehicleId], references: [id])
   start       DateTime
@@ -229,6 +247,7 @@ model Shift {
   unavailable Boolean   @default(false)
 
   @@index([tenantId])
+  @@index([tenantId, vehicleId, start])
 }
 
 model VehicleLocation {
@@ -283,6 +302,9 @@ model Place {
   lng          Float
   type         PlaceType
   usageCount   Int       @default(0)
+  // Schichtplan (02.11.2026): an diesem Ort ist eine Treppe zu bewältigen (Tragestuhl-Fahrten
+  // brauchen dann 2 Personen oder ein Scalamobil, docs/05-disposition.md).
+  treppe       Boolean   @default(false)
   pickupRides  Ride[]    @relation("RidePickup")
   dropoffRides Ride[]    @relation("RideDropoff")
 }

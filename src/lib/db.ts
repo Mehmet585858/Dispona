@@ -198,6 +198,7 @@ const SPALTEN_LABEL: Record<string, string> = {
   vehicleId: "Fahrzeug",
   chosenVehicleId: "Fahrzeug",
   driverId: "Fahrer",
+  beifahrerId: "Beifahrer",
   rideId: "Fahrt",
   returnOfId: "Fahrt",
   seriesId: "Serie",
