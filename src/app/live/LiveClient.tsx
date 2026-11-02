@@ -23,7 +23,9 @@ const DEMO_TELEFONNUMMER = process.env.NEXT_PUBLIC_DEMO_PHONE ?? null;
 // Konto auf Seiten zu schicken, die sie sofort zum Login zurückwerfen würden.
 const NAVIGATION = [
   { href: "/dispo", label: "Dashboard" },
+  { href: "/dispo/schichtplan", label: "Schichtplan" },
   { href: "/dispo/fahrzeuge", label: "Fahrzeuge" },
+  { href: "/dispo/fahrer", label: "Personal" },
   { href: "/dispo/fahrgaeste", label: "Fahrgäste" },
   { href: "/dispo/orte", label: "Orte" },
   { href: "/dispo/anrufe", label: "Anrufe" },
