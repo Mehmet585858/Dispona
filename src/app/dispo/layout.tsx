@@ -7,7 +7,9 @@ import { getServerSession } from "@/lib/session";
 
 const navigation = [
   { href: "/dispo", label: "Dashboard" },
+  { href: "/dispo/schichtplan", label: "Schichtplan" },
   { href: "/dispo/fahrzeuge", label: "Fahrzeuge" },
+  { href: "/dispo/fahrer", label: "Personal" },
   { href: "/dispo/fahrgaeste", label: "Fahrgäste" },
   { href: "/dispo/orte", label: "Orte" },
   { href: "/dispo/anrufe", label: "Anrufe" },

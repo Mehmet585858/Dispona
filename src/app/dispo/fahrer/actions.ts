@@ -2,19 +2,12 @@
 
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
-import { referenzenPruefen, withTenant } from "@/lib/db";
+import { withTenant } from "@/lib/db";
 import { requireAdminSession, requireBueroSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import {
-  fahrerEinladenSchema,
-  schichtMusterSchema,
-  technischeFahrerEmail,
-  type FahrerEinladenEingabe,
-  type SchichtMusterEingabe,
-} from "@/core/drivers/validation";
-import { berlinerMitternacht, wochenTage } from "@/core/shifts/week";
-import { schichtZeitraum } from "@/core/shifts/dauer";
+import { fahrerEinladenSchema, technischeFahrerEmail, type FahrerEinladenEingabe } from "@/core/drivers/validation";
 import { fahrerDeaktivieren as fahrerDeaktivierenKern } from "@/core/drivers/deaktivieren";
+import { scalamobilEinweisungSetzen } from "@/core/shifts/schichtplanSpeichern";
 
 export async function fahrerLaden() {
   const { tenantId } = await requireBueroSession();
@@ -30,18 +23,6 @@ export async function fahrzeugeFuerAuswahl() {
     where: { active: true },
     orderBy: { plate: "asc" },
     select: { id: true, plate: true, wheelchairSpots: true, carryChair: true, stretcher: true },
-  });
-}
-
-export async function schichtenFuerWoche(montagIso: string) {
-  const { tenantId } = await requireBueroSession();
-  const montag = berlinerMitternacht(montagIso);
-  const sonntagEnde = new Date(montag);
-  sonntagEnde.setDate(sonntagEnde.getDate() + 7);
-  return withTenant(tenantId).shift.findMany({
-    where: { start: { gte: montag, lt: sonntagEnde } },
-    include: { vehicle: { select: { plate: true } } },
-    orderBy: { start: "asc" },
   });
 }
 
@@ -67,48 +48,32 @@ export async function fahrerEinladen(
         emailVerified: true,
       },
     });
-    await tx.driver.create({ data: { tenantId, userId: user.id } });
+    // Aushilfen nutzen dasselbe Modell – der Einmal-Link-Login funktioniert damit unverändert.
+    await tx.driver.create({ data: { tenantId, userId: user.id, istAushilfe: daten.istAushilfe } });
   });
   revalidatePath("/dispo/fahrer");
+  revalidatePath("/dispo/schichtplan");
   return { email };
 }
 
-export async function schichtMusterAnlegen(eingabe: SchichtMusterEingabe, montagIso: string) {
+/** Als Aushilfe kennzeichnen oder nicht (Personalliste). */
+export async function aushilfeSetzen(driverId: string, istAushilfe: boolean) {
   const { tenantId } = await requireBueroSession();
-  const daten = schichtMusterSchema.parse(eingabe);
-  const tage = wochenTage(berlinerMitternacht(montagIso));
-  const db = withTenant(tenantId);
-  // Prüfbericht S2-008: Fahrer und Fahrzeug müssen zu diesem Mandanten gehören.
-  await referenzenPruefen(tenantId, { driver: [daten.driverId], vehicle: [daten.vehicleId] });
-  // Maßnahme M-12: für deaktivierte Fahrer keine neuen Schichten (sonst wären sie wieder Kandidat).
-  const fahrer = await db.driver.findUnique({ where: { id: daten.driverId }, select: { active: true } });
-  if (!fahrer?.active) throw new Error("Dieser Fahrer ist deaktiviert.");
-
-  for (const wochentagIndex of daten.wochentage) {
-    const tag = tage[wochentagIndex];
-    // Maßnahme M-18: Endzeit vor Startzeit -> Ende am Folgetag (Nachtschicht).
-    const { start, end } = schichtZeitraum(tag, daten.start, daten.end);
-
-    // Keine doppelte Schicht anlegen, wenn für diesen Fahrer an dem Tag schon eine
-    // überlappende Schicht existiert (z. B. weil "Für diese Woche anlegen" zweimal
-    // angeklickt wurde).
-    const ueberlappend = await db.shift.findFirst({
-      where: { driverId: daten.driverId, start: { lt: end }, end: { gt: start } },
-      select: { id: true },
-    });
-    if (ueberlappend) continue;
-
-    await db.shift.create({
-      data: { tenantId, driverId: daten.driverId, vehicleId: daten.vehicleId, start, end },
-    });
-  }
+  await withTenant(tenantId).driver.update({ where: { id: driverId }, data: { istAushilfe: istAushilfe === true } });
   revalidatePath("/dispo/fahrer");
+  revalidatePath("/dispo/schichtplan");
 }
 
-export async function schichtLöschen(id: string) {
-  const { tenantId } = await requireBueroSession();
-  await withTenant(tenantId).shift.delete({ where: { id } });
+/**
+ * Scalamobil-Einweisung setzen oder entfernen. Entfernen wird abgelehnt (mit Meldung), solange
+ * dieser Person Fahrten mit Treppe zugewiesen sind, die nur über das Scalamobil gehen.
+ */
+export async function einweisungSetzen(driverId: string, wert: boolean): Promise<{ ok: true } | { ok: false; fehler: string }> {
+  const { tenantId, userId } = await requireBueroSession();
+  const ergebnis = await scalamobilEinweisungSetzen(tenantId, driverId, wert === true, userId);
   revalidatePath("/dispo/fahrer");
+  revalidatePath("/dispo/schichtplan");
+  return ergebnis;
 }
 
 export async function fahrerImportieren(
@@ -192,6 +157,7 @@ export async function fahrerDeaktivieren(driverId: string) {
   const { tenantId, userId } = await requireAdminSession();
   const ergebnis = await fahrerDeaktivierenKern(tenantId, driverId, userId);
   revalidatePath("/dispo/fahrer");
+  revalidatePath("/dispo/schichtplan");
   revalidatePath("/dispo");
   return ergebnis;
 }

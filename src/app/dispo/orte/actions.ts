@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { withTenant } from "@/lib/db";
 import { requireBueroSession } from "@/lib/session";
 import { ortSchema, PLACE_TYPES, type OrtEingabe } from "@/core/places/validation";
+import { textZuJaNein } from "@/core/vehicles/validation";
 
 export async function orteLaden() {
   const { tenantId } = await requireBueroSession();
@@ -56,6 +57,7 @@ export async function orteImportieren(
       lat: zeile.lat,
       lng: zeile.lng,
       type: PLACE_TYPES.includes(typRoh as (typeof PLACE_TYPES)[number]) ? typRoh : "SONSTIGES",
+      treppe: textZuJaNein(zeile.treppe),
     });
     if (!ergebnis.success) {
       fehler.push(`Zeile ${index + 2}: ${ergebnis.error.issues[0]?.message ?? "ungültig"}`);

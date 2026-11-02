@@ -240,6 +240,22 @@ Responsiv: `flex-wrap`. Unter ca. 1000 px rutscht das Seitenpanel nach unten, di
 - Wiederverwendbare Komponenten: `Button`, `Pill`, `InfoTag`, `StatusDot`, `KpiTile`, `Card`, `DataTable`, `Modal` (bisher `DetailModal` genannt, jetzt als allgemeines Überlagerungs-Fenster gebaut: `src/components/ui/Modal.tsx`, genutzt für Fahrt-Details und Formulare), `FieldGrid`, `ProgressSteps`, `LivePanel`, `EmptyState`, `TransportBadge`, `TripChip`.
 - Neue Seiten werden **nur** aus diesen Komponenten gebaut. Fehlt etwas, wird zuerst die Komponente ergänzt und hier dokumentiert.
 
+**Ergänzt am 02.11.2026 (Schichtplan, `src/components/ui/`):**
+
+| Baustein | Datei | Zweck / Regeln |
+|---|---|---|
+| `SidePanel` | `SidePanel.tsx` | Seitenfenster von rechts (max. 460 px, am Handy volle Breite) zum Bearbeiten, ohne die Seite zu verlassen. Kopf: Meta-Zeile in Mono, Titel 22 px, „×“. Fuß bleibt unten (Primär links, Leise daneben, Gefahr rechts außen). `role="dialog"`, Fokusfalle, Esc und Klick auf den Hintergrund schließen, Fokus springt zurück (gemeinsamer Hook `src/hooks/useFokusfalle.ts`, auch von `Modal` genutzt). |
+| `Toast` | `Toast.tsx` | Schwebende Meldung unten mittig („gespeichert“) mit optionaler Aktion „Rückgängig“; `role="status"`, `aria-live="polite"`, verschwindet nach 8 s. |
+| `SelectField` | `SelectField.tsx` | Auswahlfeld mit Beschriftung darüber, 44 px, Radius 10, Fehler darunter in Rot. |
+| `CheckboxField` | `CheckboxField.tsx` | Häkchen mit Beschriftung daneben (44 px Klickfläche), optional Hinweis darunter. |
+| `RadioGroup` | `RadioGroup.tsx` | Wenige Möglichkeiten als umrandete Zeilen mit echten Radio-Knöpfen (z. B. „Gilt für“); gewählte Zeile in `--accent-soft`. |
+| `IconButton` | `IconButton.tsx` | Quadratischer Symbol-Knopf (‹ ›), `aria-label` Pflicht. |
+| `StatusDot` | `StatusDot.tsx` | Status-Pille: Punkt 8 px + Text, Töne neutral / ok / warn (z. B. „Im Dienst bis 14:00“). |
+| `Hinweisbox` | `Hinweisbox.tsx` | Kasten „warn“ (Orange, Handlungsbedarf, z. B. „3 Fahrten liegen in dieser Schicht“) oder „fehler“ (Rot, Formularfehler, `role="alert"`). |
+
+Neue Tokens in `src/app/globals.css` (aus der freigegebenen Schichtplan-Vorschau): `--color-ok-dot` (`#5E8C6A`), `--color-ok-strong` (`#4E7559`, „alle Fahrzeuge besetzt“ mit weißer Zahl – dunkler als in der Vorschau, damit Kontrast ≥ 4,5:1), `--color-ok-mid` (`#B9D3C0`, „teilweise“), `--color-ok-bd` (`#C5DACB`, Rahmen eines Schicht-Chips), `--color-weekend` (`#F3F4F7`), `--color-danger-bd` (`#F3C9C4`).
+Seitenspezifische Zusammensetzungen des Schichtplans (Monatskalender, Wochenplan, „Heute“, Seitenfenster-Inhalt) liegen in `src/app/dispo/schichtplan/` und sind nur aus diesen Bausteinen gebaut. Ausnahme laut Vorschau: leere Wochenzellen „+ Schicht planen“ sind gestrichelt umrandet – dort bedeutet gestrichelt „freier Platz“, nicht „Vorschlag“.
+
 ---
 
 ## 11. Checkliste für jede neue Seite

@@ -1,14 +1,44 @@
-/** Oberflächentexte der Fahrerverwaltung (du-los, sachlich – docs/DESIGN-GUIDE.md Abschnitt 8). */
+/** Oberflächentexte der Personalverwaltung (du-los, sachlich – docs/DESIGN-GUIDE.md Abschnitt 8). */
 export const FAHRER_TEXTE = {
-  einladungGesendet: "Fahrer angelegt. Der Anmelde-Link wurde per SMS an die Handynummer gesendet.",
+  titel: "Personal",
+  untertitel: "Fahrer und Aushilfen. Schichten werden im Schichtplan geplant.",
+  zumSchichtplan: "Zum Schichtplan",
+  einladen: "Person einladen",
+  einladenTitel: "Person einladen",
+  name: "Name",
+  handy: "Handynummer",
+  aushilfe: "Aushilfe",
+  aushilfeHinweis: "Fährt als Fahrer oder Beifahrer mit. Anmeldung wie Fahrer per Einmal-Link.",
+  einladenKnopf: "Einladen",
+  einladungGesendet: "Angelegt. Der Anmelde-Link wurde per SMS an die Handynummer gesendet.",
   einladungOhneLink: (grund: string) =>
-    `Fahrer angelegt, aber der Anmelde-Link konnte nicht gesendet werden: ${grund} Der Link lässt sich auf der Anmeldeseite erneut anfordern.`,
+    `Angelegt, aber der Anmelde-Link konnte nicht gesendet werden: ${grund} Der Link lässt sich auf der Anmeldeseite erneut anfordern.`,
   einladungFehler: "Konnte nicht angelegt werden. Handynummer schon vergeben?",
+
+  spalteName: "Name",
+  spalteRolle: "Rolle",
+  spalteEinweisung: "Einweisung Scalamobil",
+  spalteStatus: "Status",
+  rolleFahrer: "Fahrer",
+  rolleAushilfe: "Aushilfe",
+  aktiv: "Aktiv",
+  einweisungLabel: (name: string) => `Einweisung Scalamobil für ${name}`,
+  aushilfeLabel: (name: string) => `${name} ist Aushilfe`,
+  aenderungFehler: "Konnte nicht gespeichert werden.",
+  keinPersonal: "Noch niemand angelegt. Fahrer und Aushilfen per SMS-Link einladen.",
+
+  geraeteTitel: "Geräte verwalten",
+  geraeteHinweis: "Ein abgemeldetes Gerät braucht beim nächsten Öffnen wieder einen neuen Anmelde-Link.",
+  person: "Person",
+  geraeteAnzeigen: "Geräte anzeigen",
+  geraeteLaedt: "Lädt …",
+  keineGeraete: "Keine angemeldeten Geräte.",
+  zuletztAktiv: (wann: string) => `Zuletzt aktiv ${wann}`,
+  abmelden: "Abmelden",
+
   deaktivieren: "Deaktivieren",
-  deaktivierenBestaetigen: "Wirklich deaktivieren? Geräte werden abgemeldet, offene Fahrten neu geplant.",
+  deaktivierenBestaetigen: "Wirklich deaktivieren? Geräte werden abgemeldet, offene Fahrten neu geplant, Schichten als Beifahrer ausgetragen.",
   deaktiviert: "Deaktiviert",
   deaktivierenFehler: "Konnte nicht deaktiviert werden.",
-  /** Maßnahme M-18: Nachtschicht über Mitternacht. */
-  endeFolgetag: (ende: string) => `Bis ${ende} am Folgetag.`,
-  folgetagKurz: "(Folgetag)",
+  nurAdmin: "Nur Admins können deaktivieren.",
 };

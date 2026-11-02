@@ -30,6 +30,13 @@
   --color-danger-ink: #b42318; /* --danger: nur zerstörende Aktionen und Formularfehler */
   --color-ok-bg: #eef3ef;
   --color-ok-ink: #2f4a36;
+  /* Schichtplan (02.11.2026, freigegebene Vorschau): Erfolg-Abstufungen für Füllgrad und Schicht-Chips. */
+  --color-ok-dot: #5e8c6a; /* --ok-dot: Status-Punkt "im Dienst" */
+  --color-ok-strong: #4e7559; /* "alle Fahrzeuge besetzt" mit weißer Zahl – dunkler als ok-dot, damit 4,5:1 Kontrast */
+  --color-ok-mid: #b9d3c0; /* "teilweise besetzt" im Monatskalender */
+  --color-ok-bd: #c5dacb; /* Rahmen eines geplanten Schicht-Chips */
+  --color-weekend: #f3f4f7; /* Wochenend-Spalten im Wochenplan */
+  --color-danger-bd: #f3c9c4; /* Rahmen des Fehlerkastens */
 }
 
 @theme inline {
@@ -54,6 +61,12 @@
   --color-danger-ink: var(--color-danger-ink);
   --color-ok-bg: var(--color-ok-bg);
   --color-ok-ink: var(--color-ok-ink);
+  --color-ok-dot: var(--color-ok-dot);
+  --color-ok-strong: var(--color-ok-strong);
+  --color-ok-mid: var(--color-ok-mid);
+  --color-ok-bd: var(--color-ok-bd);
+  --color-weekend: var(--color-weekend);
+  --color-danger-bd: var(--color-danger-bd);
   --font-sans: var(--font-ibm-plex-sans);
   --font-mono: var(--font-ibm-plex-mono);
 }

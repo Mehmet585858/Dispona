@@ -4,6 +4,7 @@ import {
   bisMonatsendeZielwochen,
   entwuerfePruefen,
   ersetzungPlanen,
+  scalamobilHoechstbelegung,
   wocheKopierenAenderungen,
   zielTage,
   type PlanKontext,
@@ -292,5 +293,37 @@ describe("betroffeneFahrten – Schicht ändern, wenn schon Fahrten darin liegen
       "f-09:00",
     ]);
     expect(betroffeneFahrten({ fahrten: [fahrt("08:00"), liegend], entfernt: [alt], stand: [], kontext: kontext() })).toHaveLength(2);
+  });
+});
+
+describe("scalamobilHoechstbelegung und Rückgängig-Stand", () => {
+  it("zählt gleichzeitige Scalamobil-Schichten, ausgefallene nicht", () => {
+    const tag = "2026-11-10";
+    const a = schicht("v201", tag, "06:00", "12:00", { scalamobil: true });
+    const b = schicht("v301", tag, "10:00", "14:00", { scalamobil: true, driverId: "brandt" });
+    const c = schicht("v101", tag, "12:00", "16:00", { scalamobil: true, driverId: "becker" });
+    expect(scalamobilHoechstbelegung([a, c])).toEqual({ anzahl: 1, tagIso: tag });
+    expect(scalamobilHoechstbelegung([a, b, c]).anzahl).toBe(2);
+    expect(scalamobilHoechstbelegung([a, { ...b, unavailable: true }]).anzahl).toBe(1);
+    expect(scalamobilHoechstbelegung([])).toEqual({ anzahl: 0, tagIso: null });
+  });
+
+  it("ersetzungPlanen liefert den vorherigen Stand je Fahrzeug-Tag (einmal, vor der ersten Änderung)", () => {
+    const alt = schicht("v101", "2026-11-11", "06:00", "14:00", { driverId: "becker", beifahrerId: "brandt" });
+    const plan = ersetzungPlanen({
+      aenderungen: [
+        { vehicleId: "v101", tagIso: "2026-11-11", entwuerfe: [entwurf()] },
+        { vehicleId: "v101", tagIso: "2026-11-11", entwuerfe: [entwurf({ von: "07:00" })] },
+      ],
+      bestand: [alt],
+      heuteIso: "2026-11-10",
+      kontext: kontext(),
+      modus: "STRENG",
+    });
+    expect(plan.ok && plan.vorher).toEqual([
+      { vehicleId: "v101", tagIso: "2026-11-11", entwuerfe: [{ von: "06:00", bis: "14:00", fahrerId: "becker", beifahrerId: "brandt", scalamobil: false }] },
+    ]);
+    expect(plan.ok && plan.anlegen).toHaveLength(1);
+    expect(plan.ok && plan.loeschen).toEqual([alt]);
   });
 });

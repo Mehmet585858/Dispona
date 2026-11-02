@@ -41,6 +41,12 @@ export const SCHICHTPLAN_TEXTE = {
   scalamobilFahrzeug: "Ein Scalamobil passt nur in ein Fahrzeug mit Tragestuhl oder Rollstuhlplatz.",
   mitSchichtNummer: (nummer: number, text: string) => `Schicht ${nummer}: ${text}`,
 
+  scalamobilAnzahlUngueltig: "Anzahl der Scalamobile zwischen 0 und 20 angeben.",
+  scalamobilZuWenig: (tag: string, anzahl: number) =>
+    `Am ${tag} sind ${anzahl} Scalamobile gleichzeitig eingeplant. Erst den Schichtplan anpassen, dann die Anzahl senken.`,
+  einweisungNochGebraucht: (zeiten: string) =>
+    `Die Einweisung wird noch gebraucht: Fahrten mit Treppe sind schon über das Scalamobil eingeplant (${zeiten}). Erst diese Fahrten umplanen.`,
+
   vergangenerTag: "Tag liegt in der Vergangenheit.",
   laufendeSchicht: (von: string, bis: string) => `Laufende Schicht ${von}–${bis} bleibt unverändert.`,
 

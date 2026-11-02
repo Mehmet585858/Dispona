@@ -2,9 +2,9 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { testSitzung } from "../hilfen/sitzungsMock";
 import { schichtZeitraum } from "@/core/shifts/dauer";
-import { schichtMusterSchema } from "@/core/drivers/validation";
+import { entwuerfePruefen } from "@/core/shifts/schichtplan";
 import { findeAktiveSchicht } from "@/core/disposition/kandidaten";
-import { berlinerMitternacht, mitUhrzeit } from "@/core/shifts/week";
+import { berlinerMitternacht, datumIso, mitUhrzeit, montagVonIso, tagVerschieben } from "@/core/shifts/week";
 import { prisma } from "@/lib/prisma";
 import { mandantKomplettLoeschen } from "@/lib/seedSchutz";
 
@@ -48,14 +48,19 @@ describe("Nachtschichten über Mitternacht (M-18)", () => {
     expect(findeAktiveSchicht(schichten, "v1", mitUhrzeit(montag, "21:30"))).toBeUndefined();
   });
 
-  it("M-18: Schema lehnt gleiche Start- und Endzeit sowie ungültige Uhrzeiten ab", () => {
-    const basis = { driverId: "d", vehicleId: "v", wochentage: [0] };
-    expect(schichtMusterSchema.safeParse({ ...basis, start: "22:00", end: "06:00" }).success).toBe(true);
-    expect(schichtMusterSchema.safeParse({ ...basis, start: "22:00", end: "22:00" }).success).toBe(false);
-    expect(schichtMusterSchema.safeParse({ ...basis, start: "25:00", end: "06:00" }).success).toBe(false);
+  it("M-18: Schichtplan lehnt gleiche Start- und Endzeit sowie ungültige Uhrzeiten ab, Nachtschicht geht", () => {
+    const kontext = {
+      personen: new Map([["d", { id: "d", name: "PRUEF", active: true, scalamobilEinweisung: false }]]),
+      fahrzeuge: new Map([["v", { id: "v", plate: "PRUEF", wheelchairSpots: 0, carryChair: false, stretcher: false }]]),
+      scalamobilAnzahl: 0,
+    };
+    const entwurf = (von: string, bis: string) => [{ von, bis, fahrerId: "d", beifahrerId: null, scalamobil: false }];
+    expect(entwuerfePruefen("v", "2026-11-02", entwurf("22:00", "06:00"), [], kontext).ok).toBe(true);
+    expect(entwuerfePruefen("v", "2026-11-02", entwurf("22:00", "22:00"), [], kontext).ok).toBe(false);
+    expect(entwuerfePruefen("v", "2026-11-02", entwurf("25:00", "06:00"), [], kontext).ok).toBe(false);
   });
 
-  describe("schichtMusterAnlegen gegen Postgres", () => {
+  describe("Schichtplan speichern gegen Postgres", () => {
     const kennung = randomUUID().slice(0, 8);
     let tenantId: string;
     let driverId: string;
@@ -81,16 +86,23 @@ describe("Nachtschichten über Mitternacht (M-18)", () => {
       await mandantKomplettLoeschen(tenantId);
     });
 
-    it("M-18 (Reproduktion Durchgang 1): Muster 22:00–06:00 → findeAktiveSchicht um 02:00 liefert die Schicht", async () => {
+    it("M-18 (Reproduktion Durchgang 1): Schicht 22:00–06:00 → findeAktiveSchicht um 02:00 des Folgetags liefert die Schicht", async () => {
       testSitzung.wert = { tenantId, userId, role: "ADMIN" };
-      const { schichtMusterAnlegen } = await import("@/app/dispo/fahrer/actions");
-      // Montag, 02.11.2026: Schicht Mo 22:00 – Di 06:00.
-      await schichtMusterAnlegen({ driverId, vehicleId, wochentage: [0], start: "22:00", end: "06:00" }, "2026-11-02");
+      const { schichtenSpeichern } = await import("@/app/dispo/schichtplan/actions");
+      // Ein Montag in der Zukunft (vergangene Tage überschreibt der Schichtplan nie).
+      const montag = montagVonIso(tagVerschieben(datumIso(new Date()), 7));
+      const ergebnis = await schichtenSpeichern({
+        vehicleId,
+        tagIso: montag,
+        giltFuer: "TAG",
+        entwuerfe: [{ von: "22:00", bis: "06:00", fahrerId: driverId, beifahrerId: null, scalamobil: false }],
+      });
+      expect(ergebnis.ok).toBe(true);
 
       const schichten = await prisma.shift.findMany({ where: { tenantId } });
       expect(schichten).toHaveLength(1);
       expect(schichten[0].end.getTime()).toBeGreaterThan(schichten[0].start.getTime());
-      const dienstagZweiUhr = mitUhrzeit(berlinerMitternacht("2026-11-03"), "02:00");
+      const dienstagZweiUhr = mitUhrzeit(berlinerMitternacht(tagVerschieben(montag, 1)), "02:00");
       expect(findeAktiveSchicht(schichten, vehicleId, dienstagZweiUhr)).toBe(schichten[0]);
     });
   });

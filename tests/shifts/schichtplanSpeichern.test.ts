@@ -1,8 +1,15 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { beifahrerAusSchichtenNehmen, schichtenErsetzen, schichtplanDatenLaden } from "@/core/shifts/schichtplanSpeichern";
+import {
+  beifahrerAusSchichtenNehmen,
+  scalamobilAnzahlSetzen,
+  scalamobilEinweisungSetzen,
+  schichtenErsetzen,
+  schichtplanDatenLaden,
+  wocheKopieren,
+} from "@/core/shifts/schichtplanSpeichern";
 import { fahrerDeaktivieren } from "@/core/drivers/deaktivieren";
-import { berlinerMitternacht, datumIso, mitUhrzeit, tagVerschieben } from "@/core/shifts/week";
+import { berlinerMitternacht, datumIso, mitUhrzeit, montagVonIso, tagVerschieben } from "@/core/shifts/week";
 import { SCHICHTPLAN_TEXTE } from "@/core/shifts/texte";
 import { prisma } from "@/lib/prisma";
 import { mandantKomplettLoeschen } from "@/lib/seedSchutz";
@@ -233,5 +240,68 @@ describe("schichtenErsetzen (Schichtplan speichern)", () => {
     // Zweiter Aufruf: nichts mehr zu tun.
     expect(await beifahrerAusSchichtenNehmen(tenantId, aushilfe, new Date())).toMatchObject({ schichten: 0, freigegeben: 0 });
     await prisma.driver.update({ where: { id: aushilfe }, data: { active: true, deactivatedAt: null } });
+  });
+
+  it("Woche kopieren: legt die Schichten der Quellwoche in der Folgewoche an; Rückgängig stellt den alten Stand her", async () => {
+    const quelle = montagVonIso(tag);
+    await schichtenErsetzen(tenantId, [{ vehicleId: fahrzeug, tagIso: tagVerschieben(quelle, 1), entwuerfe: [entwurf({ beifahrerId: aushilfe })] }], {
+      modus: "STRENG",
+    });
+    const ziel = tagVerschieben(quelle, 8);
+    await schichtenErsetzen(tenantId, [{ vehicleId: fahrzeug, tagIso: tagVerschieben(quelle, 9), entwuerfe: [entwurf({ fahrerId: fahrerB })] }], {
+      modus: "STRENG",
+    });
+    const kopie = await wocheKopieren(tenantId, quelle, "NAECHSTE_WOCHE");
+    expect(kopie).toMatchObject({ ok: true, zielWochen: 1, angelegt: 1, geloescht: 1 });
+    const nachher = await schichtplanDatenLaden(tenantId, tagVerschieben(quelle, 7), tagVerschieben(quelle, 13));
+    expect(nachher.schichten.map((s) => [s.tagIso, s.driverId, s.beifahrerId])).toEqual([[ziel, fahrerA, aushilfe]]);
+    if (!kopie.ok) return;
+    const zurueck = await schichtenErsetzen(tenantId, kopie.vorher, { modus: "UEBERSPRINGEN" });
+    expect(zurueck.ok).toBe(true);
+    const wieder = await schichtplanDatenLaden(tenantId, tagVerschieben(quelle, 7), tagVerschieben(quelle, 13));
+    expect(wieder.schichten.map((s) => [s.tagIso, s.driverId])).toEqual([[tagVerschieben(quelle, 9), fahrerB]]);
+  });
+
+  it("Scalamobil-Anzahl: Senken unter die geplante Belegung wird abgelehnt", async () => {
+    await schichtenErsetzen(tenantId, [{ vehicleId: fahrzeug, tagIso: tag, entwuerfe: [entwurf({ scalamobil: true })] }], { modus: "STRENG" });
+    const ergebnis = await scalamobilAnzahlSetzen(tenantId, 0);
+    expect(ergebnis.ok).toBe(false);
+    expect((await prisma.tenantSettings.findUniqueOrThrow({ where: { tenantId } })).scalamobilAnzahl).toBe(1);
+    expect(await scalamobilAnzahlSetzen(tenantId, 2)).toEqual({ ok: true });
+    expect(await scalamobilAnzahlSetzen(tenantId, -1)).toMatchObject({ ok: false });
+    await scalamobilAnzahlSetzen(tenantId, 1);
+  });
+
+  it("Einweisung entfernen wird abgelehnt, solange eine Treppen-Fahrt nur über das Scalamobil läuft", async () => {
+    const btw = (await prisma.vehicle.create({ data: { tenantId, plate: `PRUEF-S-${kennung}`, wheelchairSpots: 1 } })).id;
+    await prisma.driver.update({ where: { id: fahrerB }, data: { scalamobilEinweisung: true } });
+    await schichtenErsetzen(tenantId, [{ vehicleId: btw, tagIso: tag, entwuerfe: [entwurf({ fahrerId: fahrerB, scalamobil: true })] }], {
+      modus: "STRENG",
+    });
+    const treppe = (
+      await prisma.place.create({
+        data: { tenantId, label: "PRUEF Treppe", street: "T 1", zip: "52062", city: "Aachen", lat: 50.77, lng: 6.08, type: "WOHNUNG", treppe: true },
+      })
+    ).id;
+    await prisma.ride.create({
+      data: {
+        tenantId,
+        passengerId: fahrgast,
+        pickupPlaceId: treppe,
+        dropoffPlaceId: ort,
+        pickupAt: mitUhrzeit(berlinerMitternacht(tag), "09:00"),
+        transportType: "TRAGESTUHL",
+        status: "DISPONIERT",
+        source: "MANUELL",
+        vehicleId: btw,
+        driverId: fahrerB,
+      },
+    });
+    const abgelehnt = await scalamobilEinweisungSetzen(tenantId, fahrerB, false);
+    expect(abgelehnt.ok).toBe(false);
+    expect("fehler" in abgelehnt && abgelehnt.fehler).toMatch(/09:00/);
+    expect((await prisma.driver.findUniqueOrThrow({ where: { id: fahrerB } })).scalamobilEinweisung).toBe(true);
+    expect(await scalamobilEinweisungSetzen(tenantId, fahrerA, true)).toEqual({ ok: true });
+    expect(await scalamobilEinweisungSetzen(tenantId, fremderFahrer, true)).toEqual({ ok: false, fehler: "Fahrer nicht gefunden." });
   });
 });

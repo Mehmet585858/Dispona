@@ -9,6 +9,7 @@ export async function Schritt5Disposition() {
       datenschutzEinstellungen={einstellungen}
       istAdmin
       exportSpalten={exportSpalten}
+      scalamobilAnzahl={einstellungen.scalamobilAnzahl}
     />
   );
 }

@@ -119,6 +119,31 @@ function maxGleichzeitig(zeitraeume: { start: Date; end: Date }[], fenster: { st
   return maximum;
 }
 
+/**
+ * Höchste Zahl gleichzeitig eingeplanter Scalamobile in den Schichten (ausgefallene zählen nicht)
+ * und der Tag, an dem sie zuerst erreicht wird – zum Prüfen, ob die Anzahl in den Einstellungen
+ * gesenkt werden darf.
+ */
+export function scalamobilHoechstbelegung(schichten: PlanSchicht[]): { anzahl: number; tagIso: string | null } {
+  const ereignisse: [number, number][] = [];
+  for (const s of schichten) {
+    if (!s.scalamobil || s.unavailable) continue;
+    ereignisse.push([s.start.getTime(), 1], [s.end.getTime(), -1]);
+  }
+  ereignisse.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  let aktuell = 0;
+  let anzahl = 0;
+  let tagIso: string | null = null;
+  for (const [zeit, delta] of ereignisse) {
+    aktuell += delta;
+    if (aktuell > anzahl) {
+      anzahl = aktuell;
+      tagIso = datumIso(new Date(zeit));
+    }
+  }
+  return { anzahl, tagIso };
+}
+
 export type Pruefergebnis = { ok: true; schichten: PlanSchicht[] } | { ok: false; fehler: string };
 
 /**
@@ -216,6 +241,11 @@ export type Ersetzungsplan =
       behalten: Meldung[];
       /** Der Plan nach allen Änderungen. */
       stand: PlanSchicht[];
+      /**
+       * Der vorherige Stand der geänderten Fahrzeug-Tage als Änderungen – für „Rückgängig“ (noch
+       * einmal anwenden stellt die alten Schichten wieder her; laufende blieben ohnehin stehen).
+       */
+      vorher: Aenderung[];
     }
   | { ok: false; fehler: string };
 
@@ -237,6 +267,7 @@ export function ersetzungPlanen(params: {
   const anlegen: PlanSchicht[] = [];
   const uebersprungen: Meldung[] = [];
   const behalten: Meldung[] = [];
+  const vorher = new Map<string, Aenderung>();
 
   for (const a of aenderungen) {
     if (a.tagIso < heuteIso) {
@@ -253,6 +284,14 @@ export function ersetzungPlanen(params: {
       uebersprungen.push({ vehicleId: a.vehicleId, tagIso: a.tagIso, grund: ergebnis.fehler });
       continue;
     }
+    const schluessel = `${a.vehicleId}|${a.tagIso}`;
+    if (!vorher.has(schluessel)) {
+      vorher.set(schluessel, {
+        vehicleId: a.vehicleId,
+        tagIso: a.tagIso,
+        entwuerfe: ersetzt.sort((x, y) => x.start.getTime() - y.start.getTime()).map(alsEntwurf),
+      });
+    }
     for (const s of laufend) {
       behalten.push({ vehicleId: a.vehicleId, tagIso: a.tagIso, grund: T.laufendeSchicht(...zeitraumText(s)) });
     }
@@ -265,7 +304,7 @@ export function ersetzungPlanen(params: {
     anlegen.push(...ergebnis.schichten);
     stand = [...uebrige, ...ergebnis.schichten];
   }
-  return { ok: true, loeschen, anlegen, uebersprungen, behalten, stand };
+  return { ok: true, loeschen, anlegen, uebersprungen, behalten, stand, vorher: [...vorher.values()] };
 }
 
 /** Entwürfe aus vorhandenen Schichten (zum Kopieren einer Woche). */

@@ -36,3 +36,14 @@ export function fahrzeugArtLabel(fahrzeug: {
   if (fahrzeug.stretcher) arten.push("Liegend");
   return arten.length > 0 ? arten.join(", ") : "Sitzend";
 }
+
+/**
+ * Fahrzeugtyp mit Branchenkürzel für Zeilenköpfe, z. B. "BTW · Rollstuhl", "LMW · Liegend",
+ * "Sitzend" (Schichtplan, wie in der freigegebenen Vorschau).
+ */
+export function fahrzeugTypKurz(fahrzeug: { wheelchairSpots: number; carryChair: boolean; stretcher: boolean }): string {
+  const art = fahrzeugArtLabel(fahrzeug);
+  if (fahrzeug.stretcher) return `LMW · ${art}`;
+  if (fahrzeug.carryChair || fahrzeug.wheelchairSpots > 0) return `BTW · ${art}`;
+  return art;
+}

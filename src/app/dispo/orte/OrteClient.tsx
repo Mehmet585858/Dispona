@@ -5,7 +5,9 @@ import { useState } from "react";
 import { CsvImport } from "@/components/CsvImport";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { CheckboxField } from "@/components/ui/CheckboxField";
 import { Chip } from "@/components/ui/Chip";
+import { InfoTag } from "@/components/ui/InfoTag";
 import { Table, TableCell, TableHead, TableHeaderCell, TableRow } from "@/components/ui/Table";
 import { TextField } from "@/components/ui/TextField";
 import { Tile } from "@/components/ui/Tile";
@@ -17,6 +19,7 @@ import {
   type PlaceType,
 } from "@/core/places/validation";
 import { ortLöschen, orteImportieren, ortSpeichern } from "./actions";
+import { ORTE_TEXTE } from "./texte";
 
 type Ort = {
   id: string;
@@ -27,6 +30,7 @@ type Ort = {
   lat: number;
   lng: number;
   type: PlaceType;
+  treppe: boolean;
 };
 
 const LEER: OrtEingabe = {
@@ -37,6 +41,7 @@ const LEER: OrtEingabe = {
   lat: 50.7753,
   lng: 6.0839,
   type: "PRAXIS",
+  treppe: false,
 };
 
 export function OrteClient({ orte }: { orte: Ort[] }) {
@@ -63,6 +68,7 @@ export function OrteClient({ orte }: { orte: Ort[] }) {
       lat: ort.lat,
       lng: ort.lng,
       type: ort.type,
+      treppe: ort.treppe,
     });
     setFormularOffen(true);
   }
@@ -144,6 +150,12 @@ export function OrteClient({ orte }: { orte: Ort[] }) {
                 ))}
               </div>
             </div>
+            <CheckboxField
+              label={ORTE_TEXTE.treppe}
+              hint={ORTE_TEXTE.treppeHinweis}
+              checked={!!eingabe.treppe}
+              onChange={(event) => setEingabe({ ...eingabe, treppe: event.target.checked })}
+            />
             <div className="grid gap-4 sm:grid-cols-2">
               <TextField
                 label="Breitengrad (lat)"
@@ -191,7 +203,12 @@ export function OrteClient({ orte }: { orte: Ort[] }) {
         <tbody>
           {orte.map((ort) => (
             <TableRow key={ort.id}>
-              <TableCell>{ort.label}</TableCell>
+              <TableCell>
+                <span className="flex flex-wrap items-center gap-2">
+                  {ort.label}
+                  {ort.treppe ? <InfoTag>{ORTE_TEXTE.treppe}</InfoTag> : null}
+                </span>
+              </TableCell>
               <TableCell>
                 {ort.street}, {ort.zip} {ort.city}
               </TableCell>

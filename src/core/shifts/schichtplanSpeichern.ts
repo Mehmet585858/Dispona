@@ -17,7 +17,10 @@ import { fehlerArt } from "@/core/betrieb/cronLauf";
 import { fahrtAnforderung } from "./besatzung";
 import {
   betroffeneFahrten,
+  bisMonatsendeZielwochen,
   ersetzungPlanen,
+  scalamobilHoechstbelegung,
+  wocheKopierenAenderungen,
   schichtTag,
   tagLabel,
   type Aenderung,
@@ -43,6 +46,8 @@ export type SchichtplanErgebnis =
       freigegeben: number;
       /** Fahrten, die sich zwischenzeitlich geändert hatten und deshalb nicht angefasst wurden. */
       nichtFreigegeben: number;
+      /** Vorheriger Stand der geänderten Fahrzeug-Tage – für „Rückgängig“ erneut anwenden. */
+      vorher: Aenderung[];
     }
   | { ok: false; fehler: string }
   | { ok: false; hinweis: BetroffeneFahrtAnzeige[] };
@@ -137,7 +142,7 @@ export async function schichtenErsetzen(
   optionen: { modus: "STRENG" | "UEBERSPRINGEN"; bestaetigteFahrten?: string[]; userId?: string },
 ): Promise<SchichtplanErgebnis> {
   if (aenderungen.length === 0) {
-    return { ok: true, angelegt: 0, geloescht: 0, uebersprungen: [], behalten: [], freigegeben: 0, nichtFreigegeben: 0 };
+    return { ok: true, angelegt: 0, geloescht: 0, uebersprungen: [], behalten: [], freigegeben: 0, nichtFreigegeben: 0, vorher: [] };
   }
   const vehicleIds = [...new Set(aenderungen.map((a) => a.vehicleId))];
   const personIds = aenderungen.flatMap((a) => a.entwuerfe.flatMap((e) => [e.fahrerId, e.beifahrerId]));
@@ -210,6 +215,7 @@ export async function schichtenErsetzen(
     behalten: ergebnis.plan.behalten,
     freigegeben,
     nichtFreigegeben,
+    vorher: ergebnis.plan.vorher,
   };
 }
 
@@ -299,4 +305,103 @@ export async function schichtplanDatenLaden(tenantId: string, vonIso: string, bi
     schichten: schichten.map((s) => ({ ...s, tagIso: schichtTag(s) })),
     scalamobilAnzahl: settings?.scalamobilAnzahl ?? 0,
   };
+}
+
+/**
+ * „Woche in nächste Woche kopieren“ bzw. „Woche bis Monatsende wiederholen“. Fahrzeug-Tage mit
+ * Prüffehler werden übersprungen und gemeldet (Modus UEBERSPRINGEN), vergangene Tage und laufende
+ * Schichten nie überschrieben. Liegen Fahrten in wegfallender Zeit, kommt erst der Hinweis.
+ */
+export async function wocheKopieren(
+  tenantId: string,
+  quellMontagIso: string,
+  ziel: "NAECHSTE_WOCHE" | "BIS_MONATSENDE",
+  optionen: { bestaetigteFahrten?: string[]; userId?: string } = {},
+): Promise<SchichtplanErgebnis & { zielWochen: number }> {
+  const db = withTenant(tenantId);
+  const fahrzeuge = await db.vehicle.findMany({ where: { active: true }, select: { id: true } });
+  const quelle = await db.shift.findMany({
+    where: { start: { gte: berlinerMitternacht(quellMontagIso), lt: berlinerMitternacht(tagVerschieben(quellMontagIso, 7)) } },
+    select: SCHICHT_FELDER,
+  });
+  const { monat, zielMontage } =
+    ziel === "NAECHSTE_WOCHE"
+      ? { monat: undefined, zielMontage: [tagVerschieben(quellMontagIso, 7)] }
+      : bisMonatsendeZielwochen(quellMontagIso);
+  const aenderungen = zielMontage.flatMap((zielMontagIso) =>
+    wocheKopierenAenderungen({
+      bestand: quelle,
+      quellMontagIso,
+      zielMontagIso,
+      fahrzeugIds: fahrzeuge.map((f) => f.id),
+      nurMonat: monat,
+    }),
+  );
+  const ergebnis = await schichtenErsetzen(tenantId, aenderungen, { modus: "UEBERSPRINGEN", ...optionen });
+  return { ...ergebnis, zielWochen: zielMontage.length };
+}
+
+/**
+ * Anzahl der Scalamobile im Betrieb (Einstellungen, nur Admin). Senken nur, wenn der künftige
+ * Schichtplan nicht schon mehr Geräte gleichzeitig vorsieht – sonst Meldung, nichts geändert.
+ */
+export async function scalamobilAnzahlSetzen(
+  tenantId: string,
+  anzahl: number,
+  userId?: string,
+): Promise<{ ok: true } | { ok: false; fehler: string }> {
+  if (!Number.isInteger(anzahl) || anzahl < 0 || anzahl > 20) return { ok: false, fehler: SCHICHTPLAN_TEXTE.scalamobilAnzahlUngueltig };
+  const db = withTenant(tenantId);
+  const kuenftig = await db.shift.findMany({ where: { scalamobil: true, end: { gt: new Date() } }, select: SCHICHT_FELDER });
+  const hoechst = scalamobilHoechstbelegung(kuenftig);
+  if (hoechst.anzahl > anzahl && hoechst.tagIso) {
+    return { ok: false, fehler: SCHICHTPLAN_TEXTE.scalamobilZuWenig(tagLabel(hoechst.tagIso), hoechst.anzahl) };
+  }
+  await db.tenantSettings.update({ where: { tenantId }, data: { scalamobilAnzahl: anzahl } });
+  await db.auditLog.create({
+    data: { tenantId, userId, action: "tenantSettings.scalamobil_geaendert", entity: "TenantSettings", entityId: tenantId },
+  });
+  return { ok: true };
+}
+
+/**
+ * Scalamobil-Einweisung einer Person setzen oder entfernen. Entfernen nur, wenn ihr keine Fahrt
+ * mit Treppe zugewiesen ist, die genau über das Scalamobil läuft – sonst Meldung mit den
+ * Uhrzeiten (keine Namen), nichts geändert.
+ */
+export async function scalamobilEinweisungSetzen(
+  tenantId: string,
+  driverId: string,
+  wert: boolean,
+  userId?: string,
+): Promise<{ ok: true } | { ok: false; fehler: string }> {
+  try {
+    await referenzenPruefen(tenantId, { driver: [driverId] });
+  } catch (fehler) {
+    if (fehler instanceof FremdeReferenzError) return { ok: false, fehler: fehler.message };
+    throw fehler;
+  }
+  const db = withTenant(tenantId);
+  if (!wert) {
+    const ergebnis = await db.$transaction(async (tx) => {
+      const schichten = await tx.shift.findMany({
+        where: { driverId, scalamobil: true, end: { gt: new Date() } },
+        select: SCHICHT_FELDER,
+      });
+      if (schichten.length === 0) return [];
+      const kontext = await kontextLaden(tx, tenantId);
+      const person = kontext.personen.get(driverId);
+      if (person) kontext.personen.set(driverId, { ...person, scalamobilEinweisung: false });
+      const fahrten = await fahrtenFuerSchichtenLaden(tx, schichten);
+      return anzeige(betroffeneFahrten({ fahrten, entfernt: schichten, stand: schichten, kontext }), kontext);
+    });
+    if (ergebnis.length > 0) {
+      return { ok: false, fehler: SCHICHTPLAN_TEXTE.einweisungNochGebraucht(ergebnis.map((f) => `${f.tag} ${f.uhrzeit}`).join(", ")) };
+    }
+  }
+  await db.driver.update({ where: { id: driverId }, data: { scalamobilEinweisung: wert } });
+  await db.auditLog.create({
+    data: { tenantId, userId, action: wert ? "driver.einweisung_gesetzt" : "driver.einweisung_entfernt", entity: "Driver", entityId: driverId },
+  });
+  return { ok: true };
 }

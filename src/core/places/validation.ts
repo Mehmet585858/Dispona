@@ -20,6 +20,8 @@ export const ortSchema = z.object({
   lat: z.coerce.number().min(-90).max(90),
   lng: z.coerce.number().min(-180).max(180),
   type: z.enum(PLACE_TYPES),
+  /** Schichtplan (02.11.2026): Treppe am Ort – Tragestuhl-Fahrten brauchen dann 2 Personen oder ein Scalamobil. */
+  treppe: z.boolean().optional().default(false),
 });
 
 export type OrtEingabe = z.infer<typeof ortSchema>;
@@ -32,4 +34,5 @@ export const ORT_IMPORT_FELDER = [
   { schlüssel: "lat", label: "Breitengrad (lat)", pflicht: true },
   { schlüssel: "lng", label: "Längengrad (lng)", pflicht: true },
   { schlüssel: "type", label: "Art (PRAXIS/KLINIK/DIALYSE/PFLEGEHEIM/WOHNUNG/SONSTIGES)", pflicht: false },
+  { schlüssel: "treppe", label: "Treppe (ja/nein)", pflicht: false },
 ];

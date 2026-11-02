@@ -14,6 +14,7 @@ export default async function EinstellungenPage() {
       datenschutzEinstellungen={einstellungen}
       istAdmin={role === "ADMIN"}
       exportSpalten={exportSpalten}
+      scalamobilAnzahl={einstellungen.scalamobilAnzahl}
     />
   );
 }

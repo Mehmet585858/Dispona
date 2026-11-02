@@ -1,13 +1,11 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-
-const FOKUSSIERBAR_SELEKTOR =
-  'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+import { useRef } from "react";
+import { useFokusfalle } from "@/hooks/useFokusfalle";
 
 /** Zentriertes Überlagerungs-Fenster (docs/DESIGN-GUIDE.md Abschnitt 9): für Fahrt-Details und
  * Formulare. Pflicht laut Guide: role="dialog", Fokusfalle, Esc – der Fokus springt beim Öffnen
- * hinein, bleibt per Tab darin gefangen und danach zum Auslöser zurück. */
+ * hinein, bleibt per Tab darin gefangen und danach zum Auslöser zurück (useFokusfalle). */
 export function Modal({
   titel,
   onClose,
@@ -20,36 +18,7 @@ export function Modal({
   breit?: boolean;
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const ausloeser = document.activeElement as HTMLElement | null;
-    const erstesFeld = dialogRef.current?.querySelector<HTMLElement>(FOKUSSIERBAR_SELEKTOR);
-    (erstesFeld ?? dialogRef.current)?.focus();
-
-    function aufTastendruck(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        onClose();
-        return;
-      }
-      if (event.key !== "Tab" || !dialogRef.current) return;
-      const fokussierbar = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(FOKUSSIERBAR_SELEKTOR));
-      if (fokussierbar.length === 0) return;
-      const erste = fokussierbar[0];
-      const letzte = fokussierbar[fokussierbar.length - 1];
-      if (event.shiftKey && document.activeElement === erste) {
-        event.preventDefault();
-        letzte.focus();
-      } else if (!event.shiftKey && document.activeElement === letzte) {
-        event.preventDefault();
-        erste.focus();
-      }
-    }
-    document.addEventListener("keydown", aufTastendruck);
-    return () => {
-      document.removeEventListener("keydown", aufTastendruck);
-      ausloeser?.focus();
-    };
-  }, [onClose]);
+  useFokusfalle(dialogRef, onClose);
 
   return (
     <div

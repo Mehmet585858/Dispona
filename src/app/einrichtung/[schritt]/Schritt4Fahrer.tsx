@@ -1,20 +1,18 @@
-import { datumIso, wochenStart } from "@/core/shifts/week";
-import { fahrerLaden, fahrzeugeFuerAuswahl, schichtenFuerWoche } from "@/app/dispo/fahrer/actions";
+import { fahrerLaden } from "@/app/dispo/fahrer/actions";
 import { FahrerClient } from "@/app/dispo/fahrer/FahrerClient";
 
+/**
+ * Einrichtung Schritt 4: Personal einladen. Schichten werden seit dem Schichtplan (02.11.2026) nicht
+ * mehr hier, sondern unter /dispo/schichtplan geplant (Bauprotokoll 2026-11-02, offene Frage).
+ */
 export async function Schritt4Fahrer() {
-  const montag = datumIso(wochenStart(new Date()));
-  const [fahrer, fahrzeuge, schichten] = await Promise.all([
-    fahrerLaden(),
-    fahrzeugeFuerAuswahl(),
-    schichtenFuerWoche(montag),
-  ]);
+  const fahrer = await fahrerLaden();
   return (
     <div className="flex flex-col gap-2">
       <p className="text-sm text-muted">
-        Laden Sie Ihre Fahrer ein (SMS/Link) und legen Sie direkt einen Schichtplan für diese Woche an.
+        Fahrer und Aushilfen einladen (SMS mit Anmelde-Link). Die Schichten werden nach der Einrichtung im Schichtplan geplant.
       </p>
-      <FahrerClient fahrer={fahrer} fahrzeuge={fahrzeuge} anfangsSchichten={schichten} anfangsMontag={montag} />
+      <FahrerClient fahrer={fahrer} />
     </div>
   );
 }

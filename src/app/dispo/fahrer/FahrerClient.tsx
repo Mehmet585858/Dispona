@@ -1,114 +1,70 @@
 "use client";
 
-import { Fragment, useMemo, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { CsvImport } from "@/components/CsvImport";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { CheckboxField } from "@/components/ui/CheckboxField";
 import { Chip } from "@/components/ui/Chip";
+import { Hinweisbox } from "@/components/ui/Hinweisbox";
+import { InfoTag } from "@/components/ui/InfoTag";
+import { SelectField } from "@/components/ui/SelectField";
+import { Table, TableCell, TableHead, TableHeaderCell, TableRow } from "@/components/ui/Table";
 import { TextField } from "@/components/ui/TextField";
-import { Tile } from "@/components/ui/Tile";
-import {
-  FAHRER_IMPORT_FELDER,
-  type FahrerEinladenEingabe,
-  type SchichtMusterEingabe,
-} from "@/core/drivers/validation";
-import { fahrzeugArtLabel } from "@/core/vehicles/validation";
-import {
-  berlinerMitternacht,
-  datumIso,
-  montagVerschieben,
-  wochenTage,
-  WOCHENTAG_KURZ,
-} from "@/core/shifts/week";
+import { FAHRER_IMPORT_FELDER, type FahrerEinladenEingabe } from "@/core/drivers/validation";
 import { authClient } from "@/lib/auth-client";
 import {
+  aushilfeSetzen,
+  einweisungSetzen,
   fahrerDeaktivieren,
   fahrerEinladen,
   fahrerGeraetAbmelden,
   fahrerGeraeteLaden,
   fahrerImportieren,
-  schichtenFuerWoche,
-  schichtLöschen,
-  schichtMusterAnlegen,
 } from "./actions";
-import { FAHRER_TEXTE } from "./texte";
+import { FAHRER_TEXTE as T } from "./texte";
 
-type Fahrer = { id: string; active: boolean; user: { id: string; name: string; phone: string | null; email: string } };
-type Fahrzeug = {
+type Person = {
   id: string;
-  plate: string;
-  wheelchairSpots: number;
-  carryChair: boolean;
-  stretcher: boolean;
-};
-type Schicht = {
-  id: string;
-  driverId: string;
-  vehicleId: string;
-  start: Date;
-  end: Date;
-  vehicle: { plate: string };
+  active: boolean;
+  istAushilfe: boolean;
+  scalamobilEinweisung: boolean;
+  user: { id: string; name: string; phone: string | null; email: string };
 };
 
-function uhrzeit(datum: Date): string {
-  return new Date(datum).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
-}
-
-export function FahrerClient({
-  fahrer: anfangsFahrer,
-  fahrzeuge,
-  anfangsSchichten,
-  anfangsMontag,
-}: {
-  fahrer: Fahrer[];
-  fahrzeuge: Fahrzeug[];
-  anfangsSchichten: Schicht[];
-  anfangsMontag: string;
-}) {
-  const [montag, setMontag] = useState(anfangsMontag);
-  const [fahrer, setFahrerListe] = useState(anfangsFahrer);
-  const aktiveFahrer = fahrer.filter((f) => f.active);
-  const [schichten, setSchichten] = useState(anfangsSchichten);
-  const [lädtWoche, setLädtWoche] = useState(false);
+/**
+ * Personalverwaltung (vorher „Fahrer & Schichten“): Fahrer und Aushilfen einladen, Aushilfe und
+ * Scalamobil-Einweisung pflegen, Geräte abmelden, deaktivieren. Schichten plant der Schichtplan
+ * (/dispo/schichtplan); das frühere Schicht-Muster ist dort aufgegangen.
+ */
+export function FahrerClient({ fahrer: anfangsPersonal, istAdmin = true }: { fahrer: Person[]; istAdmin?: boolean }) {
+  const router = useRouter();
+  const [personal, setPersonal] = useState(anfangsPersonal);
+  // Nach router.refresh() kommen neue Daten als Prop – dann die Liste übernehmen (React-Muster:
+  // State beim Rendern an eine geänderte Prop anpassen, statt in einem Effect).
+  const [letzteProp, setLetzteProp] = useState(anfangsPersonal);
+  if (anfangsPersonal !== letzteProp) {
+    setLetzteProp(anfangsPersonal);
+    setPersonal(anfangsPersonal);
+  }
 
   const [einladenOffen, setEinladenOffen] = useState(false);
-  const [einladeEingabe, setEinladeEingabe] = useState<FahrerEinladenEingabe>({ name: "", phone: "" });
+  const [einladeEingabe, setEinladeEingabe] = useState<FahrerEinladenEingabe>({ name: "", phone: "", istAushilfe: false });
   const [einladeStatus, setEinladeStatus] = useState<string | null>(null);
   const [einladeFehler, setEinladeFehler] = useState<string | null>(null);
 
-  const [musterEingabe, setMusterEingabe] = useState<SchichtMusterEingabe>({
-    driverId: fahrer[0]?.id ?? "",
-    vehicleId: fahrzeuge[0]?.id ?? "",
-    wochentage: [0, 1, 2, 3, 4],
-    start: "06:00",
-    end: "14:00",
-  });
-  const [musterFehler, setMusterFehler] = useState<string | null>(null);
-  const [musterSpeichert, setMusterSpeichert] = useState(false);
-
+  const [zeilenFehler, setZeilenFehler] = useState<string | null>(null);
   const [deaktivierenId, setDeaktivierenId] = useState<string | null>(null);
-  const [deaktivierenFehler, setDeaktivierenFehler] = useState<string | null>(null);
 
-  const [geraeteFahrerId, setGeraeteFahrerId] = useState(fahrer[0]?.id ?? "");
+  const [geraeteId, setGeraeteId] = useState(anfangsPersonal[0]?.id ?? "");
   const [geraete, setGeraete] = useState<{ id: string; createdAt: Date; updatedAt: Date; userAgent: string | null }[]>([]);
   const [geraeteLaedt, setGeraeteLaedt] = useState(false);
   const [geraeteGeladen, setGeraeteGeladen] = useState(false);
 
-  const tage = useMemo(() => wochenTage(berlinerMitternacht(montag)), [montag]);
-
-  async function wocheLaden(neuerMontagIso: string) {
-    setLädtWoche(true);
-    try {
-      const ergebnis = await schichtenFuerWoche(neuerMontagIso);
-      setMontag(neuerMontagIso);
-      setSchichten(ergebnis);
-    } finally {
-      setLädtWoche(false);
-    }
-  }
-
-  function wocheWechseln(richtung: -1 | 1) {
-    wocheLaden(montagVerschieben(montag, richtung));
+  function setzeLokal(id: string, teil: Partial<Person>) {
+    setPersonal((liste) => liste.map((p) => (p.id === id ? { ...p, ...teil } : p)));
   }
 
   async function einladen() {
@@ -117,48 +73,55 @@ export function FahrerClient({
     try {
       const { email } = await fahrerEinladen(einladeEingabe);
       const { error } = await authClient.signIn.magicLink({ email, callbackURL: "/" });
-      setEinladeStatus(
-        error ? FAHRER_TEXTE.einladungOhneLink(error.message ?? "Unbekannter Fehler.") : FAHRER_TEXTE.einladungGesendet,
-      );
-      setEinladeEingabe({ name: "", phone: "" });
-      await wocheLaden(montag);
+      setEinladeStatus(error ? T.einladungOhneLink(error.message ?? "Unbekannter Fehler.") : T.einladungGesendet);
+      setEinladeEingabe({ name: "", phone: "", istAushilfe: false });
+      router.refresh();
     } catch {
-      setEinladeFehler(FAHRER_TEXTE.einladungFehler);
+      setEinladeFehler(T.einladungFehler);
     }
   }
 
-  function wochentagUmschalten(index: number) {
-    setMusterEingabe((aktuell) => ({
-      ...aktuell,
-      wochentage: aktuell.wochentage.includes(index)
-        ? aktuell.wochentage.filter((w) => w !== index)
-        : [...aktuell.wochentage, index].sort(),
-    }));
-  }
-
-  async function musterAnlegen() {
-    setMusterFehler(null);
-    setMusterSpeichert(true);
+  async function einweisung(person: Person, wert: boolean) {
+    setZeilenFehler(null);
     try {
-      await schichtMusterAnlegen(musterEingabe, montag);
-      await wocheLaden(montag);
+      const ergebnis = await einweisungSetzen(person.id, wert);
+      if (!ergebnis.ok) {
+        setZeilenFehler(ergebnis.fehler);
+        return;
+      }
+      setzeLokal(person.id, { scalamobilEinweisung: wert });
     } catch {
-      setMusterFehler("Konnte nicht angelegt werden.");
-    } finally {
-      setMusterSpeichert(false);
+      setZeilenFehler(T.aenderungFehler);
     }
   }
 
-  async function schichtEntfernen(id: string) {
-    await schichtLöschen(id);
-    await wocheLaden(montag);
+  async function aushilfe(person: Person, wert: boolean) {
+    setZeilenFehler(null);
+    try {
+      await aushilfeSetzen(person.id, wert);
+      setzeLokal(person.id, { istAushilfe: wert });
+    } catch {
+      setZeilenFehler(T.aenderungFehler);
+    }
   }
 
-  async function geraeteLaden(fahrerId: string) {
-    setGeraeteFahrerId(fahrerId);
+  /** Offboarding (Maßnahme M-12): zweistufig, zerstörende Aktion immer mit Rückfrage (Design-Guide 5.1). */
+  async function deaktivieren(id: string) {
+    setZeilenFehler(null);
+    try {
+      await fahrerDeaktivieren(id);
+      setzeLokal(id, { active: false });
+      setDeaktivierenId(null);
+    } catch {
+      setZeilenFehler(T.deaktivierenFehler);
+    }
+  }
+
+  async function geraeteLaden(id: string) {
+    setGeraeteId(id);
     setGeraeteLaedt(true);
     try {
-      setGeraete(await fahrerGeraeteLaden(fahrerId));
+      setGeraete(await fahrerGeraeteLaden(id));
       setGeraeteGeladen(true);
     } finally {
       setGeraeteLaedt(false);
@@ -166,251 +129,160 @@ export function FahrerClient({
   }
 
   async function geraetAbmelden(sessionId: string) {
-    await fahrerGeraetAbmelden(geraeteFahrerId, sessionId);
-    await geraeteLaden(geraeteFahrerId);
-  }
-
-  /** Offboarding (Maßnahme M-12): zweistufig, zerstörende Aktion immer mit Rückfrage (Design-Guide 5.1). */
-  async function deaktivieren(fahrerId: string) {
-    setDeaktivierenFehler(null);
-    try {
-      await fahrerDeaktivieren(fahrerId);
-      setFahrerListe((liste) => liste.map((f) => (f.id === fahrerId ? { ...f, active: false } : f)));
-      setDeaktivierenId(null);
-      await wocheLaden(montag);
-    } catch {
-      setDeaktivierenFehler(FAHRER_TEXTE.deaktivierenFehler);
-    }
+    await fahrerGeraetAbmelden(geraeteId, sessionId);
+    await geraeteLaden(geraeteId);
   }
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold text-ink">Fahrer & Schichten</h1>
+        <div>
+          <h1 className="text-2xl font-semibold text-ink">{T.titel}</h1>
+          <p className="text-sm text-muted">
+            {T.untertitel}{" "}
+            <Link href="/dispo/schichtplan" className="font-semibold text-accent hover:underline">
+              {T.zumSchichtplan}
+            </Link>
+          </p>
+        </div>
         <div className="flex gap-3">
-          <CsvImport titel="Fahrer" felder={FAHRER_IMPORT_FELDER} onImport={fahrerImportieren} />
+          <CsvImport titel="Personal" felder={FAHRER_IMPORT_FELDER} onImport={fahrerImportieren} />
           <Button type="button" onClick={() => setEinladenOffen(!einladenOffen)}>
-            Fahrer einladen
+            {T.einladen}
           </Button>
         </div>
       </div>
 
       {einladenOffen ? (
         <Card>
-          <h2 className="mb-4 text-lg font-semibold text-ink">Neuen Fahrer einladen</h2>
+          <h2 className="mb-4 text-lg font-semibold text-ink">{T.einladenTitel}</h2>
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+            <TextField label={T.name} value={einladeEingabe.name} onChange={(e) => setEinladeEingabe({ ...einladeEingabe, name: e.target.value })} />
             <TextField
-              label="Name"
-              value={einladeEingabe.name}
-              onChange={(event) => setEinladeEingabe({ ...einladeEingabe, name: event.target.value })}
-            />
-            <TextField
-              label="Handynummer"
+              label={T.handy}
               value={einladeEingabe.phone}
-              onChange={(event) => setEinladeEingabe({ ...einladeEingabe, phone: event.target.value })}
+              onChange={(e) => setEinladeEingabe({ ...einladeEingabe, phone: e.target.value })}
               placeholder="+49 170 1234567"
             />
             <Button type="button" onClick={einladen}>
-              Einladen
+              {T.einladenKnopf}
             </Button>
+          </div>
+          <div className="mt-3">
+            <CheckboxField
+              label={T.aushilfe}
+              hint={T.aushilfeHinweis}
+              checked={!!einladeEingabe.istAushilfe}
+              onChange={(e) => setEinladeEingabe({ ...einladeEingabe, istAushilfe: e.target.checked })}
+            />
           </div>
           {einladeStatus ? <p className="mt-3 text-sm text-accent">{einladeStatus}</p> : null}
           {einladeFehler ? <p className="mt-3 text-sm text-danger-ink">{einladeFehler}</p> : null}
         </Card>
       ) : null}
 
-      <Card>
-        <h2 className="mb-4 text-lg font-semibold text-ink">Schicht-Muster für diese Woche</h2>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-ink">Fahrer</label>
-            <select
-              value={musterEingabe.driverId}
-              onChange={(event) => setMusterEingabe({ ...musterEingabe, driverId: event.target.value })}
-              className="h-11 rounded-xl border border-line-strong bg-surface px-3 text-base text-ink"
-            >
-              {aktiveFahrer.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.user.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-ink">Fahrzeug</label>
-            <select
-              value={musterEingabe.vehicleId}
-              onChange={(event) => setMusterEingabe({ ...musterEingabe, vehicleId: event.target.value })}
-              className="h-11 rounded-xl border border-line-strong bg-surface px-3 text-base text-ink"
-            >
-              {fahrzeuge.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.plate} ({fahrzeugArtLabel(v)})
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-        <div className="mt-4">
-          <p className="mb-1.5 text-sm font-medium text-ink">Wochentage</p>
-          <div className="flex flex-wrap gap-2">
-            {WOCHENTAG_KURZ.map((kurz, index) => (
-              <Tile
-                key={kurz}
-                label={kurz}
-                active={musterEingabe.wochentage.includes(index)}
-                onClick={() => wochentagUmschalten(index)}
-              />
+      {zeilenFehler ? <Hinweisbox ton="fehler">{zeilenFehler}</Hinweisbox> : null}
+
+      {personal.length === 0 ? (
+        <p className="rounded-[14px] border border-line bg-surface p-4 text-sm text-muted">{T.keinPersonal}</p>
+      ) : (
+        <Table>
+          <TableHead>
+            <TableHeaderCell>{T.spalteName}</TableHeaderCell>
+            <TableHeaderCell>{T.spalteRolle}</TableHeaderCell>
+            <TableHeaderCell>{T.spalteEinweisung}</TableHeaderCell>
+            <TableHeaderCell>{T.spalteStatus}</TableHeaderCell>
+          </TableHead>
+          <tbody>
+            {personal.map((p) => (
+              <TableRow key={p.id}>
+                <TableCell>
+                  <span className="flex flex-wrap items-center gap-2 font-semibold">
+                    {p.user.name}
+                    {p.istAushilfe ? <InfoTag>{T.rolleAushilfe}</InfoTag> : null}
+                  </span>
+                </TableCell>
+                <TableCell>
+                  <CheckboxField
+                    label={T.rolleAushilfe}
+                    aria-label={T.aushilfeLabel(p.user.name)}
+                    checked={p.istAushilfe}
+                    disabled={!p.active}
+                    onChange={(e) => aushilfe(p, e.target.checked)}
+                  />
+                </TableCell>
+                <TableCell>
+                  <CheckboxField
+                    label="Eingewiesen"
+                    aria-label={T.einweisungLabel(p.user.name)}
+                    checked={p.scalamobilEinweisung}
+                    disabled={!p.active}
+                    onChange={(e) => einweisung(p, e.target.checked)}
+                  />
+                </TableCell>
+                <TableCell>
+                  <div className="flex flex-col items-start gap-1">
+                    {p.active ? <Chip>{T.aktiv}</Chip> : <Chip>{T.deaktiviert}</Chip>}
+                    {p.active && istAdmin ? (
+                      deaktivierenId === p.id ? (
+                        <button type="button" onClick={() => deaktivieren(p.id)} className="text-left text-xs font-semibold text-danger-ink hover:underline">
+                          {T.deaktivierenBestaetigen}
+                        </button>
+                      ) : (
+                        <button type="button" onClick={() => setDeaktivierenId(p.id)} className="text-xs font-semibold text-danger-ink hover:underline">
+                          {T.deaktivieren}
+                        </button>
+                      )
+                    ) : null}
+                  </div>
+                </TableCell>
+              </TableRow>
             ))}
-          </div>
-        </div>
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          <TextField
-            label="Startzeit"
-            type="time"
-            value={musterEingabe.start}
-            onChange={(event) => setMusterEingabe({ ...musterEingabe, start: event.target.value })}
-          />
-          <TextField
-            label="Endzeit"
-            type="time"
-            value={musterEingabe.end}
-            onChange={(event) => setMusterEingabe({ ...musterEingabe, end: event.target.value })}
-            hint={
-              musterEingabe.end && musterEingabe.end < musterEingabe.start
-                ? FAHRER_TEXTE.endeFolgetag(musterEingabe.end)
-                : undefined
-            }
-          />
-        </div>
-        {musterFehler ? <p className="mt-3 text-sm text-danger-ink">{musterFehler}</p> : null}
-        <Button
-          type="button"
-          className="mt-4"
-          onClick={musterAnlegen}
-          disabled={musterSpeichert || !musterEingabe.driverId || !musterEingabe.vehicleId}
-        >
-          {musterSpeichert ? "Legt an …" : "Für diese Woche anlegen"}
-        </Button>
-      </Card>
+          </tbody>
+        </Table>
+      )}
 
       <Card>
-        <h2 className="mb-4 text-lg font-semibold text-ink">Geräte verwalten</h2>
-        <p className="mb-3 text-sm text-muted">
-          Ein abgemeldetes Gerät braucht beim nächsten Öffnen wieder einen neuen Anmelde-Link.
-        </p>
-        <div className="flex items-end gap-3">
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-ink">Fahrer</label>
-            <select
-              value={geraeteFahrerId}
-              onChange={(event) => {
-                setGeraeteGeladen(false);
-                setGeraeteFahrerId(event.target.value);
-              }}
-              className="h-11 rounded-xl border border-line-strong bg-surface px-3 text-base text-ink"
-            >
-              {fahrer.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.user.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <Button type="button" variant="secondary" onClick={() => geraeteLaden(geraeteFahrerId)} disabled={geraeteLaedt || !geraeteFahrerId}>
-            {geraeteLaedt ? "Lädt …" : "Geräte anzeigen"}
+        <h2 className="mb-2 text-lg font-semibold text-ink">{T.geraeteTitel}</h2>
+        <p className="mb-3 text-sm text-muted">{T.geraeteHinweis}</p>
+        <div className="flex flex-wrap items-end gap-3">
+          <SelectField
+            label={T.person}
+            value={geraeteId}
+            onChange={(e) => {
+              setGeraeteGeladen(false);
+              setGeraeteId(e.target.value);
+            }}
+          >
+            {personal.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.user.name}
+              </option>
+            ))}
+          </SelectField>
+          <Button type="button" variant="secondary" onClick={() => geraeteLaden(geraeteId)} disabled={geraeteLaedt || !geraeteId}>
+            {geraeteLaedt ? T.geraeteLaedt : T.geraeteAnzeigen}
           </Button>
         </div>
         {geraeteGeladen ? (
           <div className="mt-4 flex flex-col gap-2">
             {geraete.length === 0 ? (
-              <p className="text-sm text-muted">Keine angemeldeten Geräte.</p>
+              <p className="text-sm text-muted">{T.keineGeraete}</p>
             ) : (
               geraete.map((g) => (
                 <div key={g.id} className="flex items-center justify-between rounded-xl border border-line px-3 py-2 text-sm">
                   <span className="text-ink-soft">
-                    Zuletzt aktiv {new Date(g.updatedAt).toLocaleString("de-DE")}
+                    {T.zuletztAktiv(new Date(g.updatedAt).toLocaleString("de-DE", { timeZone: "Europe/Berlin" }))}
                     {g.userAgent ? ` · ${g.userAgent.slice(0, 40)}` : ""}
                   </span>
-                  <button type="button" onClick={() => geraetAbmelden(g.id)} className="font-medium text-danger-ink hover:underline">
-                    Abmelden
+                  <button type="button" onClick={() => geraetAbmelden(g.id)} className="font-semibold text-danger-ink hover:underline">
+                    {T.abmelden}
                   </button>
                 </div>
               ))
             )}
           </div>
         ) : null}
-      </Card>
-
-      <Card>
-        <div className="mb-4 flex items-center justify-between">
-          <Button type="button" variant="secondary" onClick={() => wocheWechseln(-1)} disabled={lädtWoche}>
-            ‹ Vorherige Woche
-          </Button>
-          <h2 className="text-base font-semibold text-ink">
-            {tage[0].toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })} –{" "}
-            {tage[6].toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" })}
-          </h2>
-          <Button type="button" variant="secondary" onClick={() => wocheWechseln(1)} disabled={lädtWoche}>
-            Nächste Woche ›
-          </Button>
-        </div>
-
-        <div className="overflow-x-auto">
-          <div className="grid min-w-[800px] grid-cols-[140px_repeat(7,1fr)] gap-px rounded-xl bg-line">
-            <div className="bg-ground p-2" />
-            {tage.map((tag, index) => (
-              <div key={tag.toISOString()} className="bg-ground p-2 text-center text-xs font-medium text-muted">
-                {WOCHENTAG_KURZ[index]} {tag.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}
-              </div>
-            ))}
-            {fahrer.map((f) => (
-              <Fragment key={f.id}>
-                <div className="flex flex-col justify-center gap-1 bg-surface p-2 text-sm font-medium text-ink">
-                  <span>{f.user.name}</span>
-                  {!f.active ? (
-                    <Chip>{FAHRER_TEXTE.deaktiviert}</Chip>
-                  ) : deaktivierenId === f.id ? (
-                    <button type="button" onClick={() => deaktivieren(f.id)} className="text-left text-xs font-medium text-danger-ink hover:underline">
-                      {FAHRER_TEXTE.deaktivierenBestaetigen}
-                    </button>
-                  ) : (
-                    <button type="button" onClick={() => setDeaktivierenId(f.id)} className="text-left text-xs font-medium text-muted hover:underline">
-                      {FAHRER_TEXTE.deaktivieren}
-                    </button>
-                  )}
-                </div>
-                {tage.map((tag) => {
-                  const tagesSchichten = schichten.filter(
-                    (s) => s.driverId === f.id && datumIso(new Date(s.start)) === datumIso(tag),
-                  );
-                  return (
-                    <div key={`${f.id}-${tag.toISOString()}`} className="flex flex-col gap-1 bg-surface p-2">
-                      {tagesSchichten.map((schicht) => (
-                        <button
-                          key={schicht.id}
-                          type="button"
-                          onClick={() => schichtEntfernen(schicht.id)}
-                          title="Zum Entfernen klicken"
-                        >
-                          <Chip ton="accent">
-                            {uhrzeit(schicht.start)}–{uhrzeit(schicht.end)}
-                            {datumIso(new Date(schicht.end)) !== datumIso(new Date(schicht.start)) ? ` ${FAHRER_TEXTE.folgetagKurz}` : ""} ·{" "}
-                            {schicht.vehicle.plate}
-                          </Chip>
-                        </button>
-                      ))}
-                    </div>
-                  );
-                })}
-              </Fragment>
-            ))}
-          </div>
-        </div>
-        {fahrer.length === 0 ? (
-          <p className="mt-4 text-sm text-muted">Noch keine Fahrer eingeladen.</p>
-        ) : null}
-        {deaktivierenFehler ? <p className="mt-3 text-sm text-danger-ink">{deaktivierenFehler}</p> : null}
       </Card>
     </div>
   );

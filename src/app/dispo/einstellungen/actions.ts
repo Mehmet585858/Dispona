@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { withTenant } from "@/lib/db";
-import { requireBueroSession } from "@/lib/session";
+import { requireAdminSession, requireBueroSession } from "@/lib/session";
+import { scalamobilAnzahlSetzen } from "@/core/shifts/schichtplanSpeichern";
 import type { AutoMode } from "@/generated/prisma/enums";
 import { spaltenReihenfolgeBereinigen, type ExportSpalte } from "@/core/export/abrechnung";
 
@@ -19,7 +20,22 @@ export async function einstellungenLaden() {
     alertPhone: settings.alertPhone ?? "",
     dataRetentionDays: settings.dataRetentionDays,
     audioRetentionDays: settings.audioRetentionDays,
+    scalamobilAnzahl: settings.scalamobilAnzahl,
   };
+}
+
+/**
+ * Anzahl der Scalamobile (Treppensteiger) im Betrieb – nur ADMIN. Senken nur, wenn der künftige
+ * Schichtplan nicht mehr Geräte gleichzeitig vorsieht (sonst Meldung, nichts geändert).
+ */
+export async function scalamobilAnzahlSpeichern(anzahl: number): Promise<{ ok: true } | { ok: false; fehler: string }> {
+  const { tenantId, userId } = await requireAdminSession();
+  const ergebnis = await scalamobilAnzahlSetzen(tenantId, Number(anzahl), userId);
+  if (ergebnis.ok) {
+    revalidatePath("/dispo/einstellungen");
+    revalidatePath("/dispo/schichtplan");
+  }
+  return ergebnis;
 }
 
 export async function exportVorlageLaden(): Promise<ExportSpalte[]> {

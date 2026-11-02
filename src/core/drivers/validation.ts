@@ -15,9 +15,11 @@ export const fahrerEinladenSchema = z.object({
     .regex(/^\+?[0-9 ()/-]+$/, "Das sieht nicht nach einer Telefonnummer aus")
     .transform((roh) => telefonNormalisieren(roh))
     .refine((nummer) => nummer.length >= 8, "Handynummer unvollständig"),
+  /** Schichtplan (02.11.2026): Aushilfe – kann Fahrer oder Beifahrer sein, Anmeldung wie Fahrer. */
+  istAushilfe: z.boolean().optional().default(false),
 });
 
-export type FahrerEinladenEingabe = z.infer<typeof fahrerEinladenSchema>;
+export type FahrerEinladenEingabe = z.input<typeof fahrerEinladenSchema>;
 
 export const FAHRER_IMPORT_FELDER = [
   { schlüssel: "name", label: "Name", pflicht: true },
@@ -33,24 +35,6 @@ export function technischeFahrerEmail(phone: string): string {
   const ziffern = telefonNormalisieren(phone).replace(/[^0-9]/g, "");
   return `fahrer-${ziffern}@fahrer.intern`;
 }
-
-const UHRZEIT = /^([01]\d|2[0-3]):[0-5]\d$/;
-
-/**
- * Schichtmuster. Endzeit vor Startzeit = Nachtschicht bis zum Folgetag (Maßnahme M-18, siehe
- * schichtZeitraum in src/core/shifts/dauer.ts); gleiche Zeiten ergäben eine leere Schicht.
- */
-export const schichtMusterSchema = z
-  .object({
-    driverId: z.string().min(1, "Fahrer fehlt"),
-    vehicleId: z.string().min(1, "Fahrzeug fehlt"),
-    wochentage: z.array(z.number().min(0).max(6)).min(1, "Mindestens ein Tag wählen"),
-    start: z.string().regex(UHRZEIT, "Startzeit fehlt oder ungültig (HH:MM)"),
-    end: z.string().regex(UHRZEIT, "Endzeit fehlt oder ungültig (HH:MM)"),
-  })
-  .refine((muster) => muster.start !== muster.end, { message: "Start- und Endzeit sind gleich", path: ["end"] });
-
-export type SchichtMusterEingabe = z.infer<typeof schichtMusterSchema>;
 
 /** GPS-Position aus der Fahrer-App (Maßnahme M-05): gültige Breiten-/Längengrade, keine NaN/Infinity. */
 export const gpsPositionSchema = z.object({

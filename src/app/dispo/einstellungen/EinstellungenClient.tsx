@@ -8,6 +8,7 @@ import { TextField } from "@/components/ui/TextField";
 import { automodusEinstellungenSpeichern, type AutomodusEingabe, type DatenschutzEingabe } from "./actions";
 import { DatenschutzEinstellungen } from "./DatenschutzEinstellungen";
 import { ExportAbrechnung } from "./ExportAbrechnung";
+import { BetriebEinstellungen } from "./BetriebEinstellungen";
 import type { ExportSpalte } from "@/core/export/abrechnung";
 
 const AUTOMODUS_OPTIONEN: { wert: AutomodusEingabe["autoMode"]; label: string; hinweis: string }[] = [
@@ -21,11 +22,13 @@ export function EinstellungenClient({
   datenschutzEinstellungen,
   istAdmin,
   exportSpalten,
+  scalamobilAnzahl,
 }: {
   einstellungen: AutomodusEingabe;
   datenschutzEinstellungen: DatenschutzEingabe;
   istAdmin: boolean;
   exportSpalten: ExportSpalte[];
+  scalamobilAnzahl: number;
 }) {
   const router = useRouter();
   const [werte, setWerte] = useState<AutomodusEingabe>(einstellungen);
@@ -140,6 +143,8 @@ export function EinstellungenClient({
           </div>
         ) : null}
       </Card>
+
+      <BetriebEinstellungen anfangsAnzahl={scalamobilAnzahl} istAdmin={istAdmin} />
 
       <DatenschutzEinstellungen einstellungen={datenschutzEinstellungen} istAdmin={istAdmin} />
 
