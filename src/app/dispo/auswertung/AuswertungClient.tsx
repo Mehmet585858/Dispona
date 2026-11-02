@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { KpiTile } from "@/components/ui/KpiTile";
-import { berlinerMitternacht, montagVerschieben } from "@/core/shifts/week";
+import { berlinerMitternacht, montagVerschieben, tagVerschieben } from "@/core/shifts/week";
 import type { Kennzahlen } from "@/core/auswertung/kennzahlen";
 
 function prozent(wert: number | null): string {
@@ -13,8 +13,7 @@ function prozent(wert: number | null): string {
 export function AuswertungClient({ montagIso, kennzahlen }: { montagIso: string; kennzahlen: Kennzahlen }) {
   const router = useRouter();
   const montag = berlinerMitternacht(montagIso);
-  const sonntag = new Date(montag);
-  sonntag.setDate(sonntag.getDate() + 6);
+  const sonntag = berlinerMitternacht(tagVerschieben(montagIso, 6));
 
   function wocheWechseln(richtung: -1 | 1) {
     router.push(`/dispo/auswertung?montag=${montagVerschieben(montagIso, richtung)}`);
@@ -29,9 +28,9 @@ export function AuswertungClient({ montagIso, kennzahlen }: { montagIso: string;
             ‹ Vorherige Woche
           </Button>
           <span className="whitespace-nowrap text-sm font-medium text-ink">
-            {montag.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}
+            {montag.toLocaleDateString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit" })}
             {" – "}
-            {sonntag.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" })}
+            {sonntag.toLocaleDateString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", year: "numeric" })}
           </span>
           <Button type="button" variant="secondary" onClick={() => wocheWechseln(1)}>
             Nächste Woche ›

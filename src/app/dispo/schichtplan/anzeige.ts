@@ -59,6 +59,20 @@ export function zeitText(s: { start: Date; end: Date }): { von: string; bis: str
   return { von: uhrzeitBerlin(start), bis: uhrzeitBerlin(end), folgetag: datumIso(end) !== datumIso(start) };
 }
 
+/**
+ * Uhrzeiten für Beginn/Ende im Seitenfenster: 00:00 bis 23:45 in Viertelstunden, immer 24-Stunden-
+ * Format (ein Zeitfeld des Browsers zeigt je nach Spracheinstellung „AM/PM“). Eine vorhandene Zeit
+ * außerhalb des Rasters (z. B. 06:10) bleibt wählbar und wird einsortiert.
+ */
+export function uhrzeitOptionen(aktuell?: string): string[] {
+  const liste = Array.from({ length: 96 }, (_, i) => `${String(Math.floor(i / 4)).padStart(2, "0")}:${String((i % 4) * 15).padStart(2, "0")}`);
+  if (aktuell && /^\d{2}:\d{2}$/.test(aktuell) && !liste.includes(aktuell)) {
+    liste.push(aktuell);
+    liste.sort();
+  }
+  return liste;
+}
+
 export function etikettenFuer(fahrzeug: Fahrzeug, s: Schicht, personen: Map<string, PlanPerson>): BesatzungsEtikett[] {
   return besatzungsEtiketten(fahrzeug, besatzungVonPlanSchicht(s, personen));
 }

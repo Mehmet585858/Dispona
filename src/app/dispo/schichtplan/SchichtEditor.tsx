@@ -7,7 +7,6 @@ import { Hinweisbox } from "@/components/ui/Hinweisbox";
 import { RadioGroup } from "@/components/ui/RadioGroup";
 import { SelectField } from "@/components/ui/SelectField";
 import { SidePanel } from "@/components/ui/SidePanel";
-import { TextField } from "@/components/ui/TextField";
 import { besatzungsEtiketten } from "@/core/shifts/besatzung";
 import { besatzungVonPlanSchicht, tagLabel, zielTage, type GiltFuer, type PlanPerson, type SchichtEntwurf } from "@/core/shifts/schichtplan";
 import { tagKurzIso, WOCHENTAG_LABEL, wochentagVonIso } from "@/core/shifts/week";
@@ -18,6 +17,7 @@ import {
   leererEntwurf,
   MONATE,
   schichtenAm,
+  uhrzeitOptionen,
   zeitText,
   type EntwurfUi,
   type Fahrzeug,
@@ -205,15 +205,27 @@ export function SchichtEditor({
             </div>
             {e.faelltAus ? <p className="text-sm text-warn-ink">{T.faelltAusHinweis}</p> : null}
             <div className="grid grid-cols-2 gap-2.5">
-              <TextField label={T.beginn} type="time" step={900} value={e.von} onChange={(ev) => aendern(e.key, { von: ev.target.value })} />
-              <TextField
+              <SelectField label={T.beginn} value={e.von} onChange={(ev) => aendern(e.key, { von: ev.target.value })}>
+                {e.von ? null : <option value="">{T.uhrzeitWaehlen}</option>}
+                {uhrzeitOptionen(e.von).map((z) => (
+                  <option key={z} value={z}>
+                    {z}
+                  </option>
+                ))}
+              </SelectField>
+              <SelectField
                 label={T.ende}
-                type="time"
-                step={900}
                 value={e.bis}
                 onChange={(ev) => aendern(e.key, { bis: ev.target.value })}
                 hint={e.bis && e.von && e.bis < e.von ? T.folgetag(e.bis) : undefined}
-              />
+              >
+                {e.bis ? null : <option value="">{T.uhrzeitWaehlen}</option>}
+                {uhrzeitOptionen(e.bis).map((z) => (
+                  <option key={z} value={z}>
+                    {z}
+                  </option>
+                ))}
+              </SelectField>
             </div>
             <SelectField label={T.fahrer} value={e.fahrerId} onChange={(ev) => aendern(e.key, { fahrerId: ev.target.value, faelltAus: false })}>
               <option value="">{T.fahrerWaehlen}</option>

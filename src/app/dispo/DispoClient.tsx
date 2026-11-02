@@ -752,7 +752,7 @@ export function DispoClient({
               ‹
             </button>
             <span className="px-2 text-sm font-semibold text-ink">
-              {berlinerMitternacht(datum).toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit" })}
+              {berlinerMitternacht(datum).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin", weekday: "short", day: "2-digit", month: "2-digit" })}
             </span>
             <button type="button" onClick={() => tagWechseln(1)} aria-label="Nächster Tag" className="flex h-9 w-9 items-center justify-center rounded-lg text-ink-soft hover:bg-surface">
               ›
@@ -769,9 +769,9 @@ export function DispoClient({
               ‹ Vorherige Woche
             </Button>
             <span className="whitespace-nowrap text-sm font-medium text-ink">
-              {berlinerMitternacht(wochenStartIso).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}
+              {berlinerMitternacht(wochenStartIso).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit" })}
               {" – "}
-              {berlinerMitternacht(wochenEndeIso).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" })}
+              {berlinerMitternacht(wochenEndeIso).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", year: "numeric" })}
             </span>
             <Button type="button" variant="secondary" onClick={() => wocheWechseln(1)}>
               Nächste Woche ›

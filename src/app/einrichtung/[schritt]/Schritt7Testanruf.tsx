@@ -53,7 +53,7 @@ export function Schritt7Testanruf({ kiNummer, fahrer }: { kiNummer: string | nul
           <h2 className="text-lg font-semibold text-ink">Erfasste Testfahrt</h2>
           {fahrten.map((fahrt) => (
             <p key={fahrt.id} className="text-sm text-ink-soft">
-              {new Date(fahrt.pickupAt).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })} ·{" "}
+              {new Date(fahrt.pickupAt).toLocaleTimeString("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", minute: "2-digit" })} ·{" "}
               {fahrt.passenger.firstName} {fahrt.passenger.lastName}
             </p>
           ))}

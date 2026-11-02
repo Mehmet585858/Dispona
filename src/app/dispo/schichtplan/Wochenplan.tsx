@@ -49,7 +49,7 @@ export function Wochenplan({
 
   return (
     <div className="overflow-x-auto rounded-2xl border border-line bg-surface">
-      <div className="grid min-w-max grid-cols-[170px_repeat(7,minmax(160px,1fr))]">
+      <div className="grid min-w-[1290px] grid-cols-[170px_repeat(7,minmax(0,1fr))]">
         <div className="border-b border-line bg-surface2" />
         {tage.map((tag) => {
           const wochenende = wochentagVonIso(tag) >= 5;

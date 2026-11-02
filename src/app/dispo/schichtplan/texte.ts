@@ -68,6 +68,7 @@ export const SCHICHTPLAN_UI = {
   folgetag: (bis: string) => `Bis ${bis} am Folgetag.`,
   fahrer: "Fahrer",
   fahrerWaehlen: "Fahrer auswählen",
+  uhrzeitWaehlen: "Uhrzeit auswählen",
   beifahrer: "Beifahrer",
   beifahrerWaehlen: "Beifahrer auswählen",
   beifahrerHinzufuegen: "Beifahrer hinzufügen",

@@ -115,7 +115,7 @@ export function LiveClient({ initialDaten }: { initialDaten: LiveDaten }) {
           <div className="flex items-center gap-1 rounded-xl bg-ground p-1">
             <span className="flex h-9 w-9 items-center justify-center text-ink-soft">‹</span>
             <span className="px-2 text-sm font-semibold text-ink">
-              {new Date().toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit" })}
+              {new Date().toLocaleDateString("de-DE", { timeZone: "Europe/Berlin", weekday: "short", day: "2-digit", month: "2-digit" })}
             </span>
             <span className="flex h-9 w-9 items-center justify-center text-ink-soft">›</span>
           </div>
