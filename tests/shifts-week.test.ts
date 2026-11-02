@@ -2,10 +2,15 @@ import { describe, expect, it } from "vitest";
 import {
   berlinerMitternacht,
   datumIso,
+  kalenderwocheIso,
   mitUhrzeit,
+  monatsTageIso,
+  montagVonIso,
+  tagKurzIso,
   tagVerschieben,
   wochenStart,
   wochenTage,
+  wochentagVonIso,
 } from "@/core/shifts/week";
 
 describe("core/shifts/week – Zeitzone Europe/Berlin", () => {
@@ -54,5 +59,18 @@ describe("core/shifts/week – Zeitzone Europe/Berlin", () => {
   it("tagVerschieben rechnet kalendersicher über Monats- und DST-Grenzen", () => {
     expect(tagVerschieben("2026-10-31", 1)).toBe("2026-11-01");
     expect(tagVerschieben("2026-10-24", 7)).toBe("2026-10-31");
+  });
+
+  it("Schichtplan-Helfer: Wochentag, Monatstage, Montag, Kurzdatum, Kalenderwoche aus Kalendertagen", () => {
+    expect(wochentagVonIso("2026-11-02")).toBe(0);
+    expect(wochentagVonIso("2026-11-08")).toBe(6);
+    expect(monatsTageIso("2026-11-15")).toHaveLength(30);
+    expect(monatsTageIso("2028-02-10").at(-1)).toBe("2028-02-29");
+    expect(montagVonIso("2026-11-01")).toBe("2026-10-26");
+    expect(montagVonIso("2026-11-02")).toBe("2026-11-02");
+    expect(tagKurzIso("2026-11-02")).toBe("02.11.");
+    expect(kalenderwocheIso("2026-11-02")).toBe(45);
+    expect(kalenderwocheIso("2027-01-01")).toBe(53);
+    expect(kalenderwocheIso("2027-01-04")).toBe(1);
   });
 });

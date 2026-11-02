@@ -9,6 +9,7 @@ import { pushAnFahrer } from "@/core/notify/push";
 import { fahrtEntzogenText } from "@/core/notify/texte";
 import { fahrerNachAenderungBenachrichtigen } from "@/core/rides/fahrerBenachrichtigen";
 import { geplantesEnde } from "@/core/shifts/dauer";
+import { SCHICHTPLAN_TEXTE } from "@/core/shifts/texte";
 import { pruefeFahrerImDienst } from "./automodus";
 
 /** Wird geworfen, wenn das Zielfahrzeug zur Abholzeit schon anderweitig eingeplant ist - von
@@ -59,7 +60,26 @@ function uhrzeitBerlin(datum: Date): string {
  * (Maßnahme M-20, docs/13 R2-6). Probleme der Fahrt selbst (GENEHMIGUNG_FEHLT, DOPPELBUCHUNG …)
  * bleiben stehen.
  */
-export const DISPOSITIONS_PROBLEME = ["KEIN_FAHRZEUG", "Fahrer fällt aus", "FAHRT_ABGEBROCHEN"];
+export const DISPOSITIONS_PROBLEME = [
+  "KEIN_FAHRZEUG",
+  "Fahrer fällt aus",
+  "FAHRT_ABGEBROCHEN",
+  // Schichtplan (02.11.2026): Fahrt hat durch eine Schichtänderung ihr Fahrzeug verloren.
+  SCHICHTPLAN_TEXTE.hinweisSchichtGeaendert,
+  SCHICHTPLAN_TEXTE.hinweisBeifahrerDeaktiviert,
+];
+
+/** Push "Fahrt entzogen" (nur Uhrzeit, keine Fahrgastdaten) an den bisherigen Fahrer, mit Protokoll. */
+export async function fahrtEntzogenMelden(tenantId: string, driverId: string, rideId: string, pickupAt: Date) {
+  await pushAnFahrer(tenantId, driverId, {
+    title: "Fahrt entzogen",
+    body: fahrtEntzogenText(uhrzeitBerlin(pickupAt)),
+    url: "/fahrer",
+  });
+  await withTenant(tenantId).notification.create({
+    data: { tenantId, channel: "PUSH", toRef: driverId, rideId, kind: "FAHRT_ENTZOGEN" },
+  });
+}
 
 export async function fahrzeugZuweisen(
   tenantId: string,
@@ -234,13 +254,6 @@ export async function fahrzeugZuweisungAufheben(tenantId: string, rideId: string
   });
 
   if (bisherigerFahrerId) {
-    await pushAnFahrer(tenantId, bisherigerFahrerId, {
-      title: "Fahrt entzogen",
-      body: fahrtEntzogenText(uhrzeitBerlin(fahrt.pickupAt)),
-      url: "/fahrer",
-    });
-    await db.notification.create({
-      data: { tenantId, channel: "PUSH", toRef: bisherigerFahrerId, rideId, kind: "FAHRT_ENTZOGEN" },
-    });
+    await fahrtEntzogenMelden(tenantId, bisherigerFahrerId, rideId, fahrt.pickupAt);
   }
 }

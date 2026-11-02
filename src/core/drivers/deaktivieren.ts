@@ -11,6 +11,7 @@
 import { withTenant } from "@/lib/db";
 import { prisma } from "@/lib/prisma";
 import { fahrerFaelltAusKern } from "@/core/rides/fahrerAusfall";
+import { beifahrerAusSchichtenNehmen } from "@/core/shifts/schichtplanSpeichern";
 
 const EIN_JAHR_MS = 365 * 24 * 60 * 60_000;
 
@@ -32,10 +33,19 @@ export async function fahrerDeaktivieren(tenantId: string, driverId: string, use
     data: { endedAt: jetzt },
   });
   const umplanung = await fahrerFaelltAusKern(tenantId, driverId, jetzt, new Date(jetzt.getTime() + EIN_JAHR_MS), userId);
+  // Schichtplan: auch als Beifahrer austragen; Fahrten, die dann nicht mehr zur Besatzung passen
+  // (z. B. Liegend), werden wie bei "Ich falle aus" freigegeben.
+  const alsBeifahrer = await beifahrerAusSchichtenNehmen(tenantId, driverId, jetzt, userId);
 
   await db.auditLog.create({
     data: { tenantId, userId, action: "driver.deaktiviert", entity: "Driver", entityId: driverId },
   });
 
-  return { sitzungenGeloescht: sitzungen.count, pushAbosGeloescht: pushAbos.count, ...umplanung };
+  return {
+    sitzungenGeloescht: sitzungen.count,
+    pushAbosGeloescht: pushAbos.count,
+    ...umplanung,
+    beifahrerSchichten: alsBeifahrer.schichten,
+    beifahrerFahrtenFreigegeben: alsBeifahrer.freigegeben,
+  };
 }

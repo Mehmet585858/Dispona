@@ -146,6 +146,46 @@ export function tagVerschieben(isoDatum: string, tageVersatz: number): string {
   );
 }
 
+/**
+ * Wochentag eines Kalendertags "JJJJ-MM-TT", 0 = Montag … 6 = Sonntag. Reine Kalenderrechnung –
+ * unabhängig von der Server-Zeitzone (der Tag ist schon ein Berliner Kalendertag).
+ */
+export function wochentagVonIso(isoDatum: string): number {
+  const [jahr, monat, tag] = datumTeileOderFehler(isoDatum);
+  return (new Date(Date.UTC(jahr, monat - 1, tag)).getUTCDay() + 6) % 7;
+}
+
+/** Alle Kalendertage ("JJJJ-MM-TT") des Monats, in dem `isoDatum` liegt, vom 1. bis zum letzten. */
+export function monatsTageIso(isoDatum: string): string[] {
+  const [jahr, monat] = datumTeileOderFehler(isoDatum);
+  const anzahl = new Date(Date.UTC(jahr, monat, 0)).getUTCDate();
+  return Array.from(
+    { length: anzahl },
+    (_, i) => `${jahr}-${String(monat).padStart(2, "0")}-${String(i + 1).padStart(2, "0")}`,
+  );
+}
+
+/** Montag ("JJJJ-MM-TT") der Woche, in der der Kalendertag `isoDatum` liegt. */
+export function montagVonIso(isoDatum: string): string {
+  return tagVerschieben(isoDatum, -wochentagVonIso(isoDatum));
+}
+
+/** Kurzes deutsches Datum "TT.MM." für einen Kalendertag "JJJJ-MM-TT". */
+export function tagKurzIso(isoDatum: string): string {
+  const [, monat, tag] = datumTeileOderFehler(isoDatum);
+  return `${String(tag).padStart(2, "0")}.${String(monat).padStart(2, "0")}.`;
+}
+
+/** ISO-Kalenderwoche (1–53) eines Kalendertags "JJJJ-MM-TT". */
+export function kalenderwocheIso(isoDatum: string): number {
+  const [jahr, monat, tag] = datumTeileOderFehler(isoDatum);
+  const datum = new Date(Date.UTC(jahr, monat - 1, tag));
+  const wochentag = (datum.getUTCDay() + 6) % 7;
+  datum.setUTCDate(datum.getUTCDate() - wochentag + 3); // Donnerstag derselben Woche
+  const ersterDonnerstag = new Date(Date.UTC(datum.getUTCFullYear(), 0, 4));
+  return 1 + Math.round(((datum.getTime() - ersterDonnerstag.getTime()) / 86_400_000 - 3 + ((ersterDonnerstag.getUTCDay() + 6) % 7)) / 7);
+}
+
 /** Verschiebt ein "JJJJ-MM-TT"-Datum um ganze Wochen. */
 export function montagVerschieben(isoDatum: string, wochenVersatz: number): string {
   return tagVerschieben(isoDatum, wochenVersatz * 7);
