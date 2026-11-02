@@ -160,7 +160,7 @@ export function TripModal({
       {grund ? (
         <div className="mx-5 mb-5 flex flex-wrap items-center gap-3 rounded-xl border border-warn-bd bg-warn-bg p-3">
           <p className="text-sm text-warn-ink">
-            <strong>Braucht Sie:</strong> {grund}
+            <strong>{FAHRT_TEXTE.hinweis}:</strong> {grund}
           </p>
           <div className="ml-auto">
             <VorschlagAktion

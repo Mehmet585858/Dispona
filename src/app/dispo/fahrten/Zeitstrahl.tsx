@@ -6,6 +6,7 @@ import { fahrtVerschieben } from "./actions";
 import { chipStil, farbeFuerArt, type Fahrtzustand } from "@/core/rides/transportfarbe";
 import { TRANSPORT_TYPE_LABEL, TRANSPORT_TYPES } from "@/core/rides/validation";
 import type { FahrzeugLiveStatus } from "@/core/shifts/liveStatus";
+import { FAHRT_TEXTE } from "./texte";
 import {
   berlinerMitternacht,
   datumIso,
@@ -536,7 +537,7 @@ export function Zeitstrahl({
 
           {nichtZugewiesen.length > 0 ? (
             <>
-              <div className="text-sm font-medium text-warn-ink">Braucht Sie</div>
+              <div className="text-sm font-medium text-warn-ink">{FAHRT_TEXTE.hinweise}</div>
               {tage.map((tag, index) => {
                 const tagesFahrten = fahrtenAmTag(null, tag);
                 return (

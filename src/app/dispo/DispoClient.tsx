@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Chip } from "@/components/ui/Chip";
 import { KpiTile } from "@/components/ui/KpiTile";
+import { FAHRT_TEXTE } from "@/app/dispo/fahrten/texte";
 import { Modal } from "@/components/ui/Modal";
 import { TextField } from "@/components/ui/TextField";
 import { Tile } from "@/components/ui/Tile";
@@ -124,7 +125,7 @@ function BrauchtSieKarte({
   return (
     <Card className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <h2 className="font-semibold text-ink">Hinweis</h2>
+        <h2 className="font-semibold text-ink">{FAHRT_TEXTE.hinweise}</h2>
         {eintraege.length > 0 ? <Chip ton="warn">{eintraege.length}</Chip> : null}
       </div>
       <p className="text-sm text-muted">Dispona plant alles automatisch. Hier landet nur, was es nicht allein lösen kann.</p>
@@ -823,7 +824,7 @@ export function DispoClient({
             />
             {paket === "PRO" ? <KpiTile label="Gerade unterwegs" wert={kennzahlen.unterwegs} /> : null}
             {paket === "PRO" ? <KpiTile label="Von Dispona eingeplant" wert={kennzahlen.vonDisponaEingeplant} zusatz="heute" /> : null}
-            <KpiTile label="Braucht Sie" wert={kennzahlen.brauchtSie} warnstil={kennzahlen.brauchtSie > 0} />
+            <KpiTile label={FAHRT_TEXTE.hinweise} wert={kennzahlen.brauchtSie} warnstil={kennzahlen.brauchtSie > 0} />
             {/* Bei zwei Spalten (LITE: 3, PRO: 5 Kacheln - beides ungerade) hängt die letzte
              * Kachel sonst allein in einer eigenen Reihe - siehe derselbe Fix auf /live. */}
             <div className="col-span-2 sm:col-span-1">

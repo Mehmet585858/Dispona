@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { KpiTile } from "@/components/ui/KpiTile";
+import { FAHRT_TEXTE } from "@/app/dispo/fahrten/texte";
 import { Logo } from "@/components/ui/Logo";
 import { Bereichsnavigation } from "@/components/ui/Bereichsnavigation";
 import { AnrufKarussell, AnrufWarteKarte } from "@/app/dispo/DispoClient";
@@ -156,7 +157,7 @@ export function LiveClient({ initialDaten }: { initialDaten: LiveDaten }) {
               />
               <KpiTile label="Gerade unterwegs" wert={daten.kennzahlen.unterwegs} />
               <KpiTile label="Von Dispona eingeplant" wert={daten.kennzahlen.vonDisponaEingeplant} zusatz="heute" />
-              <KpiTile label="Braucht Sie" wert={daten.kennzahlen.brauchtSie} warnstil={daten.kennzahlen.brauchtSie > 0} />
+              <KpiTile label={FAHRT_TEXTE.hinweise} wert={daten.kennzahlen.brauchtSie} warnstil={daten.kennzahlen.brauchtSie > 0} />
               {/* Bei zwei Spalten (unter dem sm-Breakpoint) hängt die fünfte Kachel sonst allein in
                * einer eigenen Reihe - hier bewusst über die volle Breite gezogen statt als
                * unausgewogener Einzelkasten. Ab sm (5 Spalten) wieder ganz normal eine Kachel. */}
